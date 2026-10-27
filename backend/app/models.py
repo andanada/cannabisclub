@@ -173,3 +173,21 @@ class CheckIn(Base):
 @event.listens_for(CheckIn, "before_delete")
 def _immutable_generic(mapper, connection, target):
     raise ImmutableError("Aquest registre no es pot modificar ni esborrar")
+
+
+class Signature(Base):
+    """Signatura manuscrita en pantalla de l'alta d'un soci. Només d'afegir; la imatge va xifrada."""
+    __tablename__ = "signatures"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    kind: Mapped[str] = mapped_column(String(20), default="alta")
+    png_enc: Mapped[str] = mapped_column(Text)
+    sha256: Mapped[str] = mapped_column(String(64))  # hash(png + id del soci + data), per detectar alteracions
+
+
+@event.listens_for(Signature, "before_update")
+@event.listens_for(Signature, "before_delete")
+def _immutable_signature(mapper, connection, target):
+    raise ImmutableError("Les signatures no es poden modificar ni esborrar")

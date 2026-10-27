@@ -48,3 +48,6 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 #toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 90px; max-width: 90vw; padding: 12px 18px; background: var(--ink); color: var(--bg); border-radius: 10px; z-index: 10; }
 .login { max-width: 420px; margin: 8vh auto 0; }
 @media (min-width: 720px) { #app { padding-bottom: 96px; } }
+canvas.sig { width: 100%; max-width: 600px; aspect-ratio: 600 / 220; background: #fff; border: 2px dashed var(--line); border-radius: 10px; touch-action: none; display: block; }
+nav.tabs { scrollbar-width: none; mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+nav.tabs::-webkit-scrollbar { display: none; }

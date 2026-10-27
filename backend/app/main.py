@@ -302,6 +302,23 @@ def create_app(session_factory=None) -> FastAPI:
         check_local(s, user, m.local_id)
         return m
 
+    class SignaturaIn(BaseModel):
+        png_base64: str = Field(max_length=300_000)
+
+    @app.post("/socis/{member_id}/signatura", status_code=201)
+    def signar(member_id: int, body: SignaturaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        sig = run(service.save_signature, s, user, member_or_404(s, user, member_id), body.png_base64)
+        return {"id": sig.id, "sha256": sig.sha256}
+
+    @app.get("/socis/{member_id}/signatura")
+    def veure_signatura(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        r = service.read_signature(s, user, member_or_404(s, user, member_id))
+        if not r:
+            raise HTTPException(404, "Sense signatura")
+        return r
+
     @app.post("/socis/{member_id}/estat")
     def canvi_estat(member_id: int, body: EstatIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_manager(user)

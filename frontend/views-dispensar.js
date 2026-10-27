@@ -59,8 +59,8 @@ function altaForm() {
     guard(btn, out, async () => {
       const r = await api('/socis', { method: 'POST', body: { local_id: S.local, nom: f.nom.value.trim(), document: f.doc.value.trim(),
         naixement: f.naix.value, telefon: f.tel.value.trim() || null, email: f.mail.value.trim() || null } });
-      out.replaceChildren(msg('ok', 'Soci creat (núm. ' + r.id + ')'));
       Object.values(f).forEach((i) => { i.value = ''; });
+      out.replaceChildren(msg('ok', 'Soci creat (núm. ' + r.id + '). Falta la signatura:'), signaturePad(r.id, out));
     });
   } },
   h('h2', null, 'Alta de soci'),
@@ -129,3 +129,32 @@ VIEWS.dispensar = async () => {
   box.append(search, step);
   return box;
 };
+
+
+// Llenç de signatura (ratolí, tàctil o llapis). Només s'envia si s'ha dibuixat alguna cosa.
+function signaturePad(memberId, out) {
+  const canvas = h('canvas', { class: 'sig', width: 600, height: 220, 'aria-label': 'Espai per signar' });
+  const ctx2 = canvas.getContext('2d');
+  ctx2.lineWidth = 3; ctx2.lineCap = 'round'; ctx2.lineJoin = 'round'; ctx2.strokeStyle = '#000';
+  let drawing = false, dirty = false;
+  const pos = (e) => {
+    const r = canvas.getBoundingClientRect();
+    return [(e.clientX - r.left) * canvas.width / r.width, (e.clientY - r.top) * canvas.height / r.height];
+  };
+  const white = () => { ctx2.fillStyle = '#fff'; ctx2.fillRect(0, 0, canvas.width, canvas.height); };
+  white();
+  canvas.addEventListener('pointerdown', (e) => { drawing = true; try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* no passa res: seguim dibuixant */ } const [x, y] = pos(e); ctx2.beginPath(); ctx2.moveTo(x, y); });
+  canvas.addEventListener('pointermove', (e) => { if (!drawing) return; const [x, y] = pos(e); ctx2.lineTo(x, y); ctx2.stroke(); dirty = true; });
+  const stop = () => { drawing = false; };
+  canvas.addEventListener('pointerup', stop); canvas.addEventListener('pointercancel', stop);
+  const clear = h('button', { type: 'button', onclick: () => { white(); dirty = false; } }, 'Esborrar');
+  const save = h('button', { class: 'primary', type: 'button' }, 'Desar signatura');
+  const res = h('div');
+  save.addEventListener('click', () => guard(save, res, async () => {
+    if (!dirty) throw new Error('El soci ha de signar abans de desar');
+    const b64 = canvas.toDataURL('image/png').split(',')[1];
+    await api(`/socis/${memberId}/signatura`, { method: 'POST', body: { png_base64: b64 } });
+    out.replaceChildren(msg('ok', 'Soci donat d\'alta i signatura desada (núm. ' + memberId + ')'));
+  }));
+  return h('div', { class: 'card' }, h('p', { class: 'muted' }, 'Signa dins del quadre:'), canvas, h('div', { class: 'actions' }, save, clear), res);
+}

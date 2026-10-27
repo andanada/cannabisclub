@@ -179,3 +179,50 @@ def create_user(db: Session, actor: User | None, username: str, password: str, r
     audit_append(db, {"accio": "alta_usuari", "usuari": u.id, "rol": role, "per": actor.id if actor else None})
     db.commit()
     return u, secret
+
+
+MAX_SIGNATURE_BYTES = 200_000
+MIN_SIGNATURE_BYTES = 400  # un llenç buit queda per sota d'aquest mida
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def _signature_hash(png: bytes, member_id: int, ts_iso: str) -> str:
+    return hashlib.sha256(png + f"|{member_id}|{ts_iso}".encode()).hexdigest()
+
+
+def save_signature(db: Session, actor: User, member: Member, png_b64: str):
+    import base64
+    import binascii
+    from .models import Signature, now as _now
+    try:
+        png = base64.b64decode(png_b64, validate=True)
+    except (binascii.Error, ValueError):
+        raise ValueError("La signatura no és vàlida")
+    if not png.startswith(PNG_MAGIC):
+        raise ValueError("La signatura ha de ser una imatge PNG")
+    if len(png) > MAX_SIGNATURE_BYTES:
+        raise ValueError("La signatura és massa gran")
+    if len(png) < MIN_SIGNATURE_BYTES:
+        raise ValueError("La signatura està buida")
+    ts = _now()
+    sig = Signature(member_id=member.id, user_id=actor.id, ts=ts, png_enc=crypto.encrypt(png_b64),
+                    sha256=_signature_hash(png, member.id, ts.isoformat()))
+    db.add(sig)
+    db.flush()
+    audit_append(db, {"accio": "signatura_alta", "soci": member.id, "signatura": sig.id, "sha256": sig.sha256, "per": actor.id})
+    db.commit()
+    return sig
+
+
+def read_signature(db: Session, actor: User, member: Member) -> dict | None:
+    from .models import Signature
+    sig = db.scalar(select(Signature).where(Signature.member_id == member.id).order_by(Signature.id.desc()).limit(1))
+    if not sig:
+        return None
+    png_b64 = crypto.decrypt(sig.png_enc)
+    import base64
+    from .models import Signature as _S  # noqa: F401
+    ok = _signature_hash(base64.b64decode(png_b64), member.id, sig.ts.replace(tzinfo=sig.ts.tzinfo or timezone.utc).isoformat()) == sig.sha256
+    audit_append(db, {"accio": "consulta_signatura", "soci": member.id, "per": actor.id})
+    db.commit()
+    return {"id": sig.id, "ts": sig.ts.isoformat(), "sha256": sig.sha256, "hash_valid": ok, "png_base64": png_b64}
