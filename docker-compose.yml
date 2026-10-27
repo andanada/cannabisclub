@@ -1,0 +1,13 @@
+# PostgreSQL només a localhost. Les credencials vénen de .env (no versionat).
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: club
+      POSTGRES_USER: club
+      POSTGRES_PASSWORD: ${CLUB_DB_PASSWORD:?defineix CLUB_DB_PASSWORD a .env}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - /data/club-gestio/pgdata:/var/lib/postgresql/data
