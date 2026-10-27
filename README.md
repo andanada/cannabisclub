@@ -31,3 +31,12 @@ Preparació (un cop): `cd backend && CLUB_DATABASE_URL=<url del propietari> ../.
 Arrencada: `CLUB_DATABASE_URL=$CLUB_APP_DATABASE_URL uvicorn --factory app.main:create_app ...`
 
 Proves contra PostgreSQL: `CLUB_TEST_PG_URL=postgresql+psycopg://club:...@127.0.0.1:5433/club pytest`
+
+## Bàscula OHAUS
+
+`frontend/bascula.js` parla amb la bàscula per port sèrie (Web Serial): ordres `IP` (pes ara), `T` (tara), `Z` (zero); llegeix fins que el pes és estable (sense «?»).
+Proves de l'analitzador i del protocol amb una bàscula simulada: `cd frontend && node --test test/bascula.test.js`.
+
+**No s'ha provat amb cap bàscula real.** Requisits: Chrome o Edge, i un context segur (HTTPS o `localhost`). Per una tauleta a la xarxa privada cal servir l'app per HTTPS
+(per exemple amb `tailscale serve`), perquè amb `http://` el navegador amaga l'API de ports sèrie. La unitat de la bàscula ha de ser grams (o mg, kg, oz, lb, ct).
+El servidor ja valida la tolerància entre el pes de la bàscula i la quantitat dispensada (Admin → límits).

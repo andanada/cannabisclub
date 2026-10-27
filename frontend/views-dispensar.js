@@ -96,6 +96,7 @@ VIEWS.dispensar = async () => {
     const g = h('input', { inputmode: 'decimal', placeholder: '0,000' });
     const pes = h('input', { inputmode: 'decimal', placeholder: 'Pes de la bàscula (opcional)' });
     const btn = h('button', { class: 'primary', type: 'submit' }, 'Dispensar');
+    const scale = scalePanel(g, pes);
     return h('form', { class: 'card', onsubmit: (e) => {
       e.preventDefault();
       guard(btn, out, async () => {
@@ -105,6 +106,7 @@ VIEWS.dispensar = async () => {
         step.replaceChildren(chargeStep(m, r));
       });
     } }, h('h3', null, 'Producte'), list,
+    scale,
     h('div', { class: 'row' }, field('Quantitat (g)', g), field('Bàscula (g)', pes)),
     h('div', { class: 'actions' }, btn), out);
   }
@@ -157,4 +159,46 @@ function signaturePad(memberId, out) {
     out.replaceChildren(msg('ok', 'Soci donat d\'alta i signatura desada (núm. ' + memberId + ')'));
   }));
   return h('div', { class: 'card' }, h('p', { class: 'muted' }, 'Signa dins del quadre:'), canvas, h('div', { class: 'actions' }, save, clear), res);
+}
+
+
+// Bàscula OHAUS: es connecta un cop (el navegador demana permís) i es manté entre dispensacions.
+let BASCULA = null;
+const mgToG = (mg) => String(mg / 1000).replace('.', ',');
+
+function scalePanel(gInput, pesInput) {
+  if (!Bascula.supported()) {
+    return h('p', { class: 'muted' }, 'Bàscula: aquest navegador o connexió no admet ports sèrie (cal Chrome o Edge i HTTPS o localhost). Pots escriure el pes a mà.');
+  }
+  const out = h('div');
+  const state = h('span', { class: 'pill' });
+  const paint = () => {
+    const ok = BASCULA && BASCULA.connected;
+    state.textContent = ok ? 'bàscula connectada' : 'bàscula desconnectada';
+    state.className = 'pill ' + (ok ? 'ok' : 'warn');
+  };
+  paint();
+  const connect = h('button', { type: 'button' }, 'Connectar bàscula');
+  connect.addEventListener('click', () => guard(connect, out, async () => {
+    if (BASCULA && BASCULA.connected) await BASCULA.disconnect();
+    BASCULA = new Bascula({ baudRate: Number(localStorage.getItem('bauds')) || 9600 });
+    await BASCULA.connect();
+    paint();
+  }));
+  const weigh = h('button', { class: 'primary', type: 'button' }, 'Pesar');
+  weigh.addEventListener('click', () => guard(weigh, out, async () => {
+    if (!BASCULA || !BASCULA.connected) throw new Error('Connecta primer la bàscula');
+    const r = await BASCULA.readStable();
+    if (r.mg <= 0) throw new Error('La bàscula marca ' + r.raw + ': posa el producte al plat');
+    pesInput.value = mgToG(r.mg);
+    gInput.value = mgToG(r.mg);
+    out.replaceChildren(msg('ok', 'Pes estable: ' + r.raw));
+  }));
+  const tare = h('button', { type: 'button' }, 'Tara');
+  tare.addEventListener('click', () => guard(tare, out, async () => {
+    if (!BASCULA || !BASCULA.connected) throw new Error('Connecta primer la bàscula');
+    await BASCULA.tare();
+    toast('Tara enviada');
+  }));
+  return h('div', { class: 'card' }, h('div', null, state), h('div', { class: 'actions' }, connect, weigh, tare), out);
 }

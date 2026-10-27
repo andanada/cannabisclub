@@ -33,7 +33,7 @@ def create_app(session_factory=None) -> FastAPI:
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["Referrer-Policy"] = "no-referrer"
         if not request.url.path.startswith("/static-"):
-            if request.url.path not in ("/", "/sw.js", "/util.js", "/app.js", "/views-dispensar.js", "/views-gestio.js",
+            if request.url.path not in ("/", "/sw.js", "/util.js", "/bascula.js", "/app.js", "/views-dispensar.js", "/views-gestio.js",
                                         "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
                 resp.headers["Cache-Control"] = "no-store"
         return resp
