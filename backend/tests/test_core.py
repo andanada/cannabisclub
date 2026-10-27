@@ -60,4 +60,4 @@ def test_contrasenya_i_totp():
     import pyotp
     s = security.new_totp_secret()
     assert security.verify_totp(s, pyotp.TOTP(s).now())
-    assert not security.verify_totp(s, "000000") or True  # 000000 pot coincidir per atzar
+    assert not security.verify_totp(s, "abcdef")
