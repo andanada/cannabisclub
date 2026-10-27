@@ -1,0 +1,15 @@
+[Unit]
+Description=Gestió del club (FastAPI, només a 127.0.0.1)
+After=network.target
+
+[Service]
+WorkingDirectory=/data/repos/club-gestio/backend
+# Fitxer SEPARAT del .env del repo: només la URL del rol sense privilegis i les claus de xifrat (mai la contrasenya del propietari)
+EnvironmentFile=%h/.config/club-gestio/app.env
+ExecStart=/data/repos/club-gestio/.venv/bin/uvicorn --factory app.main:create_app --host 127.0.0.1 --port 8099
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

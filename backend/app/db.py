@@ -8,9 +8,9 @@ class Base(DeclarativeBase):
 
 
 def make_engine(url: str | None = None):
-    url = url or os.environ.get("CLUB_DATABASE_URL")
+    url = url or os.environ.get("CLUB_DATABASE_URL") or os.environ.get("CLUB_APP_DATABASE_URL")
     if not url:
-        raise RuntimeError("Falta CLUB_DATABASE_URL")
+        raise RuntimeError("Falta CLUB_DATABASE_URL o CLUB_APP_DATABASE_URL")
     kwargs = {"connect_args": {"check_same_thread": False}} if url.startswith("sqlite") else {}
     return create_engine(url, **kwargs)
 
