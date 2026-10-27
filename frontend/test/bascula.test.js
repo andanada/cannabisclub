@@ -56,7 +56,7 @@ test('readStable espera a que el pes sigui estable', async () => {
 test('readStable falla si mai s\'estabilitza', async () => {
   const f = fakeSerial(['   2.481 g ?']);
   const b = new Bascula({ serial: f.serial }); await b.connect();
-  await assert.rejects(b.readStable({ pollMs: 20, timeoutMs: 200 }), /no s'estabilitza/);
+  await assert.rejects(b.readStable({ pollMs: 20, timeoutMs: 200 }), /no respon o no s'estabilitza/);
   await b.disconnect();
 });
 
@@ -85,4 +85,43 @@ test('tara i zero envien les ordres T i Z; sense connexió falla', async () => {
 
 test('sense Web Serial el missatge és clar', async () => {
   await assert.rejects(new Bascula({ serial: null }).connect(), /no admet ports sèrie/);
+});
+
+test('formats alternatius: signe separat, prefix N/G/Net, mode', () => {
+  assert.equal(parsePesLine('+  12.34 g').mg, 12340);
+  assert.equal(parsePesLine('-   0.50 g').mg, -500);
+  assert.equal(parsePesLine('N   2.500 g').mg, 2500);
+  assert.equal(parsePesLine('Net: 2.500 g').mg, 2500);
+  assert.equal(parsePesLine('Wt: 1,250 kg').mg, 1250000);
+  assert.equal(parsePesLine('G 5.00 g ?').stable, false);
+});
+test('no confon data, hora ni etiquetes amb un pes', () => {
+  for (const l of ['2026-10-27', '13:45:02', 'Date 27/10/2026', 'Model: Ranger 3000', 'ID 0001', '---']) assert.equal(parsePesLine(l), null, l);
+});
+
+// Model que no entén «IP» però sí «P»: s'ha de recuperar sol
+function pickyScale(only) {
+  const sent = []; let ctrl;
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const readable = new ReadableStream({ start(c) { ctrl = c; } });
+  const writable = new WritableStream({ write(ch) { const cmd = dec.decode(ch).trim(); sent.push(cmd); if (cmd === only) ctrl.enqueue(enc.encode('   4.200 g\r\n')); } });
+  const port = { readable, writable, async open() {}, async close() {} };
+  return { serial: { async requestPort() { return port; } }, sent };
+}
+test('si la bàscula no respon a IP, prova P i recorda quina funciona', async () => {
+  const f = pickyScale('P');
+  const b = new Bascula({ serial: f.serial, read: ['IP', 'P', 'SP'] }); await b.connect();
+  const r = await b.readStable({ pollMs: 40, timeoutMs: 3000 });
+  assert.equal(r.mg, 4200); assert.equal(b.workingCommand, 'P');
+  assert.ok(f.sent.includes('IP') && f.sent.includes('P'));
+  await b.disconnect();
+});
+test('ordres de tara i zero configurables i registre cru', async () => {
+  const f = pickyScale('X');
+  const log = [];
+  const b = new Bascula({ serial: f.serial, tare: 'TARE', zero: 'ZERO', onRaw: (e) => log.push(e.dir + ':' + e.text) });
+  await b.connect(); await b.tare(); await b.zero();
+  assert.deepEqual(f.sent, ['TARE', 'ZERO']);
+  assert.deepEqual(log, ['tx:TARE', 'tx:ZERO']);
+  await b.disconnect();
 });

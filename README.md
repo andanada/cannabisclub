@@ -37,6 +37,6 @@ Proves contra PostgreSQL: `CLUB_TEST_PG_URL=postgresql+psycopg://club:...@127.0.
 `frontend/bascula.js` parla amb la bàscula per port sèrie (Web Serial): ordres `IP` (pes ara), `T` (tara), `Z` (zero); llegeix fins que el pes és estable (sense «?»).
 Proves de l'analitzador i del protocol amb una bàscula simulada: `cd frontend && node --test test/bascula.test.js`.
 
-**No s'ha provat amb cap bàscula real.** Requisits: Chrome o Edge, i un context segur (HTTPS o `localhost`). Per una tauleta a la xarxa privada cal servir l'app per HTTPS
+**No s'ha provat amb cap bàscula real ni es pot garantir que funcioni amb tots els models d'OHAUS.** A Admin → «Bàscula (perfil i diagnòstic)» es pot veure què envia el dispositiu i ajustar velocitat i ordres (per defecte prova `IP`, `P` i `SP`); el perfil es desa al navegador. Només cobreix dispositius per port sèrie o USB virtual (no Ethernet/Bluetooth). Requisits: Chrome o Edge, i un context segur (HTTPS o `localhost`). Per una tauleta a la xarxa privada cal servir l'app per HTTPS
 (per exemple amb `tailscale serve`), perquè amb `http://` el navegador amaga l'API de ports sèrie. La unitat de la bàscula ha de ser grams (o mg, kg, oz, lb, ct).
 El servidor ja valida la tolerància entre el pes de la bàscula i la quantitat dispensada (Admin → límits).

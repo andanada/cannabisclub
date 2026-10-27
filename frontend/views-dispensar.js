@@ -181,7 +181,7 @@ function scalePanel(gInput, pesInput) {
   const connect = h('button', { type: 'button' }, 'Connectar bàscula');
   connect.addEventListener('click', () => guard(connect, out, async () => {
     if (BASCULA && BASCULA.connected) await BASCULA.disconnect();
-    BASCULA = new Bascula({ baudRate: Number(localStorage.getItem('bauds')) || 9600 });
+    BASCULA = new Bascula(loadProfile());
     await BASCULA.connect();
     paint();
   }));

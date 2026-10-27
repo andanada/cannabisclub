@@ -66,5 +66,53 @@ VIEWS.admin = async () => {
   } }, h('h3', null, 'Nou usuari'),
   h('div', { class: 'row' }, field('Nom d\'usuari', un), field('Contrasenya (mínim 12 caràcters)', pw), field('Rol', rol)),
   h('h3', null, 'Locals amb accés'), h('div', null, checks), h('div', { class: 'actions' }, bU), outU));
+  box.append(scaleDiagnostics());
   return box;
 };
+
+// Diagnòstic i perfil de la bàscula: serveix per adaptar-se a qualsevol model OHAUS veient què envia realment.
+function scaleDiagnostics() {
+  if (!Bascula.supported()) {
+    return h('div', { class: 'card' }, h('h3', null, 'Bàscula'), h('p', { class: 'muted' }, 'Aquest navegador o connexió no admet ports sèrie (cal Chrome o Edge i HTTPS o localhost).'));
+  }
+  const p = loadProfile();
+  const baud = h('select', null, [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200].map((b) => h('option', { value: b, selected: b === p.baudRate }, b + ' bauds')));
+  const read = h('input', { value: p.read.join(',') });
+  const tare = h('input', { value: p.tare });
+  const zero = h('input', { value: p.zero });
+  const log = h('pre', { class: 'secret', 'aria-live': 'off' }, 'Encara no s\'ha rebut res.');
+  const out = h('div');
+  const paint = () => {
+    const lines = (BASCULA ? BASCULA.rawLog : []).slice(-25).map((e) => (e.dir === 'tx' ? '→ ' : '← ') + JSON.stringify(e.text));
+    log.textContent = lines.length ? lines.join('\n') : 'Encara no s\'ha rebut res.';
+  };
+  const profile = () => ({ baudRate: Number(baud.value), read: read.value.split(',').map((x) => x.trim()).filter(Boolean), tare: tare.value.trim() || 'T', zero: zero.value.trim() || 'Z' });
+  const save = h('button', { type: 'button' }, 'Desar perfil');
+  save.addEventListener('click', () => { saveProfile(profile()); toast('Perfil desat'); });
+  const connect = h('button', { class: 'primary', type: 'button' }, 'Connectar');
+  connect.addEventListener('click', () => guard(connect, out, async () => {
+    if (BASCULA && BASCULA.connected) await BASCULA.disconnect();
+    BASCULA = new Bascula(Object.assign(profile(), { onRaw: paint }));
+    await BASCULA.connect();
+    out.replaceChildren(msg('ok', 'Connectada. Prem «Llegir pes» o escriu una ordre.'));
+  }));
+  const cmd = h('input', { placeholder: 'Ordre (p. ex. IP, P, T, Z)' });
+  const send = h('button', { type: 'button' }, 'Enviar ordre');
+  send.addEventListener('click', () => guard(send, out, async () => {
+    if (!BASCULA || !BASCULA.connected) throw new Error('Connecta primer la bàscula');
+    await BASCULA.send(cmd.value.trim());
+    setTimeout(paint, 400);
+  }));
+  const weigh = h('button', { type: 'button' }, 'Llegir pes');
+  weigh.addEventListener('click', () => guard(weigh, out, async () => {
+    if (!BASCULA || !BASCULA.connected) throw new Error('Connecta primer la bàscula');
+    const r = await BASCULA.readStable();
+    paint();
+    out.replaceChildren(msg('ok', 'Pes estable: ' + r.raw + ' (ordre que funciona: ' + BASCULA.workingCommand + ')'));
+  }));
+  return h('div', { class: 'card' }, h('h3', null, 'Bàscula (perfil i diagnòstic)'),
+    h('p', { class: 'muted' }, 'Si el teu model d\'OHAUS no respon bé, connecta-la aquí, mira què envia i ajusta les ordres. El perfil es desa en aquest dispositiu.'),
+    h('div', { class: 'row' }, field('Velocitat', baud), field('Ordres de lectura (per ordre de prova)', read), field('Tara', tare), field('Zero', zero)),
+    h('div', { class: 'actions' }, connect, save), h('div', { class: 'row' }, field('Ordre manual', cmd)),
+    h('div', { class: 'actions' }, send, weigh), out, h('h3', null, 'Comunicació en cru'), log);
+}
