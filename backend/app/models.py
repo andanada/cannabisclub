@@ -14,6 +14,7 @@ class Local(Base):
     nom: Mapped[str] = mapped_column(String(120), unique=True)
     limit_diari_mg: Mapped[int | None] = mapped_column(Integer, nullable=True)
     limit_mensual_mg: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tolerancia_bascula_mg: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class User(Base):
@@ -145,3 +146,30 @@ def _no_update_cash(mapper, connection, target):
 @event.listens_for(CashEntry, "before_delete")
 def _no_delete_cash(mapper, connection, target):
     raise ImmutableError("Els apunts de caixa no es poden esborrar: crea una correcció")
+
+
+class TimeEvent(Base):
+    """Fitxatge de personal, només d'afegir."""
+    __tablename__ = "time_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    tipus: Mapped[str] = mapped_column(String(15))  # entrada | sortida | pausa_inici | pausa_fi
+
+
+class CheckIn(Base):
+    __tablename__ = "checkins"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
+@event.listens_for(TimeEvent, "before_update")
+@event.listens_for(TimeEvent, "before_delete")
+@event.listens_for(CheckIn, "before_update")
+@event.listens_for(CheckIn, "before_delete")
+def _immutable_generic(mapper, connection, target):
+    raise ImmutableError("Aquest registre no es pot modificar ni esborrar")

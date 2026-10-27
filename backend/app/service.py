@@ -111,3 +111,71 @@ def member_view(m: Member) -> dict:
         "document": crypto.decrypt(m.document_enc), "naixement": crypto.decrypt(m.naixement_enc),
         "telefon": crypto.decrypt(m.telefon_enc), "email": crypto.decrypt(m.email_enc), "estat": m.estat,
     }
+
+
+ESTATS = {"actiu", "suspes", "baixa"}
+
+
+def set_member_status(db: Session, actor: User, member: Member, estat: str) -> None:
+    if estat not in ESTATS:
+        raise ValueError("Estat no vàlid")
+    if member.estat == estat:
+        raise ValueError("El soci ja té aquest estat")
+    if member.estat == "baixa" and actor.role != "admin":
+        raise ValueError("Només un administrador pot reactivar un soci de baixa")
+    anterior, member.estat = member.estat, estat
+    audit_append(db, {"accio": "canvi_estat_soci", "soci": member.id, "de": anterior, "a": estat, "per": actor.id})
+    db.commit()
+
+
+def check_in(db: Session, actor: User, member: Member):
+    from .models import CheckIn
+    if member.estat != "actiu":
+        raise ValueError("El soci no està actiu")
+    c = CheckIn(local_id=member.local_id, member_id=member.id, user_id=actor.id)
+    db.add(c)
+    db.flush()
+    audit_append(db, {"accio": "entrada_soci", "soci": member.id, "per": actor.id})
+    db.commit()
+    return c
+
+
+def find_member_by_document(db: Session, local_id: int, document: str) -> Member | None:
+    return db.scalar(select(Member).where(Member.local_id == local_id, Member.document_idx == document_index(document)))
+
+
+def create_local(db: Session, actor: User, nom: str):
+    from .models import Local
+    if db.scalar(select(Local).where(Local.nom == nom)):
+        raise ValueError("Ja existeix un local amb aquest nom")
+    loc = Local(nom=nom)
+    db.add(loc)
+    db.flush()
+    audit_append(db, {"accio": "alta_local", "local": loc.id, "per": actor.id})
+    db.commit()
+    return loc
+
+
+ROLS = {"admin", "encarregat", "dispensador"}
+
+
+def create_user(db: Session, actor: User | None, username: str, password: str, role: str, local_ids: list[int]):
+    """Retorna (usuari, secret TOTP en clar). El secret només es mostra en crear-lo."""
+    from .models import Local, UserLocal
+    if role not in ROLS:
+        raise ValueError("Rol no vàlid")
+    if db.scalar(select(User).where(User.username == username)):
+        raise ValueError("Aquest nom d'usuari ja existeix")
+    for lid in local_ids:
+        if not db.get(Local, lid):
+            raise ValueError(f"El local {lid} no existeix")
+    secret = security.new_totp_secret()
+    u = User(username=username, password_hash=security.hash_password(password),
+             totp_secret_enc=crypto.encrypt(secret), role=role)
+    db.add(u)
+    db.flush()
+    for lid in local_ids:
+        db.add(UserLocal(user_id=u.id, local_id=lid))
+    audit_append(db, {"accio": "alta_usuari", "usuari": u.id, "rol": role, "per": actor.id if actor else None})
+    db.commit()
+    return u, secret

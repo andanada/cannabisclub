@@ -5,9 +5,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import cash, service, stock
+from . import cash, personal, service, stock
 from .db import make_engine, make_session_factory
-from .models import CashEntry, Member, Product, StockMovement, User, UserLocal
+from .models import CashEntry, Local, Member, Product, StockMovement, User, UserLocal
 
 CAN_CREATE_MEMBER = {"admin", "encarregat"}
 
@@ -241,5 +241,115 @@ def create_app(session_factory=None) -> FastAPI:
         service.audit_append(s, {"accio": "exportar_csv", "local": local_id, "per": user.id})
         s.commit()
         return Response(cash.entries_csv(s, local_id, des, fins), media_type="text/csv")
+
+    class EstatIn(BaseModel):
+        estat: str
+
+    class MermaIn(BaseModel):
+        product_id: int
+        grams: Decimal = Field(gt=0, max_digits=9, decimal_places=3)
+        nota: str = Field(min_length=3, max_length=300)
+
+    class AjustIn(BaseModel):
+        product_id: int
+        grams_reals: Decimal = Field(ge=0, max_digits=9, decimal_places=3)
+        nota: str = Field(min_length=3, max_length=300)
+
+    class FitxatgeIn(BaseModel):
+        local_id: int
+        tipus: str
+
+    class LocalIn(BaseModel):
+        nom: str = Field(min_length=2, max_length=120)
+
+    class UsuariIn(BaseModel):
+        username: str = Field(min_length=3, max_length=60)
+        password: str
+        role: str
+        local_ids: list[int] = []
+
+    class LimitsIn(BaseModel):
+        limit_diari_g: Decimal | None = Field(default=None, ge=0)
+        limit_mensual_g: Decimal | None = Field(default=None, ge=0)
+        tolerancia_bascula_g: Decimal | None = Field(default=None, ge=0)
+
+    def need_admin(user: User):
+        if user.role != "admin":
+            raise HTTPException(403, "Només administradors")
+
+    def member_or_404(s: Session, user: User, member_id: int) -> Member:
+        m = s.get(Member, member_id)
+        if not m:
+            raise HTTPException(404, "No existeix")
+        check_local(s, user, m.local_id)
+        return m
+
+    @app.post("/socis/{member_id}/estat")
+    def canvi_estat(member_id: int, body: EstatIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        run(service.set_member_status, s, user, member_or_404(s, user, member_id), body.estat)
+        return {"ok": True}
+
+    @app.post("/socis/{member_id}/entrada", status_code=201)
+    def entrada_soci(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        c = run(service.check_in, s, user, member_or_404(s, user, member_id))
+        return {"id": c.id}
+
+    @app.get("/locals/{local_id}/socis/cerca")
+    def cerca_soci(local_id: int, document: str, user: User = Depends(current_user), s: Session = Depends(db)):
+        check_local(s, user, local_id)
+        m = service.find_member_by_document(s, local_id, document)
+        service.audit_append(s, {"accio": "cerca_soci", "local": local_id, "trobat": bool(m), "per": user.id})
+        s.commit()
+        if not m:
+            raise HTTPException(404, "No existeix")
+        return service.member_view(m)
+
+    @app.post("/moviments/merma", status_code=201)
+    def merma(body: MermaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        product_or_404(s, user, body.product_id)
+        return {"id": run(stock.shrink, s, user, body.product_id, body.grams, body.nota).id}
+
+    @app.post("/moviments/ajust", status_code=201)
+    def ajust(body: AjustIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        product_or_404(s, user, body.product_id)
+        return {"id": run(stock.adjust, s, user, body.product_id, body.grams_reals, body.nota).id}
+
+    @app.post("/fitxatge", status_code=201)
+    def fitxar(body: FitxatgeIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        check_local(s, user, body.local_id)
+        return {"id": run(personal.clock, s, user, body.local_id, body.tipus).id}
+
+    @app.get("/locals/{local_id}/hores")
+    def hores(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return personal.hours(s, local_id, des, fins)
+
+    @app.post("/locals", status_code=201)
+    def alta_local(body: LocalIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        return {"id": run(service.create_local, s, user, body.nom).id}
+
+    @app.post("/usuaris", status_code=201)
+    def alta_usuari(body: UsuariIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        u, secret = run(service.create_user, s, user, body.username, body.password, body.role, body.local_ids)
+        return {"id": u.id, "totp_secret": secret}
+
+    @app.put("/locals/{local_id}/limits")
+    def limits(local_id: int, body: LimitsIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        loc = s.get(Local, local_id)
+        if not loc:
+            raise HTTPException(404, "Local inexistent")
+        mg = lambda g: None if g is None else int(g * 1000)
+        loc.limit_diari_mg, loc.limit_mensual_mg = mg(body.limit_diari_g), mg(body.limit_mensual_g)
+        loc.tolerancia_bascula_mg = mg(body.tolerancia_bascula_g)
+        service.audit_append(s, {"accio": "canvi_limits", "local": local_id, "per": user.id})
+        s.commit()
+        return {"ok": True}
 
     return app

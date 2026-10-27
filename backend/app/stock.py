@@ -78,6 +78,9 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     if stock_mg(db, p.id) < mg:
         raise ValueError("Estoc insuficient")
     local = db.get(Local, p.local_id)
+    if pes_bascula_g is not None and local.tolerancia_bascula_mg is not None:
+        if abs(grams_to_mg(pes_bascula_g) - mg) > local.tolerancia_bascula_mg:
+            raise ValueError("El pes de la bàscula no coincideix amb la quantitat dispensada")
     for period, limit in (("dia", local.limit_diari_mg), ("mes", local.limit_mensual_mg)):
         if limit is not None and dispensed_mg(db, member_id, period, now) + mg > limit:
             raise ValueError(f"Supera el límit {'diari' if period == 'dia' else 'mensual'} del soci")
@@ -114,5 +117,35 @@ def correct(db: Session, actor: User, movement_id: int, nota: str) -> StockMovem
     db.add(m)
     db.flush()
     service.audit_append(db, {"accio": "correccio", "moviment": m.id, "corregeix": orig.id, "per": actor.id})
+    db.commit()
+    return m
+
+
+def shrink(db: Session, actor: User, product_id: int, grams: Decimal, nota: str) -> StockMovement:
+    p = _lock_product(db, product_id)
+    mg = grams_to_mg(grams)
+    if stock_mg(db, p.id) < mg:
+        raise ValueError("La merma supera l'estoc")
+    m = StockMovement(local_id=p.local_id, product_id=p.id, tipus="merma", delta_mg=-mg, user_id=actor.id, nota=nota)
+    db.add(m)
+    db.flush()
+    service.audit_append(db, {"accio": "merma", "moviment": m.id, "producte": p.id, "mg": mg, "per": actor.id})
+    db.commit()
+    return m
+
+
+def adjust(db: Session, actor: User, product_id: int, grams_reals: Decimal, nota: str) -> StockMovement:
+    """Ajust d'inventari: deixa l'estoc exactament en `grams_reals` (>= 0)."""
+    p = _lock_product(db, product_id)
+    real = int((Decimal(grams_reals) * 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    if real < 0:
+        raise ValueError("L'inventari real no pot ser negatiu")
+    delta = real - stock_mg(db, p.id)
+    if delta == 0:
+        raise ValueError("L'estoc ja coincideix amb l'inventari")
+    m = StockMovement(local_id=p.local_id, product_id=p.id, tipus="ajust", delta_mg=delta, user_id=actor.id, nota=nota)
+    db.add(m)
+    db.flush()
+    service.audit_append(db, {"accio": "ajust_inventari", "moviment": m.id, "producte": p.id, "delta_mg": delta, "per": actor.id})
     db.commit()
     return m
