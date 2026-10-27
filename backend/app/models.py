@@ -104,3 +104,44 @@ def _no_update(mapper, connection, target):
 @event.listens_for(StockMovement, "before_delete")
 def _no_delete(mapper, connection, target):
     raise ImmutableError("Els moviments d'estoc no es poden esborrar: crea una correcció")
+
+
+class CashSession(Base):
+    __tablename__ = "cash_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    opened_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    opening_cent: Mapped[int] = mapped_column(Integer)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    expected_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    counted_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    diff_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class CashEntry(Base):
+    """Apunts de caixa, només d'afegir. Positiu = entra, negatiu = surt."""
+    __tablename__ = "cash_entries"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    session_id: Mapped[int] = mapped_column(ForeignKey("cash_sessions.id"))
+    tipus: Mapped[str] = mapped_column(String(20))  # cobrament | despesa | correccio
+    metode: Mapped[str] = mapped_column(String(10))  # efectiu | targeta
+    import_cent: Mapped[int] = mapped_column(Integer)
+    categoria: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    concepte: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    movement_id: Mapped[int | None] = mapped_column(ForeignKey("stock_movements.id"), nullable=True, unique=True)
+    corregeix_id: Mapped[int | None] = mapped_column(ForeignKey("cash_entries.id"), nullable=True, unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
+@event.listens_for(CashEntry, "before_update")
+def _no_update_cash(mapper, connection, target):
+    raise ImmutableError("Els apunts de caixa no es poden modificar: crea una correcció")
+
+
+@event.listens_for(CashEntry, "before_delete")
+def _no_delete_cash(mapper, connection, target):
+    raise ImmutableError("Els apunts de caixa no es poden esborrar: crea una correcció")

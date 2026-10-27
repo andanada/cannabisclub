@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import service
-from .models import Local, Member, Product, StockMovement, User
+from .models import CashEntry, Local, Member, Product, StockMovement, User
 
 TZ = ZoneInfo("Europe/Madrid")
 
@@ -102,6 +102,9 @@ def correct(db: Session, actor: User, movement_id: int, nota: str) -> StockMovem
         raise ValueError("Una correcció no es pot corregir")
     if db.scalar(select(StockMovement.id).where(StockMovement.corregeix_id == orig.id)):
         raise ValueError("Aquest moviment ja està corregit")
+    pagat = db.scalar(select(CashEntry).where(CashEntry.movement_id == orig.id))
+    if pagat and not db.scalar(select(CashEntry.id).where(CashEntry.corregeix_id == pagat.id)):
+        raise ValueError("La dispensació està cobrada: corregeix primer el cobrament")
     _lock_product(db, orig.product_id)
     if stock_mg(db, orig.product_id) - orig.delta_mg < 0:
         raise ValueError("La correcció deixaria l'estoc negatiu")

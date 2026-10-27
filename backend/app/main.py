@@ -1,13 +1,13 @@
 from datetime import date
 from decimal import Decimal
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import service, stock
+from . import cash, service, stock
 from .db import make_engine, make_session_factory
-from .models import Member, Product, StockMovement, User, UserLocal
+from .models import CashEntry, Member, Product, StockMovement, User, UserLocal
 
 CAN_CREATE_MEMBER = {"admin", "encarregat"}
 
@@ -162,5 +162,84 @@ def create_app(session_factory=None) -> FastAPI:
         check_local(s, user, orig.local_id)
         m = run(stock.correct, s, user, movement_id, body.nota)
         return {"id": m.id}
+
+    class ObrirIn(BaseModel):
+        local_id: int
+        opening_cent: int = Field(ge=0)
+
+    class TancarIn(BaseModel):
+        local_id: int
+        counted_cent: int = Field(ge=0)
+
+    class CobramentIn(BaseModel):
+        movement_id: int
+        metode: str
+
+    class DespesaIn(BaseModel):
+        local_id: int
+        cent: int = Field(gt=0)
+        metode: str
+        categoria: str = Field(min_length=1, max_length=60)
+        concepte: str = Field(min_length=3, max_length=300)
+
+    def need_manager(user: User):
+        if user.role not in CAN_CREATE_MEMBER:
+            raise HTTPException(403, "El teu rol no pot fer aquesta operació")
+
+    @app.post("/caixa/obrir", status_code=201)
+    def obrir_caixa(body: ObrirIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, body.local_id)
+        cs = run(cash.open_session, s, user, body.local_id, body.opening_cent)
+        return {"sessio": cs.id}
+
+    @app.post("/caixa/tancar")
+    def tancar_caixa(body: TancarIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, body.local_id)
+        cs = run(cash.close_session, s, user, body.local_id, body.counted_cent)
+        return {"sessio": cs.id, "esperat_cent": cs.expected_cent, "comptat_cent": cs.counted_cent, "diferencia_cent": cs.diff_cent}
+
+    @app.post("/cobraments", status_code=201)
+    def cobrament(body: CobramentIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        mv = s.get(StockMovement, body.movement_id)
+        if not mv:
+            raise HTTPException(404, "Moviment inexistent")
+        check_local(s, user, mv.local_id)
+        e = run(cash.charge, s, user, body.movement_id, body.metode)
+        return {"apunt": e.id, "import_cent": e.import_cent}
+
+    @app.post("/despeses", status_code=201)
+    def despesa(body: DespesaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, body.local_id)
+        e = run(cash.expense, s, user, body.local_id, body.cent, body.metode, body.categoria, body.concepte)
+        return {"apunt": e.id}
+
+    @app.post("/caixa/apunts/{entry_id}/correccio", status_code=201)
+    def correccio_apunt(entry_id: int, body: CorreccioIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        orig = s.get(CashEntry, entry_id)
+        if not orig:
+            raise HTTPException(404, "Apunt inexistent")
+        check_local(s, user, orig.local_id)
+        e = run(cash.correct_entry, s, user, entry_id, body.nota)
+        return {"apunt": e.id}
+
+    @app.get("/locals/{local_id}/informe")
+    def informe(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        if fins < des:
+            raise HTTPException(422, "Rang de dates invàlid")
+        return cash.report(s, local_id, des, fins)
+
+    @app.get("/locals/{local_id}/apunts.csv")
+    def apunts_csv(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        service.audit_append(s, {"accio": "exportar_csv", "local": local_id, "per": user.id})
+        s.commit()
+        return Response(cash.entries_csv(s, local_id, des, fins), media_type="text/csv")
 
     return app
