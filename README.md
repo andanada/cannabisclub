@@ -19,3 +19,15 @@ Arrencada (dev):
     export CLUB_FIELD_KEY=... CLUB_INDEX_KEY=... CLUB_DATABASE_URL=sqlite:///dev.db
     cd backend && ../.venv/bin/python -m app.cli crear-admin <usuari>
     ../.venv/bin/uvicorn --factory app.main:create_app --host 127.0.0.1 --port 8099
+
+## Base de dades en producció
+
+Dos rols de PostgreSQL:
+- `club` (propietari): només per crear l'esquema, els triggers i el rol de l'aplicació. No s'usa en funcionament.
+- `club_app`: el que fa servir l'aplicació (`CLUB_APP_DATABASE_URL`). No és superusuari ni propietari: a les taules d'apunts només té SELECT i INSERT,
+  i no pot desactivar triggers, canviar ni esborrar taules.
+
+Preparació (un cop): `cd backend && CLUB_DATABASE_URL=<url del propietari> ../.venv/bin/python -m app.cli preparar-bd ../.env`
+Arrencada: `CLUB_DATABASE_URL=$CLUB_APP_DATABASE_URL uvicorn --factory app.main:create_app ...`
+
+Proves contra PostgreSQL: `CLUB_TEST_PG_URL=postgresql+psycopg://club:...@127.0.0.1:5433/club pytest`
