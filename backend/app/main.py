@@ -1,6 +1,9 @@
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
+
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -19,6 +22,21 @@ def get_db_factory():
 
 def create_app(session_factory=None) -> FastAPI:
     app = FastAPI(title="club-gestio")
+
+    @app.middleware("http")
+    async def security_headers(request, call_next):
+        resp = await call_next(request)
+        resp.headers["Content-Security-Policy"] = (
+            "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
+            "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+        resp.headers["X-Frame-Options"] = "DENY"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        resp.headers["Referrer-Policy"] = "no-referrer"
+        if not request.url.path.startswith("/static-"):
+            if request.url.path not in ("/", "/sw.js", "/util.js", "/app.js", "/views-dispensar.js", "/views-gestio.js",
+                                        "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
+                resp.headers["Cache-Control"] = "no-store"
+        return resp
     factory = session_factory or get_db_factory()
 
     def db():
@@ -135,7 +153,7 @@ def create_app(session_factory=None) -> FastAPI:
     def veure_estoc(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
         check_local(s, user, local_id)
         prods = s.scalars(select(Product).where(Product.local_id == local_id, Product.actiu.is_(True)))
-        return [{"id": p.id, "nom": p.nom, "categoria": p.categoria,
+        return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": p.preu_cent_per_g,
                  "estoc_g": str(Decimal(stock.stock_mg(s, p.id)) / 1000)} for p in prods]
 
     @app.post("/moviments/entrada", status_code=201)
@@ -352,4 +370,41 @@ def create_app(session_factory=None) -> FastAPI:
         s.commit()
         return {"ok": True}
 
+    @app.get("/me")
+    def me(user: User = Depends(current_user), s: Session = Depends(db)):
+        if user.role == "admin":
+            locs = s.scalars(select(Local).order_by(Local.id)).all()
+        else:
+            ids = [r.local_id for r in s.scalars(select(UserLocal).where(UserLocal.user_id == user.id))]
+            locs = [s.get(Local, i) for i in ids]
+        return {"id": user.id, "username": user.username, "role": user.role,
+                "locals": [{"id": l.id, "nom": l.nom, "limit_diari_mg": l.limit_diari_mg,
+                            "limit_mensual_mg": l.limit_mensual_mg,
+                            "tolerancia_bascula_mg": l.tolerancia_bascula_mg} for l in locs]}
+
+    @app.post("/auth/logout")
+    def logout(authorization: str = Header(default=""), s: Session = Depends(db)):
+        import hashlib
+        from .models import SessionToken
+        _, _, token = authorization.partition(" ")
+        row = s.get(SessionToken, hashlib.sha256(token.encode()).hexdigest()) if token else None
+        if row:
+            s.delete(row)
+            s.commit()
+        return {"ok": True}
+
+    @app.get("/locals/{local_id}/caixa")
+    def estat_caixa(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        check_local(s, user, local_id)
+        cs = cash.current_session(s, local_id)
+        if not cs:
+            return {"oberta": False}
+        out = {"oberta": True, "sessio": cs.id, "obertura_cent": cs.opening_cent}
+        if user.role in CAN_CREATE_MEMBER:
+            out["esperat_cent"] = cash.expected_cash(s, cs)
+        return out
+
+    front = Path(__file__).resolve().parents[2] / "frontend"
+    if front.is_dir():
+        app.mount("/", StaticFiles(directory=front, html=True), name="front")
     return app

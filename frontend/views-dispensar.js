@@ -1,0 +1,131 @@
+'use strict';
+// Pantalles: Dispensar (flux complet) i Socis (cerca, alta, estat).
+
+function memberCard(m, out, onChange) {
+  const pill = h('span', { class: 'pill ' + (m.estat === 'actiu' ? 'ok' : 'bad') }, m.estat);
+  const card = h('div', { class: 'card' },
+    h('div', { class: 'big' }, m.nom), h('div', null, pill, ' ', h('span', { class: 'muted' }, m.document + ' · ' + m.naixement)),
+    m.telefon ? h('div', { class: 'muted' }, m.telefon) : null);
+  const bar = h('div', { class: 'actions' });
+  const entrada = h('button', { onclick: () => guard(entrada, out, async () => {
+    await api(`/socis/${m.id}/entrada`, { method: 'POST' });
+    out.replaceChildren(msg('ok', 'Entrada registrada'));
+  }) }, 'Registrar entrada');
+  bar.append(entrada);
+  if (isManager()) {
+    const sel = h('select', { 'aria-label': 'Nou estat' }, ['actiu', 'suspes', 'baixa'].map((e) => h('option', { value: e, selected: e === m.estat }, e)));
+    const set = h('button', { onclick: () => guard(set, out, async () => {
+      await api(`/socis/${m.id}/estat`, { method: 'POST', body: { estat: sel.value } });
+      m.estat = sel.value;
+      toast('Estat actualitzat');
+      if (onChange) onChange(m);
+    }) }, 'Canviar estat');
+    bar.append(sel, set);
+  }
+  card.append(bar);
+  return card;
+}
+
+function searchBox(onFound) {
+  const out = h('div');
+  const doc = h('input', { placeholder: 'DNI / NIE / passaport', autocapitalize: 'characters', autocomplete: 'off' });
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Cercar');
+  const form = h('form', { class: 'card', onsubmit: (e) => {
+    e.preventDefault();
+    guard(btn, out, async () => {
+      const m = await api(`/locals/${S.local}/socis/cerca?document=${encodeURIComponent(doc.value.trim())}`);
+      onFound(m, out);
+    });
+  } }, field('Document del soci', doc), h('div', { class: 'actions' }, btn), out);
+  return form;
+}
+
+VIEWS.socis = async () => {
+  const box = h('div');
+  const found = h('div');
+  const search = searchBox((m, out) => found.replaceChildren(memberCard(m, out)));
+  box.append(h('h2', null, 'Socis'), search, found);
+  if (isManager()) box.append(altaForm());
+  return box;
+};
+
+function altaForm() {
+  const out = h('div');
+  const f = { nom: h('input', { autocomplete: 'off' }), doc: h('input', { autocapitalize: 'characters', autocomplete: 'off' }),
+    naix: h('input', { type: 'date' }), tel: h('input', { inputmode: 'tel' }), mail: h('input', { type: 'email' }) };
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Donar d\'alta');
+  return h('form', { class: 'card', onsubmit: (e) => {
+    e.preventDefault();
+    guard(btn, out, async () => {
+      const r = await api('/socis', { method: 'POST', body: { local_id: S.local, nom: f.nom.value.trim(), document: f.doc.value.trim(),
+        naixement: f.naix.value, telefon: f.tel.value.trim() || null, email: f.mail.value.trim() || null } });
+      out.replaceChildren(msg('ok', 'Soci creat (núm. ' + r.id + ')'));
+      Object.values(f).forEach((i) => { i.value = ''; });
+    });
+  } },
+  h('h2', null, 'Alta de soci'),
+  h('div', { class: 'row' }, field('Nom i cognoms', f.nom), field('Document', f.doc), field('Data de naixement', f.naix)),
+  h('div', { class: 'row' }, field('Telèfon (opcional)', f.tel), field('Correu (opcional)', f.mail)),
+  h('div', { class: 'actions' }, btn), out);
+}
+
+VIEWS.dispensar = async () => {
+  const caixa = await api(`/locals/${S.local}/caixa`);
+  const box = h('div', null, h('h2', null, 'Dispensar'));
+  if (!caixa.oberta) {
+    box.append(msg('err', 'No hi ha cap caixa oberta en aquest local. Un encarregat l\'ha d\'obrir abans de dispensar.'));
+    return box;
+  }
+  const step = h('div');
+  const productes = await api(`/locals/${S.local}/estoc`);
+  let member = null;
+  const search = searchBox((m, out) => {
+    member = m;
+    step.replaceChildren(memberCard(m, out), m.estat === 'actiu' ? productStep(m) : msg('err', 'El soci no està actiu: no es pot dispensar.'));
+  });
+
+  function productStep(m) {
+    let chosen = null;
+    const out = h('div');
+    const list = h('div', { class: 'products' }, productes.map((p) => {
+      const b = h('button', { 'aria-pressed': 'false', onclick: () => {
+        chosen = p; list.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      } }, h('strong', null, p.nom), h('span', { class: 'muted' }, p.estoc_g + ' g · ' + eur(p.preu_cent_per_g) + '/g'));
+      return b;
+    }));
+    const g = h('input', { inputmode: 'decimal', placeholder: '0,000' });
+    const pes = h('input', { inputmode: 'decimal', placeholder: 'Pes de la bàscula (opcional)' });
+    const btn = h('button', { class: 'primary', type: 'submit' }, 'Dispensar');
+    return h('form', { class: 'card', onsubmit: (e) => {
+      e.preventDefault();
+      guard(btn, out, async () => {
+        if (!chosen) throw new Error('Tria un producte');
+        const r = await api('/dispensacions', { method: 'POST', body: { member_id: m.id, product_id: chosen.id,
+          grams: parseGrams(g.value), pes_bascula_g: pes.value.trim() ? parseGrams(pes.value) : null } });
+        step.replaceChildren(chargeStep(m, r));
+      });
+    } }, h('h3', null, 'Producte'), list,
+    h('div', { class: 'row' }, field('Quantitat (g)', g), field('Bàscula (g)', pes)),
+    h('div', { class: 'actions' }, btn), out);
+  }
+
+  function chargeStep(m, r) {
+    const out = h('div');
+    const pay = (metode) => {
+      const b = metode === 'efectiu' ? cash : card;
+      return guard(b, out, async () => {
+        await api('/cobraments', { method: 'POST', body: { movement_id: r.id, metode } });
+        step.replaceChildren(msg('ok', `Cobrat ${eur(r.import_cent)} (${metode}) a ${m.nom}`),
+          h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => show('dispensar') }, 'Nova dispensació')));
+      });
+    };
+    const cash = h('button', { class: 'primary', onclick: () => pay('efectiu') }, 'Cobrar en efectiu');
+    const card = h('button', { onclick: () => pay('targeta') }, 'Cobrar amb targeta');
+    return h('div', { class: 'card' }, h('h2', null, 'Dispensació registrada'),
+      h('div', { class: 'big' }, eur(r.import_cent)), h('p', { class: 'muted' }, 'Falta cobrar-la.'),
+      h('div', { class: 'actions' }, cash, card), out);
+  }
+
+  box.append(search, step);
+  return box;
+};
