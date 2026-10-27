@@ -5,7 +5,8 @@ import sys
 import pyotp
 
 from . import service
-from .db import make_engine, make_session_factory, Base
+from . import schema
+from .db import make_engine, make_session_factory
 
 
 def main(argv: list[str]) -> int:
@@ -13,7 +14,7 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 2
     engine = make_engine()
-    Base.metadata.create_all(engine)
+    schema.install(engine)
     password = getpass.getpass("Contrasenya (mínim 12 caràcters): ")
     if password != getpass.getpass("Repeteix-la: "):
         print("No coincideixen")

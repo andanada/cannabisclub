@@ -20,9 +20,21 @@ def env(monkeypatch):
 
 @pytest.fixture
 def ctx(env):
-    from sqlalchemy import create_engine
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
+    import os
+    import uuid
+    from sqlalchemy import create_engine, text
+    from app import schema
+    pg = os.environ.get("CLUB_TEST_PG_URL")
+    schema_name = None
+    if pg:
+        schema_name = "t_" + uuid.uuid4().hex[:12]
+        admin = create_engine(pg)
+        with admin.begin() as c:
+            c.execute(text(f"CREATE SCHEMA {schema_name}"))
+        engine = create_engine(pg, connect_args={"options": f"-csearch_path={schema_name}"})
+    else:
+        engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    schema.install(engine)
     factory = make_session_factory(engine)
     s = factory()
     s.add_all([Local(id=1, nom="Local A"), Local(id=2, nom="Local B")])
@@ -37,8 +49,16 @@ def ctx(env):
         for lid in locals_:
             s.add(UserLocal(user_id=u.id, local_id=lid))
     s.commit()
+    if pg:  # hem inserit locals amb id explícit: avança la seqüència
+        s.execute(text("SELECT setval(pg_get_serial_sequence('locals', 'id'), 2)"))
+        s.commit()
     s.close()
-    return TestClient(create_app(factory)), factory, secrets_
+    yield TestClient(create_app(factory)), factory, secrets_
+    if pg:
+        engine.dispose()
+        with admin.begin() as c:
+            c.execute(text(f"DROP SCHEMA {schema_name} CASCADE"))
+        admin.dispose()
 
 
 def token(client, secrets_, name):
@@ -105,6 +125,8 @@ def test_auditoria_registra_i_detecta_manipulacio(ctx):
     client.get(f"/socis/{mid}", headers=enc)
     assert client.get("/auditoria/verificar", headers=admin).json() == {"integra": True, "primera_alterada": None}
     s = factory()
+    if s.bind.dialect.name == "postgresql":  # simula un atacant amb permisos de propietari
+        s.execute(text("ALTER TABLE audit_log DISABLE TRIGGER USER"))
     row = s.scalars(select(AuditLog).where(AuditLog.payload.like("%alta_soci%"))).one()
     row.payload = row.payload.replace('"per":2', '"per":1')
     s.commit()
