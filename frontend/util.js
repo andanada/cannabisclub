@@ -32,7 +32,13 @@ async function api(path, opts = {}) {
   const headers = {};
   if (S.token) headers.Authorization = 'Bearer ' + S.token;
   if (opts.body) headers['Content-Type'] = 'application/json';
-  const r = await fetch(path, { method: opts.method || 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  let r;
+  try {
+    r = await fetch(path, { method: opts.method || 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  } catch (_) {
+    // «Failed to fetch»: el navegador no arriba al servidor (parat, adreça diferent, sense xarxa).
+    throw new Error('No es pot connectar amb el servidor. Comprova que el programa està en marxa i que tens connexió.');
+  }
   if (r.status === 401 && S.token && !opts.noAuthRedirect) { logout(); throw new Error('La sessió ha caducat'); }
   if (opts.raw) return r;
   const data = await r.json().catch(() => ({}));
@@ -43,8 +49,8 @@ async function api(path, opts = {}) {
   return data;
 }
 
-const eur = (c) => (c / 100).toLocaleString('ca-ES', { style: 'currency', currency: 'EUR' });
-const grams = (mg) => (mg / 1000).toLocaleString('ca-ES', { maximumFractionDigits: 3 }) + ' g';
+const eur = (c) => (c / 100).toLocaleString(loc(), { style: 'currency', currency: 'EUR' });
+const grams = (mg) => (mg / 1000).toLocaleString(loc(), { maximumFractionDigits: 3 }) + ' g';
 
 function parseGrams(text) {
   const t = String(text).trim().replace(',', '.');

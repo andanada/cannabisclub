@@ -26,7 +26,7 @@ function renderLogin() {
       await boot();
     });
   } },
-  h('h1', null, 'Gestió del club'),
+  h('div', { class: 'actions' }, langSelect()), h('h1', null, 'Gestió del club'),
   field('Usuari', user), field('Contrasenya', pass), field('Codi de l\'app d\'autenticació', code),
   h('div', { class: 'actions' }, btn), out);
   $('#app').replaceChildren(form);
@@ -57,10 +57,10 @@ function renderShell() {
   const side = h('aside', { class: 'side' },
     h('div', { class: 'brand' }, h('div', { class: 'logo', 'aria-hidden': 'true' }, 'C'), h('div', null, 'Gestió del club', h('small', null, 'Panell de treball'))),
     nav,
-    h('div', { class: 'who' }, h('div', null, h('strong', null, S.me.username), ' · ', S.me.role), localSelect(),
+    h('div', { class: 'who' }, h('div', null, h('strong', null, S.me.username), ' · ', S.me.role), localSelect(), langSelect(),
       h('button', { class: 'small', onclick: logout }, 'Sortir')));
   const topbar = h('div', { class: 'topbar' }, h('strong', null, 'Gestió del club'),
-    h('div', { class: 'row' }, localSelect(), h('button', { class: 'small', onclick: logout }, 'Sortir')));
+    h('div', { class: 'row' }, localSelect(), langSelect(), h('button', { class: 'small', onclick: logout }, 'Sortir')));
   $('#app').replaceChildren(h('div', { class: 'shell' }, side, h('div', null, topbar, h('main', { id: 'main', class: 'main' }))));
 }
 

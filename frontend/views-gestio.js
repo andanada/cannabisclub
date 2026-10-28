@@ -162,7 +162,7 @@ VIEWS.fitxatge = async () => {
   const btns = [['entrada', 'Entrada'], ['pausa_inici', 'Inici de pausa'], ['pausa_fi', 'Fi de pausa'], ['sortida', 'Sortida']].map(([t, label]) => {
     const b = h('button', { class: t === 'entrada' ? 'primary' : '', onclick: () => guard(b, out, async () => {
       await api('/fitxatge', { method: 'POST', body: { local_id: S.local, tipus: t } });
-      out.replaceChildren(msg('ok', label + ' registrada a les ' + new Date().toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' })));
+      out.replaceChildren(msg('ok', label + ' registrada a les ' + new Date().toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })));
     }) }, label);
     return b;
   });

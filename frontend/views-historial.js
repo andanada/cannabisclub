@@ -2,7 +2,7 @@
 // Historial de la caixa i dels moviments d'estoc amb el botó «Corregir».
 // Els registres no s'editen ni s'esborren: una correcció crea un apunt/moviment de contrapartida.
 
-const horaCa = (iso) => new Date(iso).toLocaleString('ca-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const horaCa = (iso) => new Date(iso).toLocaleString(loc(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 // Demana el motiu (mínim 3 caràcters, com exigeix el servidor) i envia la correcció.
 async function demanaCorreccio(url, onDone) {

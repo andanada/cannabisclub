@@ -7,7 +7,7 @@ const taula = (cols, rows, buit) => h('table', null,
     : h('tr', null, h('td', { colspan: cols.length, class: 'muted' }, buit || 'Sense dades en aquest període.'))));
 
 const kpi = (etiqueta, valor) => h('div', null, h('div', { class: 'muted' }, etiqueta), h('div', { class: 'big' }, valor));
-const gText = (g) => Number(g).toLocaleString('ca-ES', { maximumFractionDigits: 3 }) + ' g';
+const gText = (g) => Number(g).toLocaleString(loc(), { maximumFractionDigits: 3 }) + ' g';
 
 const INFORMES = {
   caixa: { titol: 'Caixa: ingressos i despeses', rang: true, json: (q) => `/locals/${S.local}/informe?${q}`, csv: (q) => `/locals/${S.local}/apunts.csv?${q}`, fitxer: 'apunts',
@@ -28,8 +28,8 @@ const INFORMES = {
     pinta: (r) => [h('div', { class: 'row' }, kpi('Entrades', String(r.total_entrades)), kpi('Socis diferents', String(r.socis_diferents))),
       taula([['Dia'], ['Entrades', true], ['Socis', true]], r.per_dia.map((d) => [d.dia, d.entrades, d.socis]))] },
   hores: { titol: 'Hores del personal', rang: true, json: (q) => `/locals/${S.local}/informe/hores?${q}`, csv: (q) => `/locals/${S.local}/informe/hores.csv?${q}`, fitxer: 'hores',
-    pinta: (r) => [h('div', { class: 'row' }, kpi('Hores totals', r.total_hores.toLocaleString('ca-ES') + ' h')),
-      taula([['Persona'], ['Hores', true], ['Torns', true], ['Torn obert']], r.persones.map((p) => [p.usuari, p.hores.toLocaleString('ca-ES'), p.torns, p.torn_obert ? 'sí (sense sortida)' : 'no']))] },
+    pinta: (r) => [h('div', { class: 'row' }, kpi('Hores totals', r.total_hores.toLocaleString(loc()) + ' h')),
+      taula([['Persona'], ['Hores', true], ['Torns', true], ['Torn obert']], r.persones.map((p) => [p.usuari, p.hores.toLocaleString(loc()), p.torns, p.torn_obert ? 'sí (sense sortida)' : 'no']))] },
 };
 
 function descarrega(blob, nom) {
