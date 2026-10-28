@@ -13,9 +13,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from . import ajustos, cash, descomptes, dispositius, informes, personal, quotes, regles, schema, service, socis, stock, usuaris
+from . import ajustos, cash, descomptes, dispositius, informes, inventaris, personal, quotes, regles, schema, service, socis, stock, usuaris
 from .db import make_engine, make_session_factory
-from .models import CashEntry, DeviceProfile, Discount, Local, Member, Product, Regla, StockMovement, User, UserLocal
+from .models import CashEntry, DeviceProfile, Discount, Local, InventorySession, Member, Product, Regla, StockMovement, User, UserLocal
 
 CAN_CREATE_MEMBER = {"admin", "encarregat"}
 log = logging.getLogger("club")
@@ -74,7 +74,7 @@ def create_app(session_factory=None) -> FastAPI:
         resp.headers["Referrer-Policy"] = "no-referrer"
         if not request.url.path.startswith("/static-"):
             if request.url.path not in ("/", "/sw.js", "/i18n-es.js", "/i18n-en.js", "/i18n.js", "/util.js", "/bascula.js", "/app.js", "/views-dispensar.js", "/views-gestio.js",
-                                        "/views-socis.js", "/views-descomptes.js", "/views-regles.js", "/views-informes.js", "/views-historial.js", "/views-config.js", "/diagnostic.js", "/views-dispositius.js", "/views-diagnostic.js", "/views-carnets.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
+                                        "/views-socis.js", "/views-descomptes.js", "/views-regles.js", "/views-inventari.js", "/views-informes.js", "/views-historial.js", "/views-config.js", "/diagnostic.js", "/views-dispositius.js", "/views-diagnostic.js", "/views-carnets.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
                 resp.headers["Cache-Control"] = "no-store"
         return resp
     factory = session_factory or get_db_factory()
@@ -663,6 +663,50 @@ def create_app(session_factory=None) -> FastAPI:
             raise HTTPException(404, "Descompte inexistent")
         check_local(s, user, d.local_id)
         run(descomptes.update, s, user, d, body.actiu, body.nom, body.valor, body.inici, body.fi, bool({"inici", "fi"} & body.model_fields_set))
+        return {"ok": True}
+
+    class InventariIn(BaseModel):
+        nom: str | None = Field(default=None, max_length=60)
+
+    class RecompteIn(BaseModel):
+        grams: Decimal = Field(ge=0, le=1_000_000, decimal_places=3)
+
+    def inventari_or_404(s: Session, user: User, inventari_id: int) -> InventorySession:
+        need_manager(user)
+        inv = s.get(InventorySession, inventari_id)
+        if not inv:
+            raise HTTPException(404, "Inventari inexistent")
+        check_local(s, user, inv.local_id)
+        return inv
+
+    @app.get("/locals/{local_id}/inventaris")
+    def llista_inventaris(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return inventaris.llista(s, local_id)
+
+    @app.post("/locals/{local_id}/inventaris", status_code=201)
+    def obre_inventari(local_id: int, body: InventariIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return {"id": run(inventaris.obrir, s, user, local_id, body.nom).id}
+
+    @app.get("/inventaris/{inventari_id}")
+    def detall_inventari(inventari_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        return inventaris.detall(s, inventari_or_404(s, user, inventari_id))
+
+    @app.put("/inventaris/{inventari_id}/linies/{product_id}")
+    def compta_producte(inventari_id: int, product_id: int, body: RecompteIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        run(inventaris.comptar, s, user, inventari_or_404(s, user, inventari_id), product_id, body.grams)
+        return {"ok": True}
+
+    @app.post("/inventaris/{inventari_id}/tancar")
+    def tanca_inventari(inventari_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        return run(inventaris.tancar, s, user, inventari_or_404(s, user, inventari_id))
+
+    @app.post("/inventaris/{inventari_id}/cancelar")
+    def cancella_inventari(inventari_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        run(inventaris.cancellar, s, user, inventari_or_404(s, user, inventari_id))
         return {"ok": True}
 
     class ReglaIn(BaseModel):

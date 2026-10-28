@@ -306,6 +306,27 @@ class ProductImage(Base):
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class InventorySession(Base):
+    """Recompte guiat: es compta producte a producte i en tancar s'ajusta l'estoc al comptat."""
+    __tablename__ = "inventory_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    estat: Mapped[str] = mapped_column(String(12), default="obert")  # obert | tancat | cancel·lat
+    ts_obert: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    ts_tancat: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
+class InventoryCount(Base):
+    __tablename__ = "inventory_counts"
+    session_id: Mapped[int] = mapped_column(ForeignKey("inventory_sessions.id"), primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
+    counted_mg: Mapped[int] = mapped_column(Integer)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Regla(Base):
     """Límit de gramatge per soci i període, per a tot el catàleg, una categoria o un producte."""
     __tablename__ = "dispensing_rules"
@@ -356,3 +377,4 @@ def _immutable_movement_discount(mapper, connection, target):
 
 Index("ix_discounts_local", Discount.local_id)
 Index("ix_dispensing_rules_local", Regla.local_id)
+Index("ix_inventory_sessions_local", InventorySession.local_id, InventorySession.estat)

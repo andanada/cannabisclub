@@ -25,20 +25,20 @@ p { margin: 6px 0; }
 #app { min-height: 100vh; }
 .shell { display: grid; grid-template-columns: var(--side) 1fr; min-height: 100vh; }
 .side { align-self: stretch; min-height: 100vh; background: linear-gradient(180deg, #8dc177 0%, #4aa38a 100%); background-attachment: fixed; color: #fff; }
-.side-in { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; }
+.side-in { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; overflow-y: auto; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 18px 16px; font-weight: 650; border-bottom: 1px solid rgba(255, 255, 255, .28); }
 .brand .logo { width: 36px; height: 36px; border-radius: 50%; background: rgba(255, 255, 255, .92); color: #3f8f73; display: grid; place-items: center; font-weight: 700; }
 .brand small { display: block; color: rgba(255, 255, 255, .85); font-size: .78rem; font-weight: 400; }
-nav.tabs { display: flex; flex-direction: column; gap: 0; flex: 1; overflow-y: auto; }
-nav.tabs button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 8px 18px; border: 0; border-bottom: 1px solid rgba(255, 255, 255, .28); border-radius: 0; background: transparent; color: #fff; font-weight: 500; text-align: left; }
+nav.tabs { display: flex; flex-direction: column; gap: 0; flex: 1 0 auto; }
+nav.tabs button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 6px 18px; border: 0; border-bottom: 1px solid rgba(255, 255, 255, .28); border-radius: 0; background: transparent; color: #fff; font-weight: 500; text-align: left; }
 nav.tabs button:hover { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .28); }
 nav.tabs button[aria-current="page"] { background: rgba(0, 0, 0, .18); color: #fff; font-weight: 650; box-shadow: inset 3px 0 0 #f4e27a; }
 nav.tabs svg { width: 20px; height: 20px; flex: none; }
-.side .who { padding: 14px 16px 16px; border-top: 1px solid rgba(255, 255, 255, .28); font-size: .88rem; }
+.side .who { flex: none; padding: 14px 16px 16px; border-top: 1px solid rgba(255, 255, 255, .28); font-size: .88rem; }
 .side .who select, .side .who button { background: rgba(255, 255, 255, .92); color: #14201b; border-color: transparent; }
 .side .who select { margin: 8px 0; min-height: 40px; }
-.main { padding: 30px 32px 60px; max-width: 1040px; width: 100%; margin: 0 auto; }
-.page-head { margin: -30px -32px 22px; padding: 22px 32px 16px; background: var(--card); border-bottom: 1px solid var(--line); }
+.main { padding: 30px clamp(16px, 3vw, 48px) 60px; width: 100%; min-width: 0; }
+.page-head { margin: -30px calc(-1 * clamp(16px, 3vw, 48px)) 22px; padding: 22px clamp(16px, 3vw, 48px) 16px; background: var(--card); border-bottom: 1px solid var(--line); }
 .page-head h2 { margin: 0; }
 .page-head .lead { margin: 4px 0 0; }
 
