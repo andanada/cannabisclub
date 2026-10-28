@@ -63,6 +63,21 @@ function profileForm(kind, cfg) {
   return { nodes, read };
 }
 
+// Perfil per defecte del local per a un tipus de dispositiu (amb una caché curta; es buida en canviar la configuració).
+const PROFILE_CACHE = new Map();
+async function defaultProfile(kind) {
+  const key = S.local + ':' + kind;
+  const hit = PROFILE_CACHE.get(key);
+  if (hit && Date.now() - hit.t < 30000) return hit.cfg;
+  let cfg = null;
+  try {
+    const l = await api(`/locals/${S.local}/dispositius?kind=${kind}`);
+    cfg = (l.find((p) => p.per_defecte) || l[0] || { config: null }).config;
+  } catch (_) { /* sense perfil: es fan servir els valors per defecte */ }
+  PROFILE_CACHE.set(key, { t: Date.now(), cfg });
+  return cfg;
+}
+
 const KIND_TEXT = {
   bascula: { plural: 'Bàscules', nou: 'Nova bàscula', lead: "Perfils de comunicació de les bàscules d'aquest local (OHAUS per port sèrie o USB virtual). El perfil per defecte és el que fan servir les tauletes en dispensar." },
   lector: { plural: 'Lectors de carnets', nou: 'Nou lector', lead: "Com llegeix els carnets el lector d'aquest local. Un lector USB funciona com un teclat: escriu el codi i prem Intro. També es poden llegir etiquetes NFC amb un mòbil Android (Chrome)." },
@@ -95,7 +110,7 @@ function profileCard(kind, p, reload) {
 
 async function deviceSection(kind) {
   const profiles = await api(`/locals/${S.local}/dispositius?kind=${kind}`);
-  const reload = () => show('config');
+  const reload = () => { PROFILE_CACHE.clear(); show('config'); };
   const nom = h('input', { placeholder: { bascula: 'p. ex. OHAUS Navigator', signatura: 'p. ex. Tauleta recepció', lector: 'p. ex. Lector USB recepció' }[kind] });
   const form = profileForm(kind, DEFAULTS[kind]);
   const out = h('div');
@@ -164,7 +179,7 @@ function signatureTester(readCfg) {
 
 // Llenç de signatura configurable. Retorna el node; `onCheck({valid, strokes, min})` s'executa en prémer «Comprovar».
 // Les dades de la signatura s'obtenen amb canvas.toDataURL (vegeu signaturePad a views-dispensar.js).
-function signatureCanvas(cfg, onCheck) {
+function signatureCanvas(cfg, onCheck, saveLabel) {
   const canvas = h('canvas', { class: 'sig', width: cfg.amplada, height: cfg.alcada, 'aria-label': 'Espai per signar' });
   const ctx2 = canvas.getContext('2d');
   ctx2.lineCap = 'round'; ctx2.lineJoin = 'round'; ctx2.strokeStyle = cfg.color;
@@ -188,9 +203,9 @@ function signatureCanvas(cfg, onCheck) {
   const state = () => ({ valid: strokes >= cfg.tracos_min, strokes, min: cfg.tracos_min });
   const clear = h('button', { type: 'button' }, 'Esborrar');
   clear.addEventListener('click', () => { white(); strokes = 0; });
-  const check = h('button', { class: 'primary', type: 'button' }, 'Comprovar');
-  check.addEventListener('click', () => onCheck(state()));
+  const check = h('button', { class: 'primary', type: 'button' }, saveLabel || 'Comprovar');
+  check.addEventListener('click', () => onCheck(Object.assign(state(), { png: canvas.toDataURL('image/png').split(',')[1] })));
   const node = h('div', null, canvas, h('div', { class: 'actions' }, check, clear));
-  node.canvas = canvas; node.state = state;
+  node.canvas = canvas; node.state = state; node.saveButton = check;
   return node;
 }

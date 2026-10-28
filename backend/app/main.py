@@ -34,7 +34,20 @@ def get_db_factory():
     return make_session_factory(engine)
 
 
+def _configura_logs() -> None:
+    """Logs del programa (no dels accessos de uvicorn) cap a la sortida estàndard, que systemd desa al journal."""
+    logger = logging.getLogger("club")
+    if logger.handlers:
+        return
+    h = logging.StreamHandler()
+    h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    logger.addHandler(h)
+    logger.setLevel(os.environ.get("CLUB_LOG_LEVEL", "INFO").upper())
+    logger.propagate = False
+
+
 def create_app(session_factory=None) -> FastAPI:
+    _configura_logs()
     app = FastAPI(title="club-gestio")
 
     @app.exception_handler(Exception)

@@ -70,7 +70,7 @@ function searchBox(onFound) {
     const perCarnet = !doc.value.trim() && carnet.value.trim();
     guard(btn, out, async () => {
       const m = perCarnet
-        ? await api(`/locals/${S.local}/socis/carnet?codi=${encodeURIComponent(carnet.value.trim())}`)
+        ? await api(`/locals/${S.local}/socis/carnet?codi=${encodeURIComponent(normalizeScan(carnet.value, await readerProfile()))}`)
         : await api(`/locals/${S.local}/socis/cerca?document=${encodeURIComponent(doc.value.trim())}`);
       carnet.value = '';
       onFound(m, out);
@@ -123,7 +123,7 @@ function altaForm() {
 
 VIEWS.dispensar = async () => {
   const caixa = await api(`/locals/${S.local}/caixa`);
-  const box = h('div', null, h('h2', null, 'Dispensar'));
+  const box = h('div', null, pageHead('Dispensar', 'Identifica el soci, tria el producte i la quantitat, i cobra-ho.'));
   if (!caixa.oberta) {
     box.append(msg('err', 'No hi ha cap caixa oberta en aquest local. Un encarregat l\'ha d\'obrir abans de dispensar.'));
     return box;
@@ -193,32 +193,19 @@ VIEWS.dispensar = async () => {
 };
 
 
-// Llenç de signatura (ratolí, tàctil o llapis). Només s'envia si s'ha dibuixat alguna cosa.
+// Signatura de l'alta amb el perfil de la tauleta del local (mida, traç, traços mínims).
 function signaturePad(memberId, out) {
-  const canvas = h('canvas', { class: 'sig', width: 600, height: 220, 'aria-label': 'Espai per signar' });
-  const ctx2 = canvas.getContext('2d');
-  ctx2.lineWidth = 3; ctx2.lineCap = 'round'; ctx2.lineJoin = 'round'; ctx2.strokeStyle = '#000';
-  let drawing = false, dirty = false;
-  const pos = (e) => {
-    const r = canvas.getBoundingClientRect();
-    return [(e.clientX - r.left) * canvas.width / r.width, (e.clientY - r.top) * canvas.height / r.height];
-  };
-  const white = () => { ctx2.fillStyle = '#fff'; ctx2.fillRect(0, 0, canvas.width, canvas.height); };
-  white();
-  canvas.addEventListener('pointerdown', (e) => { drawing = true; try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* no passa res: seguim dibuixant */ } const [x, y] = pos(e); ctx2.beginPath(); ctx2.moveTo(x, y); });
-  canvas.addEventListener('pointermove', (e) => { if (!drawing) return; const [x, y] = pos(e); ctx2.lineTo(x, y); ctx2.stroke(); dirty = true; });
-  const stop = () => { drawing = false; };
-  canvas.addEventListener('pointerup', stop); canvas.addEventListener('pointercancel', stop);
-  const clear = h('button', { type: 'button', onclick: () => { white(); dirty = false; } }, 'Esborrar');
-  const save = h('button', { class: 'primary', type: 'button' }, 'Desar signatura');
-  const res = h('div');
-  save.addEventListener('click', () => guard(save, res, async () => {
-    if (!dirty) throw new Error('El soci ha de signar abans de desar');
-    const b64 = canvas.toDataURL('image/png').split(',')[1];
-    await api(`/socis/${memberId}/signatura`, { method: 'POST', body: { png_base64: b64 } });
-    out.replaceChildren(msg('ok', 'Soci donat d\'alta i signatura desada (núm. ' + memberId + ')'));
-  }));
-  return h('div', { class: 'card' }, h('p', { class: 'muted' }, 'Signa dins del quadre:'), canvas, h('div', { class: 'actions' }, save, clear), res);
+  const holder = h('div', { class: 'card' }, h('p', { class: 'muted' }, 'Preparant la tauleta de signatura…'));
+  defaultProfile('signatura').then((cfg) => {
+    const res = h('div');
+    const pad = signatureCanvas(Object.assign({}, DEFAULTS.signatura, cfg || {}), (s) => guard(pad.saveButton, res, async () => {
+      if (!s.valid) throw new Error(`El soci ha de signar abans de desar (calen almenys ${s.min} traços).`);
+      await api(`/socis/${memberId}/signatura`, { method: 'POST', body: { png_base64: s.png } });
+      out.replaceChildren(msg('ok', "Soci donat d'alta i signatura desada (núm. " + memberId + ')'));
+    }), 'Desar signatura');
+    holder.replaceChildren(h('p', { class: 'muted' }, 'Signa dins del quadre:'), pad, res);
+  });
+  return holder;
 }
 
 
@@ -241,7 +228,8 @@ function scalePanel(gInput, pesInput) {
   const connect = h('button', { type: 'button' }, 'Connectar bàscula');
   connect.addEventListener('click', () => guard(connect, out, async () => {
     if (BASCULA && BASCULA.connected) await BASCULA.disconnect();
-    BASCULA = new Bascula(loadProfile());
+    const cfg = await defaultProfile('bascula');
+    BASCULA = new Bascula(cfg ? profileToOptions(cfg) : loadProfile());
     await BASCULA.connect();
     paint();
   }));

@@ -47,12 +47,7 @@ function barcodeSvg(text) {
 }
 
 // ---------- Lector: perfil ----------
-async function readerProfile() {
-  try {
-    const l = await api(`/locals/${S.local}/dispositius?kind=lector`);
-    return (l.find((p) => p.per_defecte) || l[0] || { config: null }).config;
-  } catch (_) { return null; }
-}
+async function readerProfile() { return defaultProfile('lector'); }
 
 // Normalitza una lectura segons el perfil del lector (treu el prefix, passa a majúscules, comprova la longitud).
 function normalizeScan(text, cfg) {

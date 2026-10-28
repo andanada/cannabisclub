@@ -61,6 +61,6 @@ VIEWS.informe = async () => {
       const r = await api(inf.json(q()));
       res.replaceChildren(h('div', { class: 'card' }, h('h3', null, inf.titol), ...inf.pinta(r).filter(Boolean)));
     });
-  } }, h('h2', null, 'Informes'), field('Informe', tipus), rangBox, h('div', { class: 'actions' }, btn, csv), out);
-  return h('div', null, form, res);
+  } }, h('h3', null, "Tria l'informe"), field('Informe', tipus), rangBox, h('div', { class: 'actions' }, btn, csv), out);
+  return h('div', null, pageHead('Informes', 'Caixa, vendes, estoc valorat, assistència i hores, amb exportació a CSV.'), form, res);
 };

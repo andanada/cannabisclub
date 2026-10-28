@@ -166,5 +166,5 @@ VIEWS.fitxatge = async () => {
     }) }, label);
     return b;
   });
-  return h('div', null, h('h2', null, 'Fitxatge'), h('div', { class: 'card' }, h('div', { class: 'actions' }, btns), out));
+  return h('div', null, pageHead('Fitxatge', 'Registra la teva entrada, pauses i sortida.'), h('div', { class: 'card' }, h('div', { class: 'actions' }, btns), out));
 };

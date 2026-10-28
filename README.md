@@ -31,6 +31,29 @@ Claus: `CLUB_FIELD_KEY` és una clau Fernet (`python -c "from app.crypto import 
 
 (a Windows PowerShell: `$env:CLUB_FIELD_KEY="..."` i `.venv\Scripts\python -m uvicorn ...`). `crear-admin` demana la contrasenya (mínim 12 caràcters) i mostra el secret TOTP per a l'app d'autenticació.
 
+## Com s'organitza la interfície
+
+Una pantalla = una àrea de treball, i dins de cada àrea cada **subpantalla fa una sola tasca**:
+
+- **Dispensar**: identificar el soci → producte i quantitat → cobrar.
+- **Socis**: Cercar · Llista · Alta de soci.
+- **Estoc**: Existències · Moviments · Productes · Historial.
+- **Caixa**: Estat · Despesa · Apunts · Tancament.
+- **Fitxatge** · **Informes** · **Compte**.
+- **Configuració** (administrador): Local i límits · Quotes · Usuaris · **Bàscules** · **Tauletes de signatura** · **Carnets i lectors** · Seguretat.
+
+A l'escriptori hi ha una barra lateral; al mòbil i a la tauleta, pestanyes a baix. Mode fosc automàtic.
+
+## Dispositius (Configuració)
+
+Cada local té **perfils** de dispositius guardats al servidor, i la tauleta fa servir el perfil per defecte:
+
+- **Bàscules**: velocitat, bits de dades, paritat, bits de parada, control de flux, ordres de lectura, tara, zero i unitat; amb panell de prova (connecta, llegeix pes, envia ordres i mostra la comunicació en cru) que fa servir el formulari encara que no l'hagis desat.
+- **Tauletes de signatura**: mida del llenç, color i gruix del traç, sensibilitat a la pressió del llapis i traços mínims. Serveix per a pantalla tàctil, llapis o qualsevol tauleta que actuï com a ratolí o llapis. *Les tauletes que exigeixen el SDK propi del fabricant (p. ex. Wacom STU) no es poden fer servir directament des del navegador.*
+- **Carnets i lectors**: perfil del lector (USB com a teclat o NFC, terminador, prefix, longitud mínima) i **creador de carnets**: genera un codi únic amb dígit de control, el mostra una sola vegada, imprimeix una targeta amb foto, nom i **codi de barres Code 128** i, a Chrome per a Android amb HTTPS, el grava en una etiqueta NFC.
+
+Producció i manteniment: `docs/PRODUCCIO.md`.
+
 ## Què fa
 
 - **Socis**: alta amb signatura manuscrita en pantalla, validació de document (DNI/NIE amb lletra de control, o passaport), majoria d'edat i duplicats; edició de dades; estat (actiu / suspès / baixa); llistat amb filtre; foto (xifrada, amb historial); carnet RFID o de barres (només es desa l'empremta HMAC del codi); cerca per document o passant el carnet pel lector; registre d'entrades.
