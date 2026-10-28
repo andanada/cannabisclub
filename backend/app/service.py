@@ -6,7 +6,7 @@ import re
 import secrets
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from . import audit, crypto, security
@@ -20,7 +20,14 @@ def _canon(payload: dict) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
+AUDIT_LOCK_KEY = 7_203_411  # clau arbitrària de l'«advisory lock» que serialitza la cadena d'auditoria
+
+
 def audit_append(db: Session, payload: dict) -> AuditLog:
+    if db.get_bind().dialect.name == "postgresql":
+        # Sense això, dues transaccions simultànies llegirien el mateix «últim hash» i la cadena es bifurcaria
+        # (la verificació la donaria per alterada). El bloqueig dura fins al commit i només afecta a l'auditoria.
+        db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": AUDIT_LOCK_KEY})
     last = db.scalar(select(AuditLog).order_by(AuditLog.seq.desc()).limit(1))
     prev = last.hash if last else audit.GENESIS
     h = audit._digest(prev, payload)
@@ -72,13 +79,18 @@ def login(db: Session, username: str, password: str, totp: str) -> str | None:
     fails = db.scalar(select(func.count()).select_from(LoginAttempt).where(LoginAttempt.username == key, LoginAttempt.ts >= since))
     if fails >= MAX_FAILED_LOGINS:
         # Es bloqueja abans de comprovar res i també per a noms inexistents: així no es revela si un usuari existeix.
-        audit_append(db, {"accio": "login_bloquejat", "usuari": username})
-        db.commit()
+        # Només s'audita el moment en què es bloqueja: si no, qualsevol anònim podria inflar l'auditoria (només d'afegir).
+        if fails == MAX_FAILED_LOGINS:
+            audit_append(db, {"accio": "login_bloquejat", "usuari": key})
+            db.add(LoginAttempt(username=key))  # el següent intent ja no torna a auditar
+            db.commit()
         raise LoginLocked()
     user = db.scalar(select(User).where(User.username == username, User.active.is_(True)))
-    ok = bool(user) and security.verify_password(password, user.password_hash)
+    # Sempre es calcula un hash, existeixi o no l'usuari, perquè el temps de resposta no delati els noms d'usuari.
+    ok = security.verify_password(password, user.password_hash if user else security.dummy_hash())
+    ok = bool(user) and ok
     ok = ok and security.verify_totp(crypto.decrypt(user.totp_secret_enc), totp)
-    audit_append(db, {"accio": "login", "usuari": username, "ok": ok})
+    audit_append(db, {"accio": "login", "usuari": key, "ok": ok})
     if not ok:
         db.add(LoginAttempt(username=key))
         db.commit()

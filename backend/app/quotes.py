@@ -56,6 +56,9 @@ def charge(db: Session, actor: User, member: Member, import_cent: int, metode: s
     if metode not in cash.METODES:
         raise ValueError("Mètode de pagament no vàlid")
     cs = cash._require_open(db, member.local_id)
+    # Es bloqueja el soci abans de llegir la quota vigent: dos cobraments simultanis (doble clic, dos llocs) es posen
+    # en cua i el segon veu el primer, en lloc de cobrar dues vegades el mateix període.
+    db.scalar(select(Member.id).where(Member.id == member.id).with_for_update())
     dia = dia or avui()
     actual = db.scalar(_valides(db, member.id).order_by(Quota.valid_fins.desc(), Quota.id.desc()).limit(1))
     des = actual.valid_fins + timedelta(days=1) if actual and actual.valid_fins >= dia else dia

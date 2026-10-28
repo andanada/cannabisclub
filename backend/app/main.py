@@ -65,9 +65,10 @@ def create_app(session_factory=None) -> FastAPI:
             raise HTTPException(403, "Sense accés a aquest local")
 
     class LoginIn(BaseModel):
-        username: str
-        password: str
-        totp: str
+        # Límits: aquests valors poden acabar a l'auditoria, que és només d'afegir i no es pot netejar.
+        username: str = Field(max_length=60)
+        password: str = Field(max_length=200)
+        totp: str = Field(max_length=10)
 
     class MemberIn(BaseModel):
         local_id: int

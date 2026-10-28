@@ -13,6 +13,17 @@ def hash_password(password: str) -> str:
     return _ph.hash(password)
 
 
+_dummy = None
+
+
+def dummy_hash() -> str:
+    """Hash de mentida per fer la mateixa feina quan l'usuari no existeix (evita deduir usuaris pel temps de resposta)."""
+    global _dummy
+    if _dummy is None:
+        _dummy = _ph.hash("contrasenya-de-mentida-que-no-coincideix-mai")
+    return _dummy
+
+
 def verify_password(password: str, hashed: str) -> bool:
     try:
         return _ph.verify(hashed, password)
