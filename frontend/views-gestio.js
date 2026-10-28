@@ -1,5 +1,5 @@
 'use strict';
-// Pantalles: Estoc, Caixa, Fitxatge, Informe.
+// Pantalles: Estoc, Caixa, Fitxatge. (Informe és a views-informes.js.)
 
 const preuText = (c) => (c / 100).toFixed(2).replace('.', ',');
 
@@ -151,39 +151,4 @@ VIEWS.fitxatge = async () => {
     return b;
   });
   return h('div', null, h('h2', null, 'Fitxatge'), h('div', { class: 'card' }, h('div', { class: 'actions' }, btns), out));
-};
-
-VIEWS.informe = async () => {
-  const avui = new Date().toLocaleDateString('sv-SE');
-  const des = h('input', { type: 'date', value: avui }), fins = h('input', { type: 'date', value: avui });
-  const out = h('div'), res = h('div');
-  const btn = h('button', { class: 'primary', type: 'submit' }, 'Veure informe');
-  const csv = h('button', { type: 'button' }, 'Descarregar CSV');
-  const q = () => `des=${des.value}&fins=${fins.value}`;
-  csv.addEventListener('click', () => guard(csv, out, async () => {
-    const r = await api(`/locals/${S.local}/apunts.csv?${q()}`, { raw: true });
-    if (!r.ok) throw new Error('No s\'ha pogut exportar');
-    const url = URL.createObjectURL(await r.blob());
-    const a = h('a', { href: url, download: `apunts-${des.value}_${fins.value}.csv` });
-    document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  }));
-  const form = h('form', { class: 'card', onsubmit: (e) => {
-    e.preventDefault();
-    guard(btn, out, async () => {
-      const r = await api(`/locals/${S.local}/informe?${q()}`);
-      const cats = Object.entries(r.despeses_per_categoria);
-      res.replaceChildren(h('div', { class: 'card' },
-        h('div', { class: 'row' },
-          h('div', null, h('div', { class: 'muted' }, 'Ingressos'), h('div', { class: 'big' }, eur(r.ingressos_cent))),
-          h('div', null, h('div', { class: 'muted' }, 'Despeses'), h('div', { class: 'big' }, eur(r.despeses_cent))),
-          h('div', null, h('div', { class: 'muted' }, 'Resultat'), h('div', { class: 'big' }, eur(r.resultat_cent))),
-          h('div', null, h('div', { class: 'muted' }, 'Dispensat'), h('div', { class: 'big' }, grams(r.dispensat_mg)))),
-        cats.length ? h('div', null, h('h3', null, 'Despeses per categoria'), h('table', null, h('tbody', null,
-          cats.map(([k, v]) => h('tr', null, h('td', null, k), h('td', { class: 'num' }, eur(v)))))) ) : null,
-        h('h3', null, 'Per dia'), h('table', null, h('tbody', null, Object.entries(r.per_dia).map(([d, v]) =>
-          h('tr', null, h('td', null, d), h('td', { class: 'num' }, eur(v.ingressos_cent)), h('td', { class: 'num' }, eur(v.despeses_cent === 0 ? 0 : -v.despeses_cent))))))));
-    });
-  } }, h('h2', null, 'Informe'), h('div', { class: 'row' }, field('Des de', des), field('Fins a', fins)),
-  h('div', { class: 'actions' }, btn, csv), out);
-  return h('div', null, form, res);
 };

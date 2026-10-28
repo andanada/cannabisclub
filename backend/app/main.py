@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import ajustos, cash, personal, quotes, service, socis, stock
+from . import ajustos, cash, informes, personal, quotes, service, socis, stock
 from .db import make_engine, make_session_factory
 from .models import CashEntry, Local, Member, Product, StockMovement, User, UserLocal
 
@@ -34,7 +34,7 @@ def create_app(session_factory=None) -> FastAPI:
         resp.headers["Referrer-Policy"] = "no-referrer"
         if not request.url.path.startswith("/static-"):
             if request.url.path not in ("/", "/sw.js", "/util.js", "/bascula.js", "/app.js", "/views-dispensar.js", "/views-gestio.js",
-                                        "/views-socis.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
+                                        "/views-socis.js", "/views-informes.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
                 resp.headers["Cache-Control"] = "no-store"
         return resp
     factory = session_factory or get_db_factory()
@@ -284,9 +284,40 @@ def create_app(session_factory=None) -> FastAPI:
     def apunts_csv(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
         need_manager(user)
         check_local(s, user, local_id)
-        service.audit_append(s, {"accio": "exportar_csv", "local": local_id, "per": user.id})
+        service.audit_append(s, {"accio": "exportar_csv", "informe": "apunts", "local": local_id, "per": user.id})
         s.commit()
         return Response(cash.entries_csv(s, local_id, des, fins), media_type="text/csv")
+
+    # Informes de gestió (JSON i CSV). Només responsables; el CSV queda a l'auditoria.
+    def registra_informe(nom: str, fn, csv_fn, amb_rang: bool):
+        def calcula(local_id: int, des: date | None, fins: date | None, user: User, s: Session):
+            need_manager(user)
+            check_local(s, user, local_id)
+            if not amb_rang:
+                return fn(s, local_id)
+            if des is None or fins is None:
+                raise HTTPException(422, "Cal indicar des de i fins a")
+            if fins < des:
+                raise HTTPException(422, "Rang de dates invàlid")
+            return fn(s, local_id, des, fins)
+
+        @app.get(f"/locals/{{local_id}}/informe/{nom}", name=f"informe_{nom}")
+        def veure(local_id: int, des: date | None = None, fins: date | None = None,
+                  user: User = Depends(current_user), s: Session = Depends(db)):
+            return calcula(local_id, des, fins, user, s)
+
+        @app.get(f"/locals/{{local_id}}/informe/{nom}.csv", name=f"informe_{nom}_csv")
+        def exporta(local_id: int, des: date | None = None, fins: date | None = None,
+                    user: User = Depends(current_user), s: Session = Depends(db)):
+            r = calcula(local_id, des, fins, user, s)
+            service.audit_append(s, {"accio": "exportar_csv", "informe": nom, "local": local_id, "per": user.id})
+            s.commit()
+            return Response(csv_fn(r), media_type="text/csv")
+
+    registra_informe("vendes", informes.sales, informes.sales_csv, True)
+    registra_informe("estoc", informes.valued_stock, informes.stock_csv, False)
+    registra_informe("assistencia", informes.attendance, informes.attendance_csv, True)
+    registra_informe("hores", informes.staff_hours, informes.hours_csv, True)
 
     class EstatIn(BaseModel):
         estat: str

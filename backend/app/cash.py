@@ -1,5 +1,3 @@
-import csv
-import io
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 
@@ -7,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import service
+from .csvutil import to_csv
 from .models import CashEntry, CashSession, Product, StockMovement, User
 from .stock import TZ
 
@@ -143,10 +142,8 @@ def report(db: Session, local_id: int, des: date, fins: date) -> dict:
 
 def entries_csv(db: Session, local_id: int, des: date, fins: date) -> str:
     a, b = _range(des, fins)
-    out = io.StringIO()
-    w = csv.writer(out)
-    w.writerow(["id", "data_hora_utc", "tipus", "metode", "import_cent", "categoria", "concepte", "moviment", "corregeix"])
-    for e in db.scalars(select(CashEntry).where(CashEntry.local_id == local_id, CashEntry.ts >= a, CashEntry.ts < b).order_by(CashEntry.id)):
-        w.writerow([e.id, e.ts.isoformat(), e.tipus, e.metode, e.import_cent, e.categoria or "", e.concepte or "",
-                    e.movement_id or "", e.corregeix_id or ""])
-    return out.getvalue()
+    rows = [[e.id, e.ts.isoformat(), e.tipus, e.metode, e.import_cent, e.categoria or "", e.concepte or "",
+             e.movement_id or "", e.corregeix_id or ""]
+            for e in db.scalars(select(CashEntry).where(CashEntry.local_id == local_id, CashEntry.ts >= a, CashEntry.ts < b).order_by(CashEntry.id))]
+    # to_csv neutralitza el text que un full de càlcul executaria com a fórmula (el concepte l'escriu l'usuari)
+    return to_csv(["id", "data_hora_utc", "tipus", "metode", "import_cent", "categoria", "concepte", "moviment", "corregeix"], rows)

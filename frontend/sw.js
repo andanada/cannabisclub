@@ -1,6 +1,6 @@
 // Només emmagatzema l'estructura de l'aplicació. Mai desa respostes de l'API (hi ha dades de socis).
-const CACHE = 'club-shell-v4';
-const SHELL = ['/', '/util.js', '/bascula.js', '/app.js', '/views-dispensar.js', '/views-gestio.js', '/views-socis.js', '/views-admin.js', '/style.css', '/manifest.webmanifest', '/icon.svg'];
+const CACHE = 'club-shell-v5';
+const SHELL = ['/', '/util.js', '/bascula.js', '/app.js', '/views-dispensar.js', '/views-gestio.js', '/views-socis.js', '/views-informes.js', '/views-admin.js', '/style.css', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))));
 self.addEventListener('activate', (e) => e.waitUntil(
