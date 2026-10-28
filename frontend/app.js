@@ -77,10 +77,28 @@ async function show(view) {
   try { main.replaceChildren(await VIEWS[view]()); } catch (e) { main.replaceChildren(msg('err', e.message)); }
 }
 
+// Primer arrencada: encara no hi ha cap local. L'administrador en crea el primer i entra.
+function renderFirstLocal() {
+  const nom = h('input', { required: true, maxlength: 60, placeholder: 'Nom del club o del local' });
+  const out = h('div');
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Crear local i entrar');
+  const form = h('form', { class: 'card login', onsubmit: (e) => {
+    e.preventDefault();
+    guard(btn, out, async () => {
+      await api('/locals', { method: 'POST', body: { nom: nom.value.trim() } });
+      await boot();
+    });
+  } }, h('h1', null, 'Benvingut'), h('p', { class: 'muted' }, "Encara no hi ha cap local. Crea'n el primer per començar; després hi podràs afegir productes, socis i usuaris."),
+  field('Nom del local', nom), h('div', { class: 'actions' }, btn, h('button', { type: 'button', onclick: logout }, 'Sortir')), out);
+  $('#app').replaceChildren(form);
+  nom.focus();
+}
+
 async function boot() {
   try {
     S.me = await api('/me');
   } catch (e) { return; }
+  if (!S.me.locals.length && S.me.role === 'admin') { renderFirstLocal(); return; }
   if (!S.me.locals.length) { $('#app').replaceChildren(msg('err', 'Aquest usuari no té cap local assignat.'), h('button', { onclick: logout }, 'Sortir')); return; }
   const saved = Number(sessionStorage.getItem('l'));
   S.local = S.me.locals.some((l) => l.id === saved) ? saved : S.me.locals[0].id;

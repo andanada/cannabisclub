@@ -584,7 +584,12 @@ Object.assign(I18N.en, {
  "Aquest inventari ja no està obert": "This inventory is no longer open",
  "Producte inexistent o inactiu en aquest local": "Product not found or inactive at this venue",
  "Quantitat no vàlida": "Invalid amount",
- "Inventari inexistent": "Inventory not found"
+ "Inventari inexistent": "Inventory not found",
+ "Benvingut": "Welcome",
+ "Crear local i entrar": "Create venue and enter",
+ "Nom del local": "Venue name",
+ "Nom del club o del local": "Club or venue name",
+ "Encara no hi ha cap local. Crea'n el primer per començar; després hi podràs afegir productes, socis i usuaris.": "There is no venue yet. Create the first one to get started; then you can add products, members and users."
 });
 I18N.pat.en.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Barcode $1"],
 [new RegExp("^Soci\\ núm\\.\\s+(.*)$"), "Member no. $1"],
