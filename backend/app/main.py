@@ -598,6 +598,8 @@ def create_app(session_factory=None) -> FastAPI:
         _, _, token = authorization.partition(" ")
         try:
             usuaris.change_own_password(s, user, body.actual, body.nova, token)
+        except service.LoginLocked:
+            raise HTTPException(429, "Massa intents fallits: queda bloquejat uns minuts.")
         except PermissionError as e:
             raise HTTPException(403, str(e))
         except ValueError as e:

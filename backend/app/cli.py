@@ -1,6 +1,7 @@
 """Ordres d'administració.
   python -m app.cli crear-admin <usuari>      (la contrasenya es demana per terminal)
   python -m app.cli preparar-bd <fitxer .env>  (crea el rol de l'aplicació i en desa la contrasenya al fitxer, sense mostrar-la)
+  python -m app.cli desbloquejar <usuari>      (treu el bloqueig temporal per intents fallits d'un usuari)
   python -m app.cli actualitzar-bd             (després d'actualitzar el programa: crea les taules noves i dona permisos; es pot repetir)
 Cal CLUB_DATABASE_URL amb l'usuari PROPIETARI per a aquestes ordres; l'aplicació en funcionament fa servir el rol sense privilegis."""
 import getpass
@@ -52,7 +53,20 @@ def actualitzar_bd() -> int:
     return 0
 
 
+def unlock(db, username: str) -> int:
+    """Esborra els intents fallits recents d'un usuari (un anònim el pot bloquejar a posta). Retorna quants n'ha tret."""
+    n = service.clear_failures(db, username)
+    service.audit_append(db, {"accio": "desbloqueig_usuari", "usuari": username[:60], "intents": n})
+    db.commit()
+    return n
+
+
 def main(argv: list[str]) -> int:
+    if len(argv) == 2 and argv[0] == "desbloquejar":
+        engine = make_engine()
+        with make_session_factory(engine)() as db:
+            print(f"Desbloquejat «{argv[1]}»: {unlock(db, argv[1])} intents fallits esborrats.")
+        return 0
     if len(argv) == 1 and argv[0] == "actualitzar-bd":
         return actualitzar_bd()
     if len(argv) == 2 and argv[0] == "preparar-bd":

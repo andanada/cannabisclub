@@ -106,3 +106,42 @@ def test_auditoria_concurrent_no_bifurca_la_cadena(ctx):
     assert service.audit_verify(s) == (True, None)
     assert s.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.payload.like("%prova_concurrencia%"))) == 20
     s.close()
+
+
+# ---------- desbloqueig, contrasenya pròpia, fotos ----------
+
+def test_ordre_desbloquejar_allibera_un_compte_bloquejat(ctx, monkeypatch, tmp_path):
+    from app import cli
+    client, factory, sec = ctx
+    for _ in range(service.MAX_FAILED_LOGINS):
+        client.post("/auth/login", json={"username": "enc", "password": "mala-contrasenya", "totp": "000000"})
+    assert client.post("/auth/login", json={"username": "enc", "password": PASS, "totp": pyotp.TOTP(sec["enc"]).now()}).status_code == 429
+    s = factory()
+    assert cli.unlock(s, "enc") > 0  # elimina els intents recents
+    s.close()
+    assert client.post("/auth/login", json={"username": "enc", "password": PASS, "totp": pyotp.TOTP(sec["enc"]).now()}).status_code == 200
+    s = factory()
+    assert any(json.loads(a.payload).get("accio") == "desbloqueig_usuari" for a in s.scalars(select(AuditLog)))
+    s.close()
+
+
+def test_canvi_de_contrasenya_compta_els_fallits_i_es_bloqueja(ctx):
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    for _ in range(service.MAX_FAILED_LOGINS):
+        assert client.post("/auth/canvi-contrasenya", json={"actual": "no-es-aquesta-1", "nova": "una-contrasenya-nova-1"}, headers=enc).status_code == 403
+    r = client.post("/auth/canvi-contrasenya", json={"actual": PASS, "nova": "una-contrasenya-nova-1"}, headers=enc)
+    assert r.status_code == 429  # amb un token robat no es poden provar contrasenyes sense límit
+
+
+def test_limit_de_fotos_per_soci(ctx):
+    import base64
+    from app import socis
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
+    jpeg = base64.b64encode(b"\xff\xd8\xff\xe0" + bytes(range(256)) * 2).decode()
+    for _ in range(socis.MAX_PHOTOS_PER_MEMBER):
+        assert client.post(f"/socis/{mid}/foto", json={"image_base64": jpeg}, headers=enc).status_code == 201
+    r = client.post(f"/socis/{mid}/foto", json={"image_base64": jpeg}, headers=enc)
+    assert r.status_code == 422 and "límit" in r.json()["detail"].lower()

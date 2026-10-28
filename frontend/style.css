@@ -51,6 +51,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 canvas.sig { width: 100%; max-width: 600px; aspect-ratio: 600 / 220; background: #fff; border: 2px dashed var(--line); border-radius: 10px; touch-action: none; display: block; }
 nav.tabs { scrollbar-width: none; mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
 nav.tabs::-webkit-scrollbar { display: none; }
+[hidden] { display: none !important; }
 .member { display: flex; gap: 14px; align-items: flex-start; }
 img.foto { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); flex: none; }
 img.foto[hidden] { display: none; }

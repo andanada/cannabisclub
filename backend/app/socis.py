@@ -101,7 +101,13 @@ JPEG_MAGIC = b"\xff\xd8\xff"
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
+MAX_PHOTOS_PER_MEMBER = 20  # les fotos no s'esborren (taula només d'afegir): el límit evita que s'acumulin sense fi
+
+
 def save_photo(db: Session, actor: User, member: Member, image_b64: str) -> MemberPhoto:
+    from sqlalchemy import func
+    if db.scalar(select(func.count()).select_from(MemberPhoto).where(MemberPhoto.member_id == member.id)) >= MAX_PHOTOS_PER_MEMBER:
+        raise ValueError(f"S'ha arribat al límit de {MAX_PHOTOS_PER_MEMBER} fotos per soci")
     try:
         img = base64.b64decode(image_b64, validate=True)
     except (binascii.Error, ValueError):

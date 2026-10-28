@@ -40,7 +40,7 @@ Claus: `CLUB_FIELD_KEY` és una clau Fernet (`python -c "from app.crypto import 
 - **Personal**: fitxatge d'entrada, sortida i pauses; hores treballades.
 - **Informes** (amb exportació a CSV, que queda a l'auditoria): caixa, vendes per producte i categoria, estoc valorat, assistència de socis i hores del personal.
 - **Administració**: locals, usuaris (rol, locals amb accés, activar/desactivar, contrasenya nova, reinici del segon factor TOTP), límits per soci, canvi de la pròpia contrasenya (pestanya «Compte»), verificació de la cadena d'auditoria.
-- **Seguretat**: dades personals xifrades camp a camp, contrasenyes Argon2id + TOTP, bloqueig temporal després de 5 intents fallits en 15 minuts, auditoria encadenada per hash i només d'afegir, registre d'accessos a dades de socis, taules d'apunts només d'afegir (triggers a PostgreSQL) i rol de base de dades sense privilegis per a l'aplicació. Capçaleres: CSP estricta (`script-src 'self'`), `no-store` a l'API, `X-Frame-Options: DENY`. El token de sessió viu a `sessionStorage` i el service worker només desa l'estructura de l'app, mai respostes de l'API.
+- **Seguretat**: dades personals xifrades camp a camp, contrasenyes Argon2id + TOTP, bloqueig temporal després de 5 intents fallits en 15 minuts (també en canviar la contrasenya), límits de mida a les dades de login, auditoria serialitzada a PostgreSQL perquè la cadena de hash no es bifurqui, auditoria encadenada per hash i només d'afegir, registre d'accessos a dades de socis, taules d'apunts només d'afegir (triggers a PostgreSQL) i rol de base de dades sense privilegis per a l'aplicació. Capçaleres: CSP estricta (`script-src 'self'`), `no-store` a l'API, `X-Frame-Options: DENY`. El token de sessió viu a `sessionStorage` i el service worker només desa l'estructura de l'app, mai respostes de l'API.
 
 ## Base de dades en producció
 
@@ -58,6 +58,12 @@ Cada versió pot afegir taules noves. **Després d'actualitzar el codi i abans d
     cd backend && CLUB_DATABASE_URL=<url del propietari> ../.venv/bin/python -m app.cli actualitzar-bd
 
 Crea les taules i els triggers que falten i dona al rol `club_app` els permisos justos. No toca dades ni contrasenyes i es pot repetir. Si te n'oblides, l'aplicació no arrenca i ho diu clarament («Falten taules a la base de dades…») en comptes de donar errors a mig servei.
+
+Si algú bloqueja un usuari a posta amb intents fallits (és temporal, 15 minuts), es pot treure al moment amb l'usuari propietari:
+
+    cd backend && CLUB_DATABASE_URL=<url> ../.venv/bin/python -m app.cli desbloquejar <usuari>
+
+**Fotos i dret de supressió**: les fotos són d'«només afegir» (com les signatures), amb un màxim de 20 per soci. Per esborrar-ne una (p. ex. a petició del soci) cal fer-ho a mà amb el rol propietari de PostgreSQL, desactivant temporalment el trigger `member_photos_no_change`, i deixar-ho anotat.
 
 Les còpies de seguretat estan descrites a `docs/COPIES.md`.
 

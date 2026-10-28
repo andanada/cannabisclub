@@ -71,6 +71,25 @@ class LoginLocked(Exception):
     """Massa intents fallits: el nom d'usuari queda bloquejat uns minuts."""
 
 
+def assert_not_locked(db: Session, key: str) -> None:
+    """Llança LoginLocked si el nom ha acumulat massa intents fallits recents (sense auditar: no es pot inflar des de fora)."""
+    from .models import LoginAttempt
+    since = datetime.now(timezone.utc) - timedelta(minutes=LOCKOUT_MINUTES)
+    fails = db.scalar(select(func.count()).select_from(LoginAttempt).where(LoginAttempt.username == key[:60], LoginAttempt.ts >= since))
+    if fails >= MAX_FAILED_LOGINS:
+        raise LoginLocked()
+
+
+def register_failure(db: Session, key: str) -> None:
+    from .models import LoginAttempt
+    db.add(LoginAttempt(username=key[:60]))
+
+
+def clear_failures(db: Session, key: str) -> int:
+    from .models import LoginAttempt
+    return db.execute(delete(LoginAttempt).where(LoginAttempt.username == key[:60])).rowcount or 0
+
+
 def login(db: Session, username: str, password: str, totp: str) -> str | None:
     from .models import LoginAttempt
     key = username[:60]
