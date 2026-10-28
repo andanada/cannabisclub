@@ -13,9 +13,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from . import ajustos, cash, descomptes, dispositius, informes, inventaris, personal, quotes, regles, schema, service, socis, stock, usuaris
+from . import ajustos, cash, descomptes, dispositius, informes, inventaris, linies_preu, personal, quotes, regles, schema, service, socis, stock, usuaris
 from .db import make_engine, make_session_factory
-from .models import CashEntry, DeviceProfile, Discount, Local, InventorySession, Member, Product, Regla, StockMovement, User, UserLocal
+from .models import CashEntry, DeviceProfile, Discount, Local, InventorySession, Member, PriceLine, Product, Regla, StockMovement, User, UserLocal
 
 CAN_CREATE_MEMBER = {"admin", "encarregat"}
 log = logging.getLogger("club")
@@ -74,7 +74,7 @@ def create_app(session_factory=None) -> FastAPI:
         resp.headers["Referrer-Policy"] = "no-referrer"
         if not request.url.path.startswith("/static-"):
             if request.url.path not in ("/", "/sw.js", "/i18n-es.js", "/i18n-en.js", "/i18n.js", "/util.js", "/bascula.js", "/app.js", "/views-dispensar.js", "/views-gestio.js",
-                                        "/views-socis.js", "/views-descomptes.js", "/views-regles.js", "/views-inventari.js", "/views-informes.js", "/views-historial.js", "/views-config.js", "/diagnostic.js", "/views-dispositius.js", "/views-diagnostic.js", "/views-carnets.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
+                                        "/views-socis.js", "/views-descomptes.js", "/views-regles.js", "/views-linies-preu.js", "/views-inventari.js", "/views-informes.js", "/views-historial.js", "/views-config.js", "/diagnostic.js", "/views-dispositius.js", "/views-diagnostic.js", "/views-carnets.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
                 resp.headers["Cache-Control"] = "no-store"
             else:
                 resp.headers["Cache-Control"] = "no-cache"  # el navegador revalida sempre: mai barreja fitxers vells i nous
@@ -257,12 +257,14 @@ def create_app(session_factory=None) -> FastAPI:
                  "estoc_g": str(Decimal(mg[p.id]) / 1000), "imatge": imatges.get(p.id)} for p in prods]
 
     @app.get("/locals/{local_id}/estoc")
-    def veure_estoc(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+    def veure_estoc(local_id: int, soci: int | None = None, user: User = Depends(current_user), s: Session = Depends(db)):
         check_local(s, user, local_id)
         prods = s.scalars(select(Product).where(Product.local_id == local_id, Product.actiu.is_(True)).order_by(Product.nom)).all()
         mg = stock.stock_by_product(s, [p.id for p in prods])
         imatges = stock.images_for(s, [p.id for p in prods])
-        return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": p.preu_cent_per_g,
+        # Amb ?soci= els preus són els que paga aquest soci (la seva línia de preu, si en té)
+        preus = linies_preu.effective_prices(s, member_or_404(s, user, soci).id, prods) if soci else {p.id: p.preu_cent_per_g for p in prods}
+        return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": preus[p.id],
                  "estoc_g": str(Decimal(mg[p.id]) / 1000), "imatge": imatges.get(p.id)} for p in prods]
 
     @app.post("/moviments/entrada", status_code=201)
@@ -670,6 +672,69 @@ def create_app(session_factory=None) -> FastAPI:
             raise HTTPException(404, "Descompte inexistent")
         check_local(s, user, d.local_id)
         run(descomptes.update, s, user, d, body.actiu, body.nom, body.valor, body.inici, body.fi, bool({"inici", "fi"} & body.model_fields_set))
+        return {"ok": True}
+
+    class LiniaPreuIn(BaseModel):
+        nom: str = Field(max_length=60)
+
+    class LiniaPreuUpdateIn(BaseModel):
+        nom: str | None = Field(default=None, max_length=60)
+        actiu: bool | None = None
+
+    class PreuLiniaIn(BaseModel):
+        preu_cent_per_g: int = Field(ge=0, le=linies_preu.MAX_PREU)
+
+    class AssignaLiniaIn(BaseModel):
+        price_line_id: int | None = None
+
+    def linia_or_404(s: Session, user: User, linia_id: int) -> PriceLine:
+        need_manager(user)
+        l = s.get(PriceLine, linia_id)
+        if not l:
+            raise HTTPException(404, "Línia de preu inexistent")
+        check_local(s, user, l.local_id)
+        return l
+
+    @app.get("/locals/{local_id}/linies-preu")
+    def llista_linies_preu(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return linies_preu.llista(s, local_id)
+
+    @app.post("/locals/{local_id}/linies-preu", status_code=201)
+    def alta_linia_preu(local_id: int, body: LiniaPreuIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return {"id": run(linies_preu.create, s, user, local_id, body.nom).id}
+
+    @app.get("/linies-preu/{linia_id}")
+    def detall_linia_preu(linia_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        return linies_preu.detall(s, linia_or_404(s, user, linia_id))
+
+    @app.put("/linies-preu/{linia_id}")
+    def edita_linia_preu(linia_id: int, body: LiniaPreuUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        run(linies_preu.update, s, user, linia_or_404(s, user, linia_id), body.nom, body.actiu)
+        return {"ok": True}
+
+    @app.put("/linies-preu/{linia_id}/preus/{product_id}")
+    def posa_preu_linia(linia_id: int, product_id: int, body: PreuLiniaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        run(linies_preu.set_price, s, user, linia_or_404(s, user, linia_id), product_id, body.preu_cent_per_g)
+        return {"ok": True}
+
+    @app.delete("/linies-preu/{linia_id}/preus/{product_id}")
+    def esborra_preu_linia(linia_id: int, product_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        if not linies_preu.remove_price(s, user, linia_or_404(s, user, linia_id), product_id):
+            raise HTTPException(404, "Aquest producte no té preu a la línia")
+        return {"ok": True}
+
+    @app.get("/socis/{member_id}/linia-preu")
+    def linia_preu_del_soci(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        return linies_preu.member_line(s, member_or_404(s, user, member_id).id)
+
+    @app.put("/socis/{member_id}/linia-preu")
+    def assigna_linia_preu(member_id: int, body: AssignaLiniaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        run(linies_preu.assign, s, user, member_or_404(s, user, member_id), body.price_line_id)
         return {"ok": True}
 
     class InventariIn(BaseModel):

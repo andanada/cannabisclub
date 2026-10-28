@@ -109,7 +109,8 @@ function memberTools(m, out, onChange) {
     b.classList.add('tool-toggle');
     return b;
   };
-  return { bar: [...photoUploader(m, out, reload), toggle('Carnet', () => cardManager(m, out, reload)), toggle('Editar dades', () => editForm(m, out, reload))], panel };
+  return { bar: [...photoUploader(m, out, reload), toggle('Carnet', () => cardManager(m, out, reload)), toggle('Editar dades', () => editForm(m, out, reload)),
+    ...(isManager() ? [toggle('Línia de preu', () => { const box = h('div'); memberPriceLine(m, out, reload).then((f) => box.replaceChildren(f)).catch((e) => box.replaceChildren(msg('err', e.message))); return box; })] : [])], panel };
 }
 
 // Llistat de socis del local amb filtre per nom i estat (només responsables).

@@ -129,22 +129,23 @@ VIEWS.dispensar = async () => {
     return box;
   }
   const step = h('div');
-  const productes = await api(`/locals/${S.local}/estoc`);
   const loc = S.me.locals.find((l) => l.id === S.local) || {};
   // Si el local exigeix la quota al dia, es cobra aquí mateix abans de poder dispensar.
-  const showMember = (m, out) => {
+  const showMember = async (m, out) => {
+    // Els preus són els del soci: la seva línia de preu, si en té
+    const productes = m.estat === 'actiu' ? await api(`/locals/${S.local}/estoc?soci=${m.id}`) : [];
     const bloquejat = loc.quota_obligatoria && !(m.quota && m.quota.al_dia);
     step.replaceChildren(...[
       memberCard(m, out, (mm) => showMember(mm, out)),
       m.estat !== 'actiu' ? msg('err', 'El soci no està actiu: no es pot dispensar.') : null,
       m.estat === 'actiu' && bloquejat ? msg('err', 'La quota del soci no està al dia: cal cobrar-la abans de dispensar.') : null,
       m.estat !== 'baixa' && bloquejat ? quotaForm(m, out, (mm) => showMember(mm, out)) : null,
-      m.estat === 'actiu' && !bloquejat ? productStep(m) : null,
+      m.estat === 'actiu' && !bloquejat ? productStep(m, productes) : null,
     ].filter(Boolean));
   };
   const search = searchBox(showMember);
 
-  function productStep(m) {
+  function productStep(m, productes) {
     let chosen = null;
     const out = h('div');
     const sense = () => h('option', { value: '' }, 'Sense descompte');

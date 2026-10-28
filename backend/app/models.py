@@ -327,6 +327,30 @@ class InventoryCount(Base):
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class PriceLine(Base):
+    """Línia de preu: llista de preus per gram alternativa (p. ex. «VIP») que s'assigna a socis."""
+    __tablename__ = "price_lines"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ProductPrice(Base):
+    __tablename__ = "product_prices"
+    price_line_id: Mapped[int] = mapped_column(ForeignKey("price_lines.id"), primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
+    preu_cent_per_g: Mapped[int] = mapped_column(Integer)
+
+
+class MemberPriceLine(Base):
+    """Línia de preu d'un soci (taula a part perquè les bases de dades existents no necessiten cap canvi a `members`)."""
+    __tablename__ = "member_price_lines"
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"), primary_key=True)
+    price_line_id: Mapped[int] = mapped_column(ForeignKey("price_lines.id"))
+
+
 class Regla(Base):
     """Límit de gramatge per soci i període, per a tot el catàleg, una categoria o un producte."""
     __tablename__ = "dispensing_rules"
@@ -377,4 +401,6 @@ def _immutable_movement_discount(mapper, connection, target):
 
 Index("ix_discounts_local", Discount.local_id)
 Index("ix_dispensing_rules_local", Regla.local_id)
+Index("ix_price_lines_local", PriceLine.local_id)
+Index("ix_member_price_lines_line", MemberPriceLine.price_line_id)
 Index("ix_inventory_sessions_local", InventorySession.local_id, InventorySession.estat)

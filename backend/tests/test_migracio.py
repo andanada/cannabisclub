@@ -6,7 +6,7 @@ from app import cli, crypto, schema
 from app.db import Base
 from app.main import get_db_factory
 
-TAULES_NOVES = {"quotes", "member_photos", "member_cards", "local_settings", "login_attempts", "device_profiles", "product_images", "discounts", "movement_discounts", "dispensing_rules", "inventory_sessions", "inventory_counts"}
+TAULES_NOVES = {"quotes", "member_photos", "member_cards", "local_settings", "login_attempts", "device_profiles", "product_images", "discounts", "movement_discounts", "dispensing_rules", "inventory_sessions", "inventory_counts", "price_lines", "product_prices", "member_price_lines"}
 
 
 def bd_antiga(url):

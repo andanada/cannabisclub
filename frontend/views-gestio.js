@@ -114,7 +114,7 @@ async function productsSection() {
 }
 
 VIEWS.estoc = async () => {
-  const items = [['existencies', 'Existències', stockTable], ['moviment', 'Moviments', stockMoveForm], ['productes', 'Productes', productsSection], ['descomptes', 'Descomptes', discountsSection], ['regles', 'Regles', rulesSection], ['inventari', 'Inventari', inventorySection],
+  const items = [['existencies', 'Existències', stockTable], ['moviment', 'Moviments', stockMoveForm], ['productes', 'Productes', productsSection], ['descomptes', 'Descomptes', discountsSection], ['linies', 'Línies de preu', priceLinesSection], ['regles', 'Regles', rulesSection], ['inventari', 'Inventari', inventorySection],
     ['historial', 'Historial', () => stockHistory(() => show('estoc'))]];
   return h('div', null, pageHead('Estoc', 'Existències, entrades i mermes, catàleg de productes i historial amb correccions.'), sections('estoc', items));
 };

@@ -1,6 +1,6 @@
 // Només emmagatzema l'estructura de l'aplicació. Mai desa respostes de l'API (hi ha dades de socis).
-const CACHE = 'club-shell-v15';
-const SHELL = ['/', '/i18n-es.js', '/i18n-en.js', '/i18n.js', '/util.js', '/bascula.js', '/app.js', '/views-dispensar.js', '/views-gestio.js', '/views-socis.js', '/views-descomptes.js', '/views-regles.js', '/views-inventari.js', '/views-informes.js', '/views-historial.js', '/views-config.js', '/diagnostic.js', '/views-dispositius.js', '/views-diagnostic.js', '/views-carnets.js', '/views-admin.js', '/style.css', '/manifest.webmanifest', '/icon.svg'];
+const CACHE = 'club-shell-v16';
+const SHELL = ['/', '/i18n-es.js', '/i18n-en.js', '/i18n.js', '/util.js', '/bascula.js', '/app.js', '/views-dispensar.js', '/views-gestio.js', '/views-socis.js', '/views-descomptes.js', '/views-regles.js', '/views-linies-preu.js', '/views-inventari.js', '/views-informes.js', '/views-historial.js', '/views-config.js', '/diagnostic.js', '/views-dispositius.js', '/views-diagnostic.js', '/views-carnets.js', '/views-admin.js', '/style.css', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(

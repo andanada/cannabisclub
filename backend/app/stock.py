@@ -164,9 +164,9 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     for period, limit in (("dia", local.limit_diari_mg), ("mes", local.limit_mensual_mg)):
         if limit is not None and dispensed_mg(db, member_id, period, now) + mg > limit:
             raise ValueError(f"Supera el límit {'diari' if period == 'dia' else 'mensual'} del soci")
-    from . import regles
+    from . import linies_preu, regles
     regles.check(db, member_id, p, mg, now)
-    original = int((Decimal(mg) * p.preu_cent_per_g / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    original = int((Decimal(mg) * linies_preu.price_for(db, member_id, p) / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     descompte, rebaixa = None, 0
     if discount_id is not None:
         from . import descomptes
