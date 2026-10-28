@@ -90,6 +90,11 @@ def clear_failures(db: Session, key: str) -> int:
     return db.execute(delete(LoginAttempt).where(LoginAttempt.username == key[:60])).rowcount or 0
 
 
+def totp_required() -> bool:
+    """El segon factor és obligatori. Només es pot desactivar amb CLUB_TOTP=0 (p. ex. en un servidor de proves)."""
+    return os.environ.get("CLUB_TOTP", "1") != "0"
+
+
 def login(db: Session, username: str, password: str, totp: str) -> str | None:
     from .models import LoginAttempt
     key = username[:60]
@@ -109,7 +114,8 @@ def login(db: Session, username: str, password: str, totp: str) -> str | None:
     # Sempre es calcula un hash, existeixi o no l'usuari, perquè el temps de resposta no delati els noms d'usuari.
     ok = security.verify_password(password, user.password_hash if user else security.dummy_hash())
     ok = bool(user) and ok
-    ok = ok and security.verify_totp(crypto.decrypt(user.totp_secret_enc), totp)
+    if totp_required():
+        ok = ok and security.verify_totp(crypto.decrypt(user.totp_secret_enc), totp)
     audit_append(db, {"accio": "login", "usuari": key, "ok": ok})
     if not ok:
         db.add(LoginAttempt(username=key))

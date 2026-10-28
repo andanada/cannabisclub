@@ -134,3 +134,14 @@ def test_auditoria_registra_i_detecta_manipulacio(ctx):
     res = client.get("/auditoria/verificar", headers=admin).json()
     assert res["integra"] is False and res["primera_alterada"] is not None
     assert client.get("/auditoria/verificar", headers=enc).status_code == 403
+
+
+def test_segon_factor_es_pot_desactivar_nomes_amb_la_variable(ctx, monkeypatch):
+    client, _factory, _sec = ctx
+    assert client.get("/auth/opcions").json() == {"totp": True}
+    sense_codi = {"username": "enc", "password": PASS}
+    assert client.post("/auth/login", json=sense_codi).status_code == 401  # per defecte el codi és obligatori
+    monkeypatch.setenv("CLUB_TOTP", "0")
+    assert client.get("/auth/opcions").json() == {"totp": False}
+    assert client.post("/auth/login", json={**sense_codi, "password": "mala-contrasenya"}).status_code == 401  # la contrasenya segueix sent obligatòria
+    assert client.post("/auth/login", json=sense_codi).status_code == 200

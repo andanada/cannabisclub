@@ -14,6 +14,9 @@ function renderLogin() {
   const user = h('input', { autocomplete: 'username', required: true });
   const pass = h('input', { type: 'password', autocomplete: 'current-password', required: true });
   const code = h('input', { inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 6, required: true });
+  const codeField = field("Codi de l'app d'autenticació", code);
+  // Si el servidor no exigeix el segon factor (servidor de proves), el camp no es mostra.
+  fetch('/auth/opcions').then((r) => r.json()).then((o) => { if (!o.totp) { codeField.hidden = true; code.required = false; } }).catch(() => {});
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Entrar');
   const form = h('form', { class: 'card login', onsubmit: (e) => {
     e.preventDefault();
@@ -27,7 +30,7 @@ function renderLogin() {
     });
   } },
   h('div', { class: 'actions' }, langSelect()), h('h1', null, 'Gestió del club'),
-  field('Usuari', user), field('Contrasenya', pass), field('Codi de l\'app d\'autenticació', code),
+  field('Usuari', user), field('Contrasenya', pass), codeField,
   h('div', { class: 'actions' }, btn), out);
   $('#app').replaceChildren(form);
   user.focus();

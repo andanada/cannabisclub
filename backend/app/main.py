@@ -105,7 +105,7 @@ def create_app(session_factory=None) -> FastAPI:
         # Límits: aquests valors poden acabar a l'auditoria, que és només d'afegir i no es pot netejar.
         username: str = Field(max_length=60)
         password: str = Field(max_length=200)
-        totp: str = Field(max_length=10)
+        totp: str = Field(default="", max_length=10)
 
     class MemberIn(BaseModel):
         local_id: int
@@ -114,6 +114,11 @@ def create_app(session_factory=None) -> FastAPI:
         naixement: date
         telefon: str | None = None
         email: str | None = None
+
+    @app.get("/auth/opcions")
+    def opcions_login():
+        """Públic: la pantalla d'entrada hi consulta si ha de demanar el codi de l'app d'autenticació."""
+        return {"totp": service.totp_required()}
 
     @app.get("/salut")
     def salut(s: Session = Depends(db)):
