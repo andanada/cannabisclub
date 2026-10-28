@@ -24,19 +24,22 @@ p { margin: 6px 0; }
 /* Estructura: barra lateral (escriptori) / pestanyes inferiors (mòbil) */
 #app { min-height: 100vh; }
 .shell { display: grid; grid-template-columns: var(--side) 1fr; min-height: 100vh; }
-.side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 6px; padding: 18px 12px; background: var(--card); border-right: 1px solid var(--line); }
-.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 14px; }
-.brand .logo { width: 34px; height: 34px; border-radius: 10px; background: var(--brand); color: var(--brand-ink); display: grid; place-items: center; font-weight: 700; }
-.brand small { display: block; color: var(--muted); font-size: .78rem; font-weight: 400; }
-nav.tabs { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow-y: auto; }
-nav.tabs button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 8px 12px; border: 0; border-radius: 10px; background: transparent; color: var(--ink); font-weight: 500; text-align: left; }
-nav.tabs button:hover { background: var(--soft); }
-nav.tabs button[aria-current="page"] { background: var(--brand-soft); color: var(--brand); font-weight: 650; }
+.side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 0; padding: 0; background: linear-gradient(180deg, #8dc177 0%, #4aa38a 100%); color: #fff; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 18px 16px; font-weight: 650; border-bottom: 1px solid rgba(255, 255, 255, .28); }
+.brand .logo { width: 36px; height: 36px; border-radius: 50%; background: rgba(255, 255, 255, .92); color: #3f8f73; display: grid; place-items: center; font-weight: 700; }
+.brand small { display: block; color: rgba(255, 255, 255, .85); font-size: .78rem; font-weight: 400; }
+nav.tabs { display: flex; flex-direction: column; gap: 0; flex: 1; overflow-y: auto; }
+nav.tabs button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 8px 18px; border: 0; border-bottom: 1px solid rgba(255, 255, 255, .28); border-radius: 0; background: transparent; color: #fff; font-weight: 500; text-align: left; }
+nav.tabs button:hover { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .28); }
+nav.tabs button[aria-current="page"] { background: rgba(0, 0, 0, .18); color: #fff; font-weight: 650; box-shadow: inset 3px 0 0 #f4e27a; }
 nav.tabs svg { width: 20px; height: 20px; flex: none; }
-.side .who { padding: 10px 8px 0; border-top: 1px solid var(--line); margin-top: 6px; font-size: .88rem; }
+.side .who { padding: 14px 16px 16px; border-top: 1px solid rgba(255, 255, 255, .28); font-size: .88rem; }
+.side .who select, .side .who button { background: rgba(255, 255, 255, .92); color: #14201b; border-color: transparent; }
 .side .who select { margin: 8px 0; min-height: 40px; }
-.main { padding: 26px 32px 60px; max-width: 1040px; width: 100%; margin: 0 auto; }
-.page-head { margin-bottom: 14px; }
+.main { padding: 30px 32px 60px; max-width: 1040px; width: 100%; margin: 0 auto; }
+.page-head { margin: -30px -32px 22px; padding: 22px 32px 16px; background: var(--card); border-bottom: 1px solid var(--line); }
+.page-head h2 { margin: 0; }
+.page-head .lead { margin: 4px 0 0; }
 
 /* Subseccions: una tasca per pantalla */
 .segments { display: flex; gap: 4px; padding: 4px; margin: 0 0 18px; background: var(--soft); border-radius: 12px; overflow-x: auto; scrollbar-width: none; }
@@ -99,10 +102,12 @@ canvas.sig { width: 100%; max-width: 640px; background: #fff; border: 2px dashed
 
 @media (max-width: 880px) {
   .shell { grid-template-columns: 1fr; }
-  .side { position: fixed; z-index: 10; inset: auto 0 0 0; height: auto; flex-direction: row; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); border-right: 0; border-top: 1px solid var(--line); }
+  .side { position: fixed; z-index: 10; inset: auto 0 0 0; height: auto; flex-direction: row; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); border-top: 0; }
   .brand, .side .who { display: none; }
+  .page-head { margin: -16px -16px 16px; padding: 16px; }
   nav.tabs { flex-direction: row; overflow-x: auto; scrollbar-width: none; }
-  nav.tabs button { flex-direction: column; gap: 2px; min-width: 76px; min-height: 54px; padding: 6px 8px; font-size: .72rem; justify-content: center; text-align: center; }
+  nav.tabs button { flex-direction: column; gap: 2px; min-width: 76px; min-height: 54px; padding: 6px 8px; font-size: .72rem; justify-content: center; text-align: center; border-bottom: 0; border-radius: 10px; }
+  nav.tabs button[aria-current="page"] { box-shadow: none; }
   .topbar { display: flex; }
   .main { padding: 16px 16px 110px; }
 }
