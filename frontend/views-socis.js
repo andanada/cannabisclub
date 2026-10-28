@@ -134,6 +134,6 @@ function memberList(onOpen) {
       }))) : h('p', { class: 'muted' }, 'Cap soci amb aquest filtre.'),
       h('p', { class: 'muted' }, rows.length + ' socis'));
     });
-  } }, h('h2', null, 'Llista de socis'), h('div', { class: 'row' }, field('Nom', q), field('Estat', estat)), h('div', { class: 'actions' }, load), out, body);
+  } }, h('h3', null, 'Filtrar la llista'), h('div', { class: 'row' }, field('Nom', q), field('Estat', estat)), h('div', { class: 'actions' }, load), out, body);
   return form;
 }

@@ -33,28 +33,29 @@ function productCard(p) {
     h('div', { class: 'actions' }, save, toggle), out);
 }
 
-VIEWS.estoc = async () => {
-  const tots = await api(isManager() ? `/locals/${S.local}/productes` : `/locals/${S.local}/estoc`);
-  const prods = tots.filter((p) => p.actiu !== false);
-  const box = h('div', null, h('h2', null, 'Estoc'));
-  box.append(h('div', { class: 'card' }, h('table', null,
+// ---------- Estoc: existències, moviments, productes i historial (una tasca per subpantalla) ----------
+
+async function stockTable() {
+  const prods = await api(`/locals/${S.local}/estoc`);
+  return h('div', { class: 'card table-wrap' }, h('table', null,
     h('thead', null, h('tr', null, h('th', null, 'Producte'), h('th', null, 'Categoria'), h('th', { class: 'num' }, 'Preu/g'), h('th', { class: 'num' }, 'Estoc'))),
     h('tbody', null, prods.length ? prods.map((p) => h('tr', null, h('td', null, p.nom), h('td', { class: 'muted' }, p.categoria),
       h('td', { class: 'num' }, eur(p.preu_cent_per_g)), h('td', { class: 'num' }, p.estoc_g + ' g')))
-      : h('tr', null, h('td', { colspan: 4, class: 'muted' }, 'Encara no hi ha productes.'))))));
-  if (!isManager()) return box;
+      : h('tr', null, h('td', { colspan: 4, class: 'empty' }, 'Encara no hi ha productes.')))));
+}
 
+async function stockMoveForm() {
+  const prods = await api(`/locals/${S.local}/estoc`);
   const out = h('div');
-  const accio = h('select', null, [['entrada', 'Entrada d\'estoc'], ['merma', 'Merma'], ['ajust', 'Ajust d\'inventari (quantitat real)']]
-    .map(([v, t]) => h('option', { value: v }, t)));
+  const accio = h('select', null, [['entrada', "Entrada d'estoc"], ['merma', 'Merma'], ['ajust', "Ajust d'inventari (quantitat real)"]].map(([v, t]) => h('option', { value: v }, t)));
   const prod = h('select', null, prods.map((p) => h('option', { value: p.id }, p.nom)));
   const g = h('input', { inputmode: 'decimal', placeholder: '0,000' });
-  const nota = h('input', { placeholder: 'Motiu / albarà' });
-  const btn = h('button', { class: 'primary', type: 'submit' }, 'Registrar');
-  box.append(h('form', { class: 'card', onsubmit: (e) => {
+  const nota = h('input', { placeholder: 'Motiu o albarà' });
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Registrar moviment');
+  return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(btn, out, async () => {
-      if (!prod.value) throw new Error('Crea primer un producte');
+      if (!prod.value) throw new Error('Crea primer un producte a la subpantalla «Productes»');
       const a = accio.value;
       const body = a === 'ajust' ? { product_id: Number(prod.value), grams_reals: parseGrams(g.value), nota: nota.value.trim() }
         : { product_id: Number(prod.value), grams: parseGrams(g.value), nota: nota.value.trim() || null };
@@ -62,86 +63,98 @@ VIEWS.estoc = async () => {
       toast('Moviment registrat');
       show('estoc');
     });
-  } }, h('h2', null, 'Moviment d\'estoc'),
-  h('div', { class: 'row' }, field('Operació', accio), field('Producte', prod)),
-  h('div', { class: 'row' }, field('Quantitat (g)', g), field('Nota', nota)),
-  h('div', { class: 'actions' }, btn), out));
+  } }, h('h3', null, "Nou moviment d'estoc"), h('div', { class: 'row' }, field('Operació', accio), field('Producte', prod)),
+  h('div', { class: 'row' }, field('Quantitat (g)', g), field('Nota', nota)), h('div', { class: 'actions' }, btn), out);
+}
 
+async function productsSection() {
+  const tots = await api(`/locals/${S.local}/productes`);
   const out2 = h('div');
   const n = h('input'), c = h('input'), p = h('input', { inputmode: 'decimal', placeholder: '8,00' });
-  const b2 = h('button', { type: 'submit' }, 'Crear producte');
-  box.append(h('form', { class: 'card', onsubmit: (e) => {
+  const b2 = h('button', { class: 'primary', type: 'submit' }, 'Crear producte');
+  const nou = h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(b2, out2, async () => {
       await api('/productes', { method: 'POST', body: { local_id: S.local, nom: n.value.trim(), categoria: c.value.trim(), preu_cent_per_g: parseEur(p.value) } });
       toast('Producte creat');
       show('estoc');
     });
-  } }, h('h2', null, 'Nou producte'),
-  h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)),
-  h('div', { class: 'actions' }, b2), out2));
+  } }, h('h3', null, 'Nou producte'), h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)), h('div', { class: 'actions' }, b2), out2);
+  return h('div', null, nou, h('h3', null, 'Productes existents'),
+    h('p', { class: 'muted' }, "El canvi de preu només afecta les dispensacions noves. Per desactivar un producte, l'estoc ha de ser zero."),
+    ...(tots.length ? tots.map(productCard) : [h('div', { class: 'card empty' }, 'Encara no hi ha productes.')]));
+}
 
-  if (tots.length) {
-    box.append(h('h2', null, 'Gestió de productes'),
-      h('p', { class: 'muted' }, 'El canvi de preu només afecta les dispensacions noves. Per desactivar un producte, l\'estoc ha de ser zero.'),
-      ...tots.map(productCard));
-  }
-  box.append(await stockHistory(() => show('estoc')));
-  return box;
+VIEWS.estoc = async () => {
+  const items = [['existencies', 'Existències', stockTable], ['moviment', 'Moviments', stockMoveForm], ['productes', 'Productes', productsSection],
+    ['historial', 'Historial', () => stockHistory(() => show('estoc'))]];
+  return h('div', null, pageHead('Estoc', 'Existències, entrades i mermes, catàleg de productes i historial amb correccions.'), sections('estoc', items));
 };
 
-VIEWS.caixa = async () => {
+// ---------- Caixa: estat, despesa, apunts i tancament ----------
+
+async function cashState() {
   const st = await api(`/locals/${S.local}/caixa`);
-  const box = h('div', null, h('h2', null, 'Caixa'));
   const out = h('div');
   if (!st.oberta) {
-    box.append(h('div', { class: 'card' }, h('span', { class: 'pill warn' }, 'Tancada')));
-    if (!isManager()) return box;
+    const card = h('div', { class: 'card' }, h('span', { class: 'pill warn' }, 'Caixa tancada'), h('p', { class: 'muted' }, 'Cal obrir la caixa per dispensar, cobrar quotes o registrar despeses.'));
+    if (!isManager()) return card;
     const ini = h('input', { inputmode: 'decimal', placeholder: '0,00' });
     const btn = h('button', { class: 'primary', type: 'submit' }, 'Obrir caixa');
-    box.append(h('form', { class: 'card', onsubmit: (e) => {
+    return h('div', null, card, h('form', { class: 'card', onsubmit: (e) => {
       e.preventDefault();
       guard(btn, out, async () => { await api('/caixa/obrir', { method: 'POST', body: { local_id: S.local, opening_cent: parseEur(ini.value) } }); show('caixa'); });
-    } }, field('Efectiu inicial al calaix (€)', ini), h('div', { class: 'actions' }, btn), out));
-    box.append(await cashHistory(() => show('caixa')));
-    return box;
+    } }, h('h3', null, 'Obrir caixa'), field('Efectiu inicial al calaix (€)', ini), h('div', { class: 'actions' }, btn), out));
   }
-  box.append(h('div', { class: 'card' }, h('span', { class: 'pill ok' }, 'Oberta'),
-    h('p', null, 'Obertura: ', h('strong', null, eur(st.obertura_cent))),
-    st.esperat_cent != null ? h('p', null, 'Efectiu esperat ara: ', h('strong', null, eur(st.esperat_cent))) : null));
-  if (!isManager()) return box;
+  return h('div', { class: 'card' }, h('span', { class: 'pill ok' }, 'Caixa oberta'),
+    h('div', { class: 'stats' }, h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Obertura'), h('div', { class: 'big' }, eur(st.obertura_cent))),
+      st.esperat_cent != null ? h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Efectiu esperat ara'), h('div', { class: 'big' }, eur(st.esperat_cent))) : null));
+}
 
+async function expenseForm() {
   const imp = h('input', { inputmode: 'decimal', placeholder: '0,00' });
   const met = h('select', null, ['efectiu', 'targeta'].map((m) => h('option', { value: m }, m)));
   const cat = h('input', { placeholder: 'neteja, compres, nòmines…' });
   const con = h('input');
-  const b1 = h('button', { type: 'submit' }, 'Registrar despesa');
-  const out1 = h('div');
-  box.append(h('form', { class: 'card', onsubmit: (e) => {
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Registrar despesa');
+  const out = h('div');
+  return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
-    guard(b1, out1, async () => {
+    guard(btn, out, async () => {
       await api('/despeses', { method: 'POST', body: { local_id: S.local, cent: parseEur(imp.value), metode: met.value, categoria: cat.value.trim(), concepte: con.value.trim() } });
       toast('Despesa registrada');
       show('caixa');
     });
-  } }, h('h2', null, 'Despesa'),
-  h('div', { class: 'row' }, field('Import (€)', imp), field('Mètode', met), field('Categoria', cat)),
-  field('Concepte', con), h('div', { class: 'actions' }, b1), out1));
+  } }, h('h3', null, 'Nova despesa'), h('div', { class: 'row' }, field('Import (€)', imp), field('Mètode', met), field('Categoria', cat)),
+  field('Concepte', con), h('div', { class: 'actions' }, btn), out);
+}
 
+async function closeForm() {
+  const st = await api(`/locals/${S.local}/caixa`);
+  if (!st.oberta) return h('div', { class: 'card empty' }, 'No hi ha cap caixa oberta per tancar.');
   const comptat = h('input', { inputmode: 'decimal', placeholder: '0,00' });
-  const b2 = h('button', { class: 'danger', type: 'submit' }, 'Tancar caixa');
+  const btn = h('button', { class: 'danger', type: 'submit' }, 'Tancar caixa');
+  const out = h('div');
+  const box = h('div');
   box.append(h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
-    guard(b2, out, async () => {
+    guard(btn, out, async () => {
       const r = await api('/caixa/tancar', { method: 'POST', body: { local_id: S.local, counted_cent: parseEur(comptat.value) } });
       const d = r.diferencia_cent;
-      box.replaceChildren(h('h2', null, 'Caixa tancada'), h('div', { class: 'card' },
-        h('p', null, 'Esperat: ', h('strong', null, eur(r.esperat_cent))), h('p', null, 'Comptat: ', h('strong', null, eur(r.comptat_cent))),
-        h('p', null, 'Diferència: ', h('span', { class: 'pill ' + (d === 0 ? 'ok' : 'bad') }, (d > 0 ? '+' : '') + eur(d)))));
+      box.replaceChildren(h('div', { class: 'card' }, h('h3', null, 'Caixa tancada'), h('div', { class: 'stats' },
+        h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Esperat'), h('div', { class: 'big' }, eur(r.esperat_cent))),
+        h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Comptat'), h('div', { class: 'big' }, eur(r.comptat_cent))),
+        h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Diferència'), h('span', { class: 'pill ' + (d === 0 ? 'ok' : 'bad') }, (d > 0 ? '+' : '') + eur(d))))));
     });
-  } }, h('h2', null, 'Tancament'), field('Efectiu comptat al calaix (€)', comptat), h('div', { class: 'actions' }, b2), out));
-  box.append(await cashHistory(() => show('caixa')));
+  } }, h('h3', null, 'Tancament de caixa'), h('p', { class: 'muted' }, "Compta l'efectiu del calaix i escriu-lo: el programa calcula la diferència."),
+  field('Efectiu comptat al calaix (€)', comptat), h('div', { class: 'actions' }, btn), out));
   return box;
+}
+
+VIEWS.caixa = async () => {
+  const items = [['estat', 'Estat', cashState]];
+  if (isManager()) items.push(['despesa', 'Despesa', expenseForm], ['apunts', 'Apunts', () => cashHistory(() => show('caixa'))], ['tancament', 'Tancament', closeForm]);
+  return h('div', null, pageHead('Caixa', 'Obertura i tancament, despeses i apunts del dia.'), sections('caixa', items));
 };
 
 VIEWS.fitxatge = async () => {

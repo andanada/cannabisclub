@@ -36,25 +36,32 @@ function renderLogin() {
 const TABS = [
   ['dispensar', 'Dispensar', () => true],
   ['socis', 'Socis', () => true],
-  ['estoc', 'Estoc', () => true],
+  ['estoc', 'Estoc', isManager],
   ['caixa', 'Caixa', () => true],
   ['fitxatge', 'Fitxatge', () => true],
-  ['informe', 'Informe', isManager],
-  ['admin', 'Admin', () => S.me.role === 'admin'],
+  ['informe', 'Informes', isManager],
+  ['config', 'Configuració', () => S.me.role === 'admin'],
   ['compte', 'Compte', () => true],
 ];
 
-function renderShell() {
+function localSelect() {
   const sel = h('select', { 'aria-label': 'Local', onchange: () => { S.local = Number(sel.value); sessionStorage.setItem('l', S.local); show(S.view); } },
     S.me.locals.map((l) => h('option', { value: l.id, selected: l.id === S.local }, l.nom)));
+  return sel;
+}
+
+function renderShell() {
   const nav = h('nav', { class: 'tabs', 'aria-label': 'Seccions' },
     TABS.filter((t) => t[2]()).map(([id, label]) =>
-      h('button', { 'data-view': id, onclick: () => show(id) }, label)));
-  $('#app').replaceChildren(
-    h('header', { class: 'top' },
-      h('div', null, h('h1', null, 'Gestió del club'), h('div', { class: 'who' }, S.me.username + ' · ' + S.me.role)),
-      h('div', { class: 'row' }, sel, h('button', { onclick: logout }, 'Sortir'))),
-    h('main', { id: 'main' }), nav);
+      h('button', { 'data-view': id, onclick: () => show(id) }, icon(id), h('span', null, label))));
+  const side = h('aside', { class: 'side' },
+    h('div', { class: 'brand' }, h('div', { class: 'logo', 'aria-hidden': 'true' }, 'C'), h('div', null, 'Gestió del club', h('small', null, 'Panell de treball'))),
+    nav,
+    h('div', { class: 'who' }, h('div', null, h('strong', null, S.me.username), ' · ', S.me.role), localSelect(),
+      h('button', { class: 'small', onclick: logout }, 'Sortir')));
+  const topbar = h('div', { class: 'topbar' }, h('strong', null, 'Gestió del club'),
+    h('div', { class: 'row' }, localSelect(), h('button', { class: 'small', onclick: logout }, 'Sortir')));
+  $('#app').replaceChildren(h('div', { class: 'shell' }, side, h('div', null, topbar, h('main', { id: 'main', class: 'main' }))));
 }
 
 async function show(view) {

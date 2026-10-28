@@ -79,14 +79,26 @@ function searchBox(onFound) {
   return form;
 }
 
-VIEWS.socis = async () => {
-  const box = h('div');
+// Ficha del soci + cobrament de quota, dins d'un contenidor propi (es refà quan canvia alguna dada).
+function memberPanel() {
   const found = h('div');
-  const showMember = (m, out) => found.replaceChildren(memberCard(m, out, (mm) => showMember(mm, out)), quotaForm(m, out, (mm) => showMember(mm, out)));
-  const search = searchBox(showMember);
-  box.append(h('h2', null, 'Socis'), search, found);
-  if (isManager()) box.append(memberList((m, out) => { showMember(m, out); found.scrollIntoView(); }), altaForm());
-  return box;
+  const show1 = (m, out) => found.replaceChildren(memberCard(m, out, (mm) => show1(mm, out)), quotaForm(m, out, (mm) => show1(mm, out)));
+  return { found, show: show1 };
+}
+
+VIEWS.socis = async () => {
+  const items = [['cercar', 'Cercar', async () => {
+    const panel = memberPanel();
+    return h('div', null, searchBox(panel.show), panel.found);
+  }]];
+  if (isManager()) {
+    items.push(['llista', 'Llista', async () => {
+      const panel = memberPanel();
+      return h('div', null, memberList((m, out) => { panel.show(m, out); panel.found.scrollIntoView(); }), panel.found);
+    }]);
+    items.push(['alta', 'Alta de soci', async () => altaForm()]);
+  }
+  return h('div', null, pageHead('Socis', 'Cerca un soci, consulta la llista o registra un soci nou.'), sections('socis', items));
 };
 
 function altaForm() {
@@ -103,7 +115,7 @@ function altaForm() {
       out.replaceChildren(msg('ok', 'Soci creat (núm. ' + r.id + '). Falta la signatura:'), signaturePad(r.id, out));
     });
   } },
-  h('h2', null, 'Alta de soci'),
+  h('h3', null, 'Dades del soci'),
   h('div', { class: 'row' }, field('Nom i cognoms', f.nom), field('Document', f.doc), field('Data de naixement', f.naix)),
   h('div', { class: 'row' }, field('Telèfon (opcional)', f.tel), field('Correu (opcional)', f.mail)),
   h('div', { class: 'actions' }, btn), out);

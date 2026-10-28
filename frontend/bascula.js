@@ -24,6 +24,11 @@ function loadProfile() {
     return Object.assign({}, DEFAULT_PROFILE, p || {});
   } catch (_) { return Object.assign({}, DEFAULT_PROFILE); }
 }
+// Perfil guardat al servidor (configuració de la bàscula d'un local) -> opcions de la classe Bascula.
+function profileToOptions(cfg) {
+  return { baudRate: cfg.baud_rate, read: cfg.read, tare: cfg.tare, zero: cfg.zero, dataBits: cfg.data_bits, stopBits: cfg.stop_bits,
+    parity: cfg.parity, flowControl: cfg.flow === 'hardware' ? 'hardware' : 'none' };
+}
 function saveProfile(p) { localStorage.setItem('bascula_profile', JSON.stringify(Object.assign({}, DEFAULT_PROFILE, p))); }
 
 class Bascula {
@@ -34,6 +39,8 @@ class Bascula {
     this.readCommands = (o.read && o.read.length) ? o.read : DEFAULT_PROFILE.read;
     this.tareCommand = o.tare || DEFAULT_PROFILE.tare;
     this.zeroCommand = o.zero || DEFAULT_PROFILE.zero;
+    // Paràmetres del port sèrie: per defecte 8N1 sense control de flux (el més habitual en OHAUS).
+    this.serialOptions = { dataBits: o.dataBits || 8, stopBits: o.stopBits || 1, parity: o.parity || 'none', flowControl: o.flowControl || 'none' };
     this.rawLog = []; this.onRaw = o.onRaw || null;
     this.port = null; this.writer = null; this.reader = null;
     this.last = null; this.lastError = null; this.waiters = [];
@@ -45,7 +52,7 @@ class Bascula {
   async connect() {
     if (!this.serial) throw new Error('Aquest navegador o connexió no admet ports sèrie (cal Chrome/Edge i HTTPS o localhost)');
     this.port = await this.serial.requestPort();
-    await this.port.open({ baudRate: this.baudRate, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none' });
+    await this.port.open(Object.assign({ baudRate: this.baudRate }, this.serialOptions));
     this.writer = this.port.writable.getWriter();
     this.connected = true;
     this._readLoop();
@@ -130,4 +137,4 @@ class Bascula {
   }
 }
 
-if (typeof module !== 'undefined') module.exports = { parsePesLine, Bascula, MG_PER_UNIT, DEFAULT_PROFILE };
+if (typeof module !== 'undefined') module.exports = { parsePesLine, Bascula, MG_PER_UNIT, DEFAULT_PROFILE, profileToOptions };
