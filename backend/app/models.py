@@ -327,6 +327,30 @@ class InventoryCount(Base):
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class ContainerType(Base):
+    """Tipus de contenidor (pot, bossa, caixa…) amb la seva tara en mg."""
+    __tablename__ = "container_types"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    tara_mg: Mapped[int] = mapped_column(Integer)
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class Container(Base):
+    """Contenidor concret amb codi propi: tipus, producte que conté i darrer pes brut."""
+    __tablename__ = "containers"
+    __table_args__ = (UniqueConstraint("local_id", "codi"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    codi: Mapped[str] = mapped_column(String(40))
+    type_id: Mapped[int] = mapped_column(ForeignKey("container_types.id"))
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    brut_mg: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class PriceLine(Base):
     """Línia de preu: llista de preus per gram alternativa (p. ex. «VIP») que s'assigna a socis."""
     __tablename__ = "price_lines"
@@ -402,5 +426,7 @@ def _immutable_movement_discount(mapper, connection, target):
 Index("ix_discounts_local", Discount.local_id)
 Index("ix_dispensing_rules_local", Regla.local_id)
 Index("ix_price_lines_local", PriceLine.local_id)
+Index("ix_container_types_local", ContainerType.local_id)
+Index("ix_containers_local", Container.local_id)
 Index("ix_member_price_lines_line", MemberPriceLine.price_line_id)
 Index("ix_inventory_sessions_local", InventorySession.local_id, InventorySession.estat)
