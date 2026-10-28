@@ -24,7 +24,8 @@ p { margin: 6px 0; }
 /* Estructura: barra lateral (escriptori) / pestanyes inferiors (mòbil) */
 #app { min-height: 100vh; }
 .shell { display: grid; grid-template-columns: var(--side) 1fr; min-height: 100vh; }
-.side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 0; padding: 0; background: linear-gradient(180deg, #8dc177 0%, #4aa38a 100%); color: #fff; }
+.side { align-self: stretch; min-height: 100vh; background: linear-gradient(180deg, #8dc177 0%, #4aa38a 100%); background-attachment: fixed; color: #fff; }
+.side-in { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 18px 16px; font-weight: 650; border-bottom: 1px solid rgba(255, 255, 255, .28); }
 .brand .logo { width: 36px; height: 36px; border-radius: 50%; background: rgba(255, 255, 255, .92); color: #3f8f73; display: grid; place-items: center; font-weight: 700; }
 .brand small { display: block; color: rgba(255, 255, 255, .85); font-size: .78rem; font-weight: 400; }
@@ -102,7 +103,8 @@ canvas.sig { width: 100%; max-width: 640px; background: #fff; border: 2px dashed
 
 @media (max-width: 880px) {
   .shell { grid-template-columns: 1fr; }
-  .side { position: fixed; z-index: 10; inset: auto 0 0 0; height: auto; flex-direction: row; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); border-top: 0; }
+  .side { position: fixed; z-index: 10; inset: auto 0 0 0; min-height: 0; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); }
+  .side-in { position: static; height: auto; flex-direction: row; }
   .brand, .side .who { display: none; }
   .page-head { margin: -16px -16px 16px; padding: 16px; }
   nav.tabs { flex-direction: row; overflow-x: auto; scrollbar-width: none; }
@@ -120,3 +122,12 @@ canvas.sig { width: 100%; max-width: 640px; background: #fff; border: 2px dashed
   .print-area { position: absolute; left: 0; top: 0; }
   .carnet-print { border: 1px solid #000; }
 }
+
+/* Diagnòstic de dispositius */
+.checks { list-style: none; margin: 8px 0 0; padding: 0; }
+.checks li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.checks li:last-child { border-bottom: 0; }
+.checks .mark { display: inline-block; width: 1.4em; font-weight: 700; }
+.checks li.ok .mark { color: var(--ok); }
+.checks li.bad .mark { color: var(--danger); }
+.diag { margin-top: 12px; }

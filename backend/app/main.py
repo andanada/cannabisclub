@@ -74,7 +74,7 @@ def create_app(session_factory=None) -> FastAPI:
         resp.headers["Referrer-Policy"] = "no-referrer"
         if not request.url.path.startswith("/static-"):
             if request.url.path not in ("/", "/sw.js", "/i18n-es.js", "/i18n-en.js", "/i18n.js", "/util.js", "/bascula.js", "/app.js", "/views-dispensar.js", "/views-gestio.js",
-                                        "/views-socis.js", "/views-informes.js", "/views-historial.js", "/views-config.js", "/views-dispositius.js", "/views-carnets.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
+                                        "/views-socis.js", "/views-informes.js", "/views-historial.js", "/views-config.js", "/diagnostic.js", "/views-dispositius.js", "/views-diagnostic.js", "/views-carnets.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
                 resp.headers["Cache-Control"] = "no-store"
         return resp
     factory = session_factory or get_db_factory()

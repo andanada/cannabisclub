@@ -103,6 +103,7 @@ VIEWS.config = async () => {
     ['bascules', 'Bàscules', async () => deviceSection('bascula')],
     ['signatura', 'Tauletes de signatura', async () => deviceSection('signatura')],
     ['carnets', 'Carnets i lectors', async () => cardsSection()],
+    ['diagnostic', 'Diagnòstic', diagnosticSection],
     ['seguretat', 'Seguretat', async () => securitySection()],
   ];
   return h('div', null, pageHead('Configuració', 'Ajustos del local, usuaris i dispositius. Cada subpantalla fa una sola cosa.'), sections('config', items));

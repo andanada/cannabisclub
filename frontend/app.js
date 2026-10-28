@@ -54,11 +54,11 @@ function renderShell() {
   const nav = h('nav', { class: 'tabs', 'aria-label': 'Seccions' },
     TABS.filter((t) => t[2]()).map(([id, label]) =>
       h('button', { 'data-view': id, onclick: () => show(id) }, icon(id), h('span', null, label))));
-  const side = h('aside', { class: 'side' },
+  const side = h('aside', { class: 'side' }, h('div', { class: 'side-in' },
     h('div', { class: 'brand' }, h('div', { class: 'logo', 'aria-hidden': 'true' }, 'C'), h('div', null, 'Gestió del club', h('small', null, 'Panell de treball'))),
     nav,
     h('div', { class: 'who' }, h('div', null, h('strong', null, S.me.username), ' · ', S.me.role), localSelect(), langSelect(),
-      h('button', { class: 'small', onclick: logout }, 'Sortir')));
+      h('button', { class: 'small', onclick: logout }, 'Sortir'))));
   const topbar = h('div', { class: 'topbar' }, h('strong', null, 'Gestió del club'),
     h('div', { class: 'row' }, localSelect(), langSelect(), h('button', { class: 'small', onclick: logout }, 'Sortir')));
   $('#app').replaceChildren(h('div', { class: 'shell' }, side, h('div', null, topbar, h('main', { id: 'main', class: 'main' }))));
