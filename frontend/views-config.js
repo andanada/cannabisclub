@@ -64,22 +64,31 @@ function quotesSection() {
 async function usersSection() {
   const un = h('input', { autocomplete: 'off' });
   const pw = h('input', { type: 'password', autocomplete: 'new-password' });
-  const rol = h('select', null, ['dispensador', 'encarregat', 'admin'].map((r) => h('option', { value: r }, r)));
+  const rol = h('select', null, Object.keys(ROL_NOMS).map((r) => h('option', { value: r }, ROL_NOMS[r])));
   const checks = S.me.locals.map((l) => h('label', null, h('input', { type: 'checkbox', value: l.id }), ' ', l.nom));
   const outU = h('div');
+  const llista = h('div');
+  const pintaLlista = async () => llista.replaceChildren(await usersCard());
+  const opcions = await fetch('/auth/opcions').then((r) => r.json()).catch(() => ({ totp: true }));
   const bU = h('button', { class: 'primary', type: 'submit' }, 'Crear usuari');
   const nou = h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(bU, outU, async () => {
       const ids = checks.map((c) => c.querySelector('input')).filter((i) => i.checked).map((i) => Number(i.value));
       const r = await api('/usuaris', { method: 'POST', body: { username: un.value.trim(), password: pw.value, role: rol.value, local_ids: ids } });
-      pw.value = '';
-      outU.replaceChildren(msg('ok', "Usuari creat. Dona-li aquest secret per a l'app d'autenticació; no es tornarà a mostrar:"), h('div', { class: 'secret' }, r.totp_secret));
+      const nomCreat = un.value.trim();
+      pw.value = ''; un.value = '';
+      checks.forEach((c) => { c.querySelector('input').checked = false; });
+      outU.replaceChildren(...(opcions.totp
+        ? [msg('ok', `Usuari «${nomCreat}» creat. Dona-li aquest secret per a l'app d'autenticació; no es tornarà a mostrar:`), h('div', { class: 'secret' }, r.totp_secret)]
+        : [msg('ok', `Usuari «${nomCreat}» creat. Ja pot entrar amb el seu usuari i la contrasenya.`)]));
+      await pintaLlista();
     });
   } }, h('h3', null, 'Nou usuari'),
   h('div', { class: 'row' }, field("Nom d'usuari", un), field('Contrasenya (mínim 12 caràcters)', pw), field('Rol', rol)),
-  h('h3', null, 'Locals amb accés'), h('div', null, checks), h('div', { class: 'actions' }, bU), outU);
-  return h('div', null, nou, await usersCard());
+  h('h3', null, 'Locals amb accés'), h('p', { class: 'muted' }, 'Els administradors veuen tots els locals; marca els locals dels encarregats i treballadors.'), h('div', null, checks), h('div', { class: 'actions' }, bU), outU);
+  await pintaLlista();
+  return h('div', null, nou, llista);
 }
 
 function securitySection() {

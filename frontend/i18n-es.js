@@ -613,7 +613,11 @@ Object.assign(I18N.es, {
  "Preu no vàlid": "Precio no válido",
  "Aquest producte no té preu a la línia": "Este producto no tiene precio en la línea",
  "Línia de preu inexistent en aquest local": "Línea de precio inexistente en este local",
- "Línia de preu inexistent": "Línea de precio inexistente"
+ "Línia de preu inexistent": "Línea de precio inexistente",
+ "Administrador": "Administrador",
+ "Encarregat": "Encargado",
+ "Treballador (dispensador)": "Trabajador (dispensador)",
+ "Els administradors veuen tots els locals; marca els locals dels encarregats i treballadors.": "Los administradores ven todos los locales; marca los locales de los encargados y trabajadores."
 });
 I18N.pat.es.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Código de barras $1"],
 [new RegExp("^Soci\\ núm\\.\\s+(.*)$"), "Socio n.º $1"],
@@ -712,4 +716,6 @@ I18N.pat.es.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Código de barras
 [new RegExp("^Inventari de (.+)$"), "Inventario del $1"],
 [new RegExp("^Inventari tancat: (\\d+) ajustos$"), "Inventario cerrado: $1 ajustes"],
 [new RegExp("^(\\d+) productes comptats · (.+)$"), "$1 productos contados · $2"],
-[new RegExp("^(\\d+) productes amb preu propi · (\\d+) socis$"), "$1 productos con precio propio · $2 socios"]);
+[new RegExp("^(\\d+) productes amb preu propi · (\\d+) socis$"), "$1 productos con precio propio · $2 socios"],
+[new RegExp("^Usuari «(.+)» creat\\. Ja pot entrar amb el seu usuari i la contrasenya\\.$"), "Usuario «$1» creado. Ya puede entrar con su usuario y contraseña."],
+[new RegExp("^Usuari «(.+)» creat\\. Dona-li aquest secret per a l'app d'autenticació; no es tornarà a mostrar:$"), "Usuario «$1» creado. Dale este secreto para la app de autenticación; no se volverá a mostrar:"]);

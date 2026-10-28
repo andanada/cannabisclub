@@ -1,6 +1,8 @@
 'use strict';
 // Usuaris existents (llista editable) i el compte propi.
 
+const ROL_NOMS = { admin: 'Administrador', encarregat: 'Encarregat', dispensador: 'Treballador (dispensador)' };
+
 // Usuaris existents: rol, locals, activar/desactivar, contrasenya nova i reinici del segon factor (TOTP).
 async function usersCard() {
   const users = await api('/usuaris');
@@ -11,8 +13,8 @@ async function usersCard() {
 
 function userCard(u) {
   const out = h('div');
-  const reload = () => show('admin');
-  const rol = h('select', null, ['dispensador', 'encarregat', 'admin'].map((r) => h('option', { value: r, selected: r === u.role }, r)));
+  const reload = () => show('config');
+  const rol = h('select', null, Object.keys(ROL_NOMS).map((r) => h('option', { value: r, selected: r === u.role }, ROL_NOMS[r])));
   const checks = S.me.locals.map((l) => h('label', null, h('input', { type: 'checkbox', value: l.id, checked: u.local_ids.includes(l.id) }), ' ', l.nom));
   const save = h('button', { class: 'primary', type: 'button' }, 'Desar rol i locals');
   save.addEventListener('click', () => guard(save, out, async () => {
@@ -42,7 +44,7 @@ function userCard(u) {
     out.replaceChildren(msg('ok', 'Nou secret per a l\'app d\'autenticació; no es tornarà a mostrar:'), h('div', { class: 'secret' }, r.totp_secret));
   }));
   return h('div', { class: 'card' },
-    h('div', null, h('strong', null, u.username), ' ', h('span', { class: 'pill ' + (u.active ? 'ok' : 'warn') }, u.active ? 'actiu' : 'desactivat')),
+    h('div', null, h('strong', null, u.username), ' ', h('span', { class: 'pill' }, ROL_NOMS[u.role] || u.role), ' ', h('span', { class: 'pill ' + (u.active ? 'ok' : 'warn') }, u.active ? 'actiu' : 'desactivat')),
     h('div', { class: 'row' }, field('Rol', rol), field('Contrasenya nova', pw)),
     h('h3', null, 'Locals amb accés'), h('div', null, checks),
     h('div', { class: 'actions' }, save, setPw, totp, toggle), out);
