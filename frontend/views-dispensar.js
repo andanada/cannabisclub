@@ -1,10 +1,39 @@
 'use strict';
 // Pantalles: Dispensar (flux complet) i Socis (cerca, alta, estat).
 
+const dataCa = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('ca-ES');
+
+function quotaPill(q) {
+  if (!q) return null;
+  if (q.al_dia) return h('span', { class: 'pill ok' }, 'quota fins al ' + dataCa(q.valid_fins));
+  return h('span', { class: 'pill warn' }, q.valid_fins ? 'quota caducada el ' + dataCa(q.valid_fins) : 'sense quota');
+}
+
+// Cobrament de la quota del soci (entra a la caixa oberta). Els imports i els mesos per defecte venen de la configuració del local.
+function quotaForm(m, out, onDone) {
+  const loc = S.me.locals.find((l) => l.id === S.local) || {};
+  const imp = h('input', { inputmode: 'decimal', placeholder: '0,00', value: loc.quota_cent ? (loc.quota_cent / 100).toFixed(2).replace('.', ',') : '' });
+  const mesos = h('input', { type: 'number', min: 1, max: 24, value: loc.quota_mesos || 1 });
+  const met = h('select', null, ['efectiu', 'targeta'].map((x) => h('option', { value: x }, x)));
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Cobrar quota');
+  const res = h('div');
+  return h('form', { class: 'card', onsubmit: (e) => {
+    e.preventDefault();
+    guard(btn, res, async () => {
+      const r = await api(`/socis/${m.id}/quotes`, { method: 'POST', body: { import_cent: parseEur(imp.value), metode: met.value, mesos: Number(mesos.value) } });
+      m.quota = { al_dia: true, valid_fins: r.valid_fins };
+      toast('Quota cobrada: vàlida fins al ' + dataCa(r.valid_fins));
+      onDone(m);
+    });
+  } }, h('h3', null, 'Quota'),
+  h('div', { class: 'row' }, field('Import (€)', imp), field('Mesos', mesos), field('Mètode', met)),
+  h('div', { class: 'actions' }, btn), res);
+}
+
 function memberCard(m, out, onChange) {
   const pill = h('span', { class: 'pill ' + (m.estat === 'actiu' ? 'ok' : 'bad') }, m.estat);
   const card = h('div', { class: 'card' },
-    h('div', { class: 'big' }, m.nom), h('div', null, pill, ' ', h('span', { class: 'muted' }, m.document + ' · ' + m.naixement)),
+    h('div', { class: 'big' }, m.nom), h('div', null, pill, ' ', quotaPill(m.quota), ' ', h('span', { class: 'muted' }, m.document + ' · ' + m.naixement)),
     m.telefon ? h('div', { class: 'muted' }, m.telefon) : null);
   const bar = h('div', { class: 'actions' });
   const entrada = h('button', { onclick: () => guard(entrada, out, async () => {
@@ -43,7 +72,8 @@ function searchBox(onFound) {
 VIEWS.socis = async () => {
   const box = h('div');
   const found = h('div');
-  const search = searchBox((m, out) => found.replaceChildren(memberCard(m, out)));
+  const showMember = (m, out) => found.replaceChildren(memberCard(m, out), quotaForm(m, out, (mm) => showMember(mm, out)));
+  const search = searchBox(showMember);
   box.append(h('h2', null, 'Socis'), search, found);
   if (isManager()) box.append(altaForm());
   return box;
@@ -78,11 +108,19 @@ VIEWS.dispensar = async () => {
   }
   const step = h('div');
   const productes = await api(`/locals/${S.local}/estoc`);
-  let member = null;
-  const search = searchBox((m, out) => {
-    member = m;
-    step.replaceChildren(memberCard(m, out), m.estat === 'actiu' ? productStep(m) : msg('err', 'El soci no està actiu: no es pot dispensar.'));
-  });
+  const loc = S.me.locals.find((l) => l.id === S.local) || {};
+  // Si el local exigeix la quota al dia, es cobra aquí mateix abans de poder dispensar.
+  const showMember = (m, out) => {
+    const bloquejat = loc.quota_obligatoria && !(m.quota && m.quota.al_dia);
+    step.replaceChildren(...[
+      memberCard(m, out),
+      m.estat !== 'actiu' ? msg('err', 'El soci no està actiu: no es pot dispensar.') : null,
+      m.estat === 'actiu' && bloquejat ? msg('err', 'La quota del soci no està al dia: cal cobrar-la abans de dispensar.') : null,
+      m.estat !== 'baixa' && bloquejat ? quotaForm(m, out, (mm) => showMember(mm, out)) : null,
+      m.estat === 'actiu' && !bloquejat ? productStep(m) : null,
+    ].filter(Boolean));
+  };
+  const search = searchBox(showMember);
 
   function productStep(m) {
     let chosen = null;

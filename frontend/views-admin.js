@@ -33,6 +33,24 @@ VIEWS.admin = async () => {
   h('div', { class: 'row' }, field('Límit diari (g)', d), field('Límit mensual (g)', m), field('Tolerància bàscula (g)', t)),
   h('div', { class: 'actions' }, bL), outL));
 
+  // Quotes del local: import i durada per defecte, i si es bloqueja dispensar amb la quota caducada
+  const qImp = h('input', { inputmode: 'decimal', value: loc.quota_cent ? (loc.quota_cent / 100).toFixed(2).replace('.', ',') : '', placeholder: 'sense import per defecte' });
+  const qMesos = h('input', { type: 'number', min: 1, max: 24, value: loc.quota_mesos || 1 });
+  const qObl = h('input', { type: 'checkbox', checked: !!loc.quota_obligatoria });
+  const outQ = h('div');
+  const bQ = h('button', { class: 'primary', type: 'submit' }, 'Desar');
+  box.append(h('form', { class: 'card', onsubmit: (e) => {
+    e.preventDefault();
+    guard(bQ, outQ, async () => {
+      await api(`/locals/${S.local}/config`, { method: 'PUT', body: { quota_cent: qImp.value.trim() ? parseEur(qImp.value) : 0, quota_mesos: Number(qMesos.value), quota_obligatoria: qObl.checked } });
+      S.me = await api('/me');
+      outQ.replaceChildren(msg('ok', 'Quotes desades'));
+    });
+  } }, h('h3', null, 'Quotes · ' + loc.nom),
+  h('div', { class: 'row' }, field('Import per defecte (€)', qImp), field('Mesos per defecte', qMesos)),
+  h('label', null, qObl, ' Exigir la quota al dia per poder dispensar'),
+  h('div', { class: 'actions' }, bQ), outQ));
+
   // Nou local
   const nom = h('input');
   const outN = h('div');

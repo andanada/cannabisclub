@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import cash, personal, service, stock
+from . import ajustos, cash, personal, quotes, service, stock
 from .db import make_engine, make_session_factory
 from .models import CashEntry, Local, Member, Product, StockMovement, User, UserLocal
 
@@ -99,7 +99,7 @@ def create_app(session_factory=None) -> FastAPI:
         check_local(s, user, m.local_id)
         service.audit_append(s, {"accio": "consulta_soci", "soci": m.id, "per": user.id})
         s.commit()
-        return service.member_view(m)
+        return {**service.member_view(m), "quota": quotes.status(s, m.id)}
 
     @app.get("/auditoria/verificar")
     def verificar(user: User = Depends(current_user), s: Session = Depends(db)):
@@ -362,7 +362,36 @@ def create_app(session_factory=None) -> FastAPI:
         s.commit()
         if not m:
             raise HTTPException(404, "No existeix")
-        return service.member_view(m)
+        return {**service.member_view(m), "quota": quotes.status(s, m.id)}
+
+    class QuotaIn(BaseModel):
+        import_cent: int = Field(gt=0, le=quotes.MAX_IMPORT_CENT)
+        metode: str
+        mesos: int = Field(default=1, ge=1, le=quotes.MAX_MESOS)
+
+    @app.post("/socis/{member_id}/quotes", status_code=201)
+    def cobrar_quota(member_id: int, body: QuotaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        q = run(quotes.charge, s, user, member_or_404(s, user, member_id), body.import_cent, body.metode, body.mesos)
+        return {"id": q.id, "valid_des": q.valid_des.isoformat(), "valid_fins": q.valid_fins.isoformat(), "apunt": q.cash_entry_id}
+
+    @app.get("/socis/{member_id}/quotes")
+    def historial_quotes(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        m = member_or_404(s, user, member_id)
+        service.audit_append(s, {"accio": "consulta_quotes", "soci": m.id, "per": user.id})
+        s.commit()
+        return {"estat": quotes.status(s, m.id), "historial": quotes.history(s, m.id)}
+
+    class AjustosIn(BaseModel):
+        quota_obligatoria: bool | None = None
+        quota_cent: int | None = Field(default=None, ge=0, le=quotes.MAX_IMPORT_CENT)
+        quota_mesos: int | None = Field(default=None, ge=1, le=quotes.MAX_MESOS)
+
+    @app.put("/locals/{local_id}/config")
+    def canvia_config(local_id: int, body: AjustosIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        if not s.get(Local, local_id):
+            raise HTTPException(404, "Local inexistent")
+        return run(ajustos.set_, s, user, local_id, body.model_dump())
 
     @app.post("/moviments/merma", status_code=201)
     def merma(body: MermaIn, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -421,7 +450,7 @@ def create_app(session_factory=None) -> FastAPI:
         return {"id": user.id, "username": user.username, "role": user.role,
                 "locals": [{"id": l.id, "nom": l.nom, "limit_diari_mg": l.limit_diari_mg,
                             "limit_mensual_mg": l.limit_mensual_mg,
-                            "tolerancia_bascula_mg": l.tolerancia_bascula_mg} for l in locs]}
+                            "tolerancia_bascula_mg": l.tolerancia_bascula_mg, **ajustos.get(s, l.id)} for l in locs]}
 
     @app.post("/auth/logout")
     def logout(authorization: str = Header(default=""), s: Session = Depends(db)):

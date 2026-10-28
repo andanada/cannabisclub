@@ -191,3 +191,32 @@ class Signature(Base):
 @event.listens_for(Signature, "before_delete")
 def _immutable_signature(mapper, connection, target):
     raise ImmutableError("Les signatures no es poden modificar ni esborrar")
+
+
+class Quota(Base):
+    """Quota de soci. Només s'hi afegeixen files: va lligada a l'apunt de caixa que la cobra i, si es
+    corregeix aquest apunt, la quota queda anul·lada (es calcula, no s'edita)."""
+    __tablename__ = "quotes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
+    cash_entry_id: Mapped[int] = mapped_column(ForeignKey("cash_entries.id"), unique=True)
+    valid_des: Mapped[date] = mapped_column(Date)
+    valid_fins: Mapped[date] = mapped_column(Date)
+    mesos: Mapped[int] = mapped_column(Integer)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
+@event.listens_for(Quota, "before_update")
+@event.listens_for(Quota, "before_delete")
+def _immutable_quota(mapper, connection, target):
+    raise ImmutableError("Les quotes no es poden modificar ni esborrar: corregeix l'apunt de caixa")
+
+
+class LocalSetting(Base):
+    """Ajustos opcionals d'un local (clau/valor). Taula a part perquè afegir-ne no canviï la taula `locals`."""
+    __tablename__ = "local_settings"
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"), primary_key=True)
+    clau: Mapped[str] = mapped_column(String(40), primary_key=True)
+    valor: Mapped[str] = mapped_column(String(200))
