@@ -1,8 +1,41 @@
 'use strict';
 // Pantalles: Estoc, Caixa, Fitxatge, Informe.
 
+const preuText = (c) => (c / 100).toFixed(2).replace('.', ',');
+
+// Un producte editable (nom, categoria, preu) amb el botó per desactivar-lo o reactivar-lo.
+function productCard(p) {
+  const out = h('div');
+  const nom = h('input', { value: p.nom }), cat = h('input', { value: p.categoria }), preu = h('input', { inputmode: 'decimal', value: preuText(p.preu_cent_per_g) });
+  const patch = (btn, body, ok) => guard(btn, out, async () => {
+    await api(`/productes/${p.id}`, { method: 'PATCH', body });
+    toast(ok);
+    show('estoc');
+  });
+  const save = h('button', { class: 'primary', type: 'button' }, 'Desar');
+  save.addEventListener('click', () => guard(save, out, async () => {
+    const body = {};
+    if (nom.value.trim() !== p.nom) body.nom = nom.value.trim();
+    if (cat.value.trim() !== p.categoria) body.categoria = cat.value.trim();
+    const c = parseEur(preu.value);
+    if (c !== p.preu_cent_per_g) body.preu_cent_per_g = c;
+    if (!Object.keys(body).length) throw new Error('No hi ha cap canvi');
+    await api(`/productes/${p.id}`, { method: 'PATCH', body });
+    toast('Producte actualitzat');
+    show('estoc');
+  }));
+  const toggle = h('button', { type: 'button', class: p.actiu ? 'danger' : '' }, p.actiu ? 'Desactivar' : 'Reactivar');
+  toggle.addEventListener('click', () => patch(toggle, { actiu: !p.actiu }, p.actiu ? 'Producte desactivat' : 'Producte reactivat'));
+  return h('div', { class: 'card' },
+    h('div', null, h('strong', null, p.nom), ' ', h('span', { class: 'pill ' + (p.actiu ? 'ok' : 'warn') }, p.actiu ? 'actiu' : 'inactiu'),
+      ' ', h('span', { class: 'muted' }, 'Estoc: ' + p.estoc_g + ' g')),
+    h('div', { class: 'row' }, field('Nom', nom), field('Categoria', cat), field('Preu per gram (€)', preu)),
+    h('div', { class: 'actions' }, save, toggle), out);
+}
+
 VIEWS.estoc = async () => {
-  const prods = await api(`/locals/${S.local}/estoc`);
+  const tots = await api(isManager() ? `/locals/${S.local}/productes` : `/locals/${S.local}/estoc`);
+  const prods = tots.filter((p) => p.actiu !== false);
   const box = h('div', null, h('h2', null, 'Estoc'));
   box.append(h('div', { class: 'card' }, h('table', null,
     h('thead', null, h('tr', null, h('th', null, 'Producte'), h('th', null, 'Categoria'), h('th', { class: 'num' }, 'Preu/g'), h('th', { class: 'num' }, 'Estoc'))),
@@ -47,6 +80,12 @@ VIEWS.estoc = async () => {
   } }, h('h2', null, 'Nou producte'),
   h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)),
   h('div', { class: 'actions' }, b2), out2));
+
+  if (tots.length) {
+    box.append(h('h2', null, 'Gestió de productes'),
+      h('p', { class: 'muted' }, 'El canvi de preu només afecta les dispensacions noves. Per desactivar un producte, l\'estoc ha de ser zero.'),
+      ...tots.map(productCard));
+  }
   return box;
 };
 

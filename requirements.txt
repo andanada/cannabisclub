@@ -1,0 +1,9 @@
+# Dependències d'execució (versions amb què s'han passat les proves; Python 3.12).
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+SQLAlchemy==2.1.6
+pydantic==2.14.1
+cryptography==50.0.2
+argon2-cffi==25.1.0
+pyotp==2.10.0
+psycopg[binary]==3.3.6

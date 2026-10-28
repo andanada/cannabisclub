@@ -111,8 +111,8 @@ def create_app(session_factory=None) -> FastAPI:
     class ProductIn(BaseModel):
         local_id: int
         nom: str = Field(min_length=1, max_length=120)
-        categoria: str = ""
-        preu_cent_per_g: int = Field(ge=0)
+        categoria: str = Field(default="", max_length=60)
+        preu_cent_per_g: int = Field(ge=0, le=10_000_000)
 
     class EntradaIn(BaseModel):
         product_id: int
@@ -148,6 +148,30 @@ def create_app(session_factory=None) -> FastAPI:
         check_local(s, user, body.local_id)
         p = run(stock.add_product, s, user, body.local_id, body.nom, body.categoria, body.preu_cent_per_g)
         return {"id": p.id}
+
+    class ProductUpdateIn(BaseModel):
+        nom: str | None = Field(default=None, min_length=1, max_length=120)
+        categoria: str | None = Field(default=None, max_length=60)
+        preu_cent_per_g: int | None = Field(default=None, ge=0, le=10_000_000)
+        actiu: bool | None = None
+
+    @app.patch("/productes/{product_id}")
+    def edita_producte(product_id: int, body: ProductUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        if user.role not in CAN_CREATE_MEMBER:
+            raise HTTPException(403, "El teu rol no pot editar productes")
+        product_or_404(s, user, product_id)
+        run(stock.update_product, s, user, product_id, body.nom, body.categoria, body.preu_cent_per_g, body.actiu)
+        return {"ok": True}
+
+    @app.get("/locals/{local_id}/productes")
+    def tots_els_productes(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        """Catàleg complet (també els inactius) per a la gestió; el dispensador només veu els actius a /estoc."""
+        if user.role not in CAN_CREATE_MEMBER:
+            raise HTTPException(403, "El teu rol no pot gestionar productes")
+        check_local(s, user, local_id)
+        prods = s.scalars(select(Product).where(Product.local_id == local_id).order_by(Product.actiu.desc(), Product.nom))
+        return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": p.preu_cent_per_g, "actiu": p.actiu,
+                 "estoc_g": str(Decimal(stock.stock_mg(s, p.id)) / 1000)} for p in prods]
 
     @app.get("/locals/{local_id}/estoc")
     def veure_estoc(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):

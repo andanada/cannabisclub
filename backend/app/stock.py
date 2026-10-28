@@ -45,11 +45,57 @@ def dispensed_mg(db: Session, member_id: int, period: str, now: datetime) -> int
     return total
 
 
+def _nom_lliure(db: Session, local_id: int, nom: str, excepte_id: int | None = None) -> bool:
+    q = select(Product.id).where(Product.local_id == local_id, Product.nom == nom)
+    if excepte_id is not None:
+        q = q.where(Product.id != excepte_id)
+    return db.scalar(q) is None
+
+
 def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: str, preu_cent_per_g: int) -> Product:
+    nom = nom.strip()
+    if not nom:
+        raise ValueError("El nom del producte no pot estar buit")
+    if not _nom_lliure(db, local_id, nom):
+        raise ValueError("Ja existeix un producte amb aquest nom en aquest local")
     p = Product(local_id=local_id, nom=nom, categoria=categoria, preu_cent_per_g=preu_cent_per_g)
     db.add(p)
     db.flush()
     service.audit_append(db, {"accio": "alta_producte", "producte": p.id, "local": local_id, "per": actor.id})
+    db.commit()
+    return p
+
+
+def update_product(db: Session, actor: User, product_id: int, nom: str | None = None, categoria: str | None = None,
+                   preu_cent_per_g: int | None = None, actiu: bool | None = None) -> Product:
+    """Canvia el nom, la categoria, el preu o l'estat d'un producte. El preu només afecta les dispensacions
+    noves: les antigues guarden el seu import. Per desactivar, l'estoc ha de ser zero (sinó quedaria encallat)."""
+    p = db.scalar(select(Product).where(Product.id == product_id).with_for_update())
+    if not p:
+        raise ValueError("Producte inexistent")
+    canvis: dict[str, list] = {}
+    if nom is not None and nom.strip() != p.nom:
+        nom = nom.strip()
+        if not nom:
+            raise ValueError("El nom del producte no pot estar buit")
+        if not _nom_lliure(db, p.local_id, nom, p.id):
+            raise ValueError("Ja existeix un producte amb aquest nom en aquest local")
+        canvis["nom"] = [p.nom, nom]
+    if categoria is not None and categoria != p.categoria:
+        canvis["categoria"] = [p.categoria, categoria]
+    if preu_cent_per_g is not None and preu_cent_per_g != p.preu_cent_per_g:
+        if preu_cent_per_g < 0:
+            raise ValueError("El preu no pot ser negatiu")
+        canvis["preu_cent_per_g"] = [p.preu_cent_per_g, preu_cent_per_g]
+    if actiu is not None and actiu != p.actiu:
+        if not actiu and stock_mg(db, p.id) != 0:
+            raise ValueError("Per desactivar el producte l'estoc ha de ser zero: registra una merma o un ajust d'inventari")
+        canvis["actiu"] = [p.actiu, actiu]
+    if not canvis:
+        raise ValueError("No hi ha cap canvi")
+    for camp, (_, nou) in canvis.items():
+        setattr(p, camp, nou)
+    service.audit_append(db, {"accio": "edita_producte", "producte": p.id, "local": p.local_id, "canvis": canvis, "per": actor.id})
     db.commit()
     return p
 
