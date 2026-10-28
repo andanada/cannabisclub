@@ -42,6 +42,33 @@ def test_sql_directe_no_pot_alterar_taules_d_apunts(ctx, sql):
 
 
 @pg_only
+@pytest.mark.parametrize("sql", [
+    "UPDATE quotes SET mesos = 99",
+    "DELETE FROM quotes",
+    "TRUNCATE quotes CASCADE",
+    "UPDATE member_photos SET mime = 'image/png'",
+    "DELETE FROM member_photos",
+    "TRUNCATE member_photos CASCADE",
+])
+def test_quotes_i_fotos_tambe_son_nomes_d_afegir_a_la_base_de_dades(ctx, sql):
+    import base64
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid = client.post("/socis", json={"local_id": 1, "nom": "Anna Prova", "document": "12345678Z", "naixement": "1990-05-20"}, headers=enc).json()["id"]
+    assert client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=enc).status_code == 201
+    assert client.post(f"/socis/{mid}/quotes", json={"import_cent": 2000, "metode": "efectiu", "mesos": 1}, headers=enc).status_code == 201
+    jpeg = base64.b64encode(b"\xff\xd8\xff\xe0" + bytes(range(256)) * 2).decode()
+    assert client.post(f"/socis/{mid}/foto", json={"image_base64": jpeg}, headers=enc).status_code == 201
+    s = factory()
+    with pytest.raises(DBAPIError) as e:
+        s.execute(text(sql))
+        s.commit()
+    assert "només d'afegir" in str(e.value)
+    s.rollback()
+    s.close()
+
+
+@pg_only
 def test_taules_normals_si_es_poden_actualitzar(ctx):
     client, factory, sec = ctx
     enc = token(client, sec, "enc")

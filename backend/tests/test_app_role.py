@@ -48,7 +48,40 @@ def test_l_aplicacio_funciona_amb_el_rol_sense_privilegis(app_engine):
 
 
 @pg_only
+def test_el_rol_de_l_aplicacio_fa_servir_les_funcions_noves(app_engine):
+    """Quotes, foto, carnet, ajustos, productes, usuaris i bloqueig de login amb el rol sense privilegis."""
+    import base64
+    import pyotp
+    eng, owner_client, sec, owner_factory = app_engine
+    client = TestClient(create_app(make_session_factory(eng)))
+    enc, admin = token(client, sec, "enc"), token(client, sec, "admin")
+    mid, pid = setup_data(client, enc, owner_factory)
+    assert client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=enc).status_code == 201
+    assert client.post(f"/socis/{mid}/quotes", json={"import_cent": 2500, "metode": "efectiu", "mesos": 3}, headers=enc).status_code == 201
+    assert client.get(f"/socis/{mid}", headers=enc).json()["quota"]["al_dia"] is True
+    jpeg = base64.b64encode(b"\xff\xd8\xff\xe0" + bytes(range(256)) * 2).decode()
+    assert client.post(f"/socis/{mid}/foto", json={"image_base64": jpeg}, headers=enc).status_code == 201
+    assert client.post(f"/socis/{mid}/carnet", json={"codi": "CARNET-1"}, headers=enc).status_code == 201
+    assert client.post(f"/socis/{mid}/carnet", json={"codi": "CARNET-2"}, headers=enc).status_code == 201  # actualitza i desactiva
+    assert client.get("/locals/1/socis/carnet?codi=CARNET-2", headers=enc).json()["id"] == mid
+    assert client.patch(f"/socis/{mid}", json={"nom": "Anna Garcia"}, headers=enc).status_code == 200
+    assert client.patch(f"/productes/{pid}", json={"preu_cent_per_g": 900}, headers=enc).status_code == 200
+    assert client.put("/locals/1/config", json={"quota_obligatoria": True, "quota_cent": 2500}, headers=admin).status_code == 200
+    assert client.put("/locals/1/config", json={"quota_cent": 0}, headers=admin).status_code == 200  # esborra una fila d'ajustos
+    assert client.get("/locals/1/informe/vendes", params={"des": "2020-01-01", "fins": "2099-01-01"}, headers=enc).status_code == 200
+    d = [u for u in client.get("/usuaris", headers=admin).json() if u["username"] == "disp"][0]
+    assert client.patch(f"/usuaris/{d['id']}", json={"role": "encarregat", "local_ids": [1, 2]}, headers=admin).status_code == 200
+    # bloqueig: 5 fallades i, esborrar intents vells i reiniciar al login correcte, també amb el rol restringit
+    for _ in range(5):
+        client.post("/auth/login", json={"username": "disp", "password": "contrasenya-equivocada", "totp": "000000"})
+    assert client.post("/auth/login", json={"username": "disp", "password": "x", "totp": "1"}).status_code == 429
+    assert client.get("/auditoria/verificar", headers=admin).json()["integra"] is True
+
+
+@pg_only
 @pytest.mark.parametrize("sql,fragment", [
+    ("UPDATE quotes SET mesos = 1", "permission denied"),
+    ("DELETE FROM member_photos", "permission denied"),
     ("UPDATE stock_movements SET delta_mg = 1", "permission denied"),
     ("DELETE FROM audit_log", "permission denied"),
     ("TRUNCATE audit_log CASCADE", "permission denied"),

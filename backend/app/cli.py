@@ -38,9 +38,17 @@ def actualitzar_bd() -> int:
     engine = make_engine()
     abans = schema.missing_tables(engine)
     schema.install(engine)
+    avis = ""
     if engine.dialect.name == "postgresql":
-        schema.grant_app_role(engine, os.environ.get("CLUB_APP_ROLE", "club_app"))
-    print("Base de dades al dia." + (f" Taules noves: {', '.join(abans)}." if abans else " No faltava res."))
+        from sqlalchemy import text
+        role = os.environ.get("CLUB_APP_ROLE", "club_app")
+        with engine.connect() as c:
+            existeix = c.execute(text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": role}).scalar()
+        if existeix:
+            schema.grant_app_role(engine, role)
+        else:
+            avis = f" Atenció: el rol «{role}» no existeix i no s'han donat permisos; executa preparar-bd."
+    print("Base de dades al dia." + (f" Taules noves: {', '.join(abans)}." if abans else " No faltava res.") + avis)
     return 0
 
 
