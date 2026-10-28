@@ -201,3 +201,44 @@ def find_by_card(db: Session, local_id: int, codi: str) -> Member | None:
         return None
     c = db.scalar(select(MemberCard).where(MemberCard.local_id == local_id, MemberCard.code_idx == idx, MemberCard.active.is_(True)))
     return db.get(Member, c.member_id) if c else None
+
+
+# ---------- generador de carnets ----------
+
+import secrets
+
+ALFABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # sense I, L, O, U: no es confonen en llegir ni en teclejar
+_PREFIX_RE = re.compile(r"[A-Z0-9]{2,6}")
+
+
+def _control(cos: str) -> str:
+    return ALFABET[sum((i + 1) * ALFABET.index(c) for i, c in enumerate(cos)) % 31]
+
+
+def generate_card_code(prefix: str = "CLB") -> str:
+    """Codi imprevisible: prefix-9 caràcters aleatoris + 1 de control (detecta errors de lectura o de teclat)."""
+    if not _PREFIX_RE.fullmatch(prefix):
+        raise ValueError("El prefix ha de tenir 2 a 6 lletres majúscules o xifres")
+    cos = "".join(secrets.choice(ALFABET) for _ in range(9))
+    return f"{prefix}-{cos}{_control(cos)}"
+
+
+def card_code_valid(codi: str) -> bool:
+    try:
+        _, resta = codi.rsplit("-", 1)
+    except ValueError:
+        return False
+    return len(resta) == 10 and all(c in ALFABET for c in resta) and _control(resta[:9]) == resta[9]
+
+
+def generate_and_assign_card(db: Session, actor: User, member: Member, prefix: str = "CLB") -> str:
+    """Genera un carnet nou, l'assigna (substituint l'anterior) i retorna el codi. Només es desa l'empremta: el codi es
+    mostra aquesta única vegada, així que s'ha d'imprimir o gravar a l'acte."""
+    for _ in range(5):
+        codi = generate_card_code(prefix)
+        try:
+            assign_card(db, actor, member, codi)
+            return codi
+        except ValueError:
+            db.rollback()  # col·lisió pràcticament impossible; es torna a provar
+    raise ValueError("No s'ha pogut generar un carnet únic")

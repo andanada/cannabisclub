@@ -13,9 +13,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from . import ajustos, cash, informes, personal, quotes, schema, service, socis, stock, usuaris
+from . import ajustos, cash, dispositius, informes, personal, quotes, schema, service, socis, stock, usuaris
 from .db import make_engine, make_session_factory
-from .models import CashEntry, Local, Member, Product, StockMovement, User, UserLocal
+from .models import CashEntry, DeviceProfile, Local, Member, Product, StockMovement, User, UserLocal
 
 CAN_CREATE_MEMBER = {"admin", "encarregat"}
 log = logging.getLogger("club")
@@ -522,6 +522,57 @@ def create_app(session_factory=None) -> FastAPI:
     def retirar_carnet(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
         need_manager(user)
         run(socis.revoke_card, s, user, member_or_404(s, user, member_id))
+        return {"ok": True}
+
+    class CarnetGenerarIn(BaseModel):
+        prefix: str = Field(default="CLB", pattern=r"^[A-Z0-9]{2,6}$")
+
+    @app.post("/socis/{member_id}/carnet/generar", status_code=201)
+    def generar_carnet(member_id: int, body: CarnetGenerarIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        codi = run(socis.generate_and_assign_card, s, user, member_or_404(s, user, member_id), body.prefix)
+        return {"codi": codi}  # l'única vegada que es mostra: a la base de dades només queda l'empremta
+
+    class DispositiuIn(BaseModel):
+        kind: str
+        nom: str = Field(max_length=60)
+        config: dict = {}
+        per_defecte: bool = False
+
+    class DispositiuUpdateIn(BaseModel):
+        nom: str | None = Field(default=None, max_length=60)
+        config: dict | None = None
+        per_defecte: bool | None = None
+
+    def dispositiu_or_404(s: Session, did: int) -> DeviceProfile:
+        d = s.get(DeviceProfile, did)
+        if not d:
+            raise HTTPException(404, "Dispositiu inexistent")
+        return d
+
+    @app.get("/locals/{local_id}/dispositius")
+    def llista_dispositius(local_id: int, kind: str | None = None, user: User = Depends(current_user), s: Session = Depends(db)):
+        check_local(s, user, local_id)  # qualsevol rol del local: la tauleta necessita el seu perfil per treballar
+        return dispositius.list_profiles(s, local_id, kind)
+
+    @app.post("/locals/{local_id}/dispositius", status_code=201)
+    def alta_dispositiu(local_id: int, body: DispositiuIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        if not s.get(Local, local_id):
+            raise HTTPException(404, "Local inexistent")
+        d = run(dispositius.create, s, user, local_id, body.kind, body.nom, body.config, body.per_defecte)
+        return {"id": d.id}
+
+    @app.put("/dispositius/{device_id}")
+    def edita_dispositiu(device_id: int, body: DispositiuUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        run(dispositius.update, s, user, dispositiu_or_404(s, device_id), body.nom, body.config, body.per_defecte)
+        return {"ok": True}
+
+    @app.delete("/dispositius/{device_id}")
+    def esborra_dispositiu(device_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        run(dispositius.delete, s, user, dispositiu_or_404(s, device_id))
         return {"ok": True}
 
     class QuotaIn(BaseModel):

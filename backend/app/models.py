@@ -277,3 +277,20 @@ Index("ix_quotes_member", Quota.member_id)
 Index("ix_cards_member", MemberCard.member_id)
 Index("ix_photos_member", MemberPhoto.member_id)
 Index("ix_products_local", Product.local_id)
+
+
+class DeviceProfile(Base):
+    """Perfil d'un dispositiu (bàscula, tauleta de signatura, lector de carnets) d'un local. La configuració va en JSON
+    validat pel servidor; la connexió física (port sèrie, etc.) la tria cada navegador."""
+    __tablename__ = "device_profiles"
+    __table_args__ = (UniqueConstraint("local_id", "kind", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    kind: Mapped[str] = mapped_column(String(12))  # bascula | signatura | lector
+    nom: Mapped[str] = mapped_column(String(60))
+    config: Mapped[str] = mapped_column(Text)
+    per_defecte: Mapped[bool] = mapped_column(Boolean, default=False)
+    creat: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+Index("ix_device_profiles_local", DeviceProfile.local_id, DeviceProfile.kind)
