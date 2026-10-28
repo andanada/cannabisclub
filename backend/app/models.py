@@ -294,3 +294,13 @@ class DeviceProfile(Base):
 
 
 Index("ix_device_profiles_local", DeviceProfile.local_id, DeviceProfile.kind)
+
+
+class ProductImage(Base):
+    """Miniatura d'un producte (una per producte, es pot substituir). No són dades personals: no va xifrada."""
+    __tablename__ = "product_images"
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
+    mime: Mapped[str] = mapped_column(String(20))
+    data: Mapped[str] = mapped_column(Text)  # base64
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

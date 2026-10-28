@@ -221,6 +221,21 @@ def create_app(session_factory=None) -> FastAPI:
         run(stock.update_product, s, user, product_id, body.nom, body.categoria, body.preu_cent_per_g, body.actiu)
         return {"ok": True}
 
+    class ImatgeIn(BaseModel):
+        image_base64: str = Field(max_length=60_000)
+
+    @app.put("/productes/{product_id}/imatge")
+    def posa_imatge(product_id: int, body: ImatgeIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        run(stock.set_image, s, user, product_or_404(s, user, product_id), body.image_base64)
+        return {"ok": True}
+
+    @app.delete("/productes/{product_id}/imatge")
+    def treu_imatge(product_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        run(stock.remove_image, s, user, product_or_404(s, user, product_id))
+        return {"ok": True}
+
     @app.get("/locals/{local_id}/productes")
     def tots_els_productes(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
         """Catàleg complet (també els inactius) per a la gestió; el dispensador només veu els actius a /estoc."""
@@ -229,16 +244,18 @@ def create_app(session_factory=None) -> FastAPI:
         check_local(s, user, local_id)
         prods = s.scalars(select(Product).where(Product.local_id == local_id).order_by(Product.actiu.desc(), Product.nom)).all()
         mg = stock.stock_by_product(s, [p.id for p in prods])
+        imatges = stock.images_for(s, [p.id for p in prods])
         return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": p.preu_cent_per_g, "actiu": p.actiu,
-                 "estoc_g": str(Decimal(mg[p.id]) / 1000)} for p in prods]
+                 "estoc_g": str(Decimal(mg[p.id]) / 1000), "imatge": imatges.get(p.id)} for p in prods]
 
     @app.get("/locals/{local_id}/estoc")
     def veure_estoc(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
         check_local(s, user, local_id)
         prods = s.scalars(select(Product).where(Product.local_id == local_id, Product.actiu.is_(True)).order_by(Product.nom)).all()
         mg = stock.stock_by_product(s, [p.id for p in prods])
+        imatges = stock.images_for(s, [p.id for p in prods])
         return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": p.preu_cent_per_g,
-                 "estoc_g": str(Decimal(mg[p.id]) / 1000)} for p in prods]
+                 "estoc_g": str(Decimal(mg[p.id]) / 1000), "imatge": imatges.get(p.id)} for p in prods]
 
     @app.post("/moviments/entrada", status_code=201)
     def entrada(body: EntradaIn, user: User = Depends(current_user), s: Session = Depends(db)):

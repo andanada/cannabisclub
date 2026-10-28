@@ -131,3 +131,10 @@ canvas.sig { width: 100%; max-width: 640px; background: #fff; border: 2px dashed
 .checks li.ok .mark { color: var(--ok); }
 .checks li.bad .mark { color: var(--danger); }
 .diag { margin-top: 12px; }
+
+/* Miniatures de producte */
+img.thumb, .thumb.vacia { border-radius: 10px; object-fit: cover; flex: none; }
+.thumb.vacia { width: 36px; height: 36px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); font-weight: 700; }
+.imgrow { align-items: center; margin-top: 10px; }
+.imgrow .thumb.vacia { width: 56px; height: 56px; font-size: 1.4rem; }
+.products button img.thumb, .products button .thumb { margin-bottom: 4px; }

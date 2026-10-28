@@ -3,7 +3,7 @@
 // Es fa servir des de views-dispensar.js (fitxa del soci). Mai innerHTML: tot el text va com a node de text.
 
 // Redueix la imatge (càmera o galeria) a un JPEG petit: el servidor només n'accepta fins a 250 KB.
-async function photoToJpegBase64(file, max = 480) {
+async function photoToJpegBase64(file, max = 480, maxBytes = 240000) {
   if (!file.type.startsWith('image/')) throw new Error('El fitxer ha de ser una imatge');
   const bmp = await createImageBitmap(file);
   const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
@@ -14,7 +14,7 @@ async function photoToJpegBase64(file, max = 480) {
   if (bmp.close) bmp.close();
   for (const q of [0.85, 0.7, 0.55, 0.4]) {
     const b64 = c.toDataURL('image/jpeg', q).split(',')[1];
-    if (b64.length * 0.75 < 240000) return b64;
+    if (b64.length * 0.75 < maxBytes) return b64;
   }
   throw new Error('La foto és massa gran');
 }

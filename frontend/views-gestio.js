@@ -3,6 +3,33 @@
 
 const preuText = (c) => (c / 100).toFixed(2).replace('.', ',');
 
+// Miniatura d'un producte (o una inicial si encara no té foto).
+function productThumb(p, size) {
+  if (p.imatge) return h('img', { class: 'thumb', src: `data:${p.imatge.mime};base64,${p.imatge.image_base64}`, alt: '', width: size, height: size });
+  return h('div', { class: 'thumb vacia', 'aria-hidden': 'true' }, (p.nom || '?').slice(0, 1).toUpperCase());
+}
+
+// Foto del producte: es redueix a una miniatura de 96 px abans d'enviar-la (el servidor només n'accepta fins a 30 KB).
+function imageRow(p, out) {
+  const file = h('input', { type: 'file', accept: 'image/*', hidden: true, 'aria-label': 'Foto del producte' });
+  const add = h('button', { type: 'button', class: 'small' }, p.imatge ? 'Canviar foto' : 'Afegir foto');
+  add.addEventListener('click', () => file.click());
+  file.addEventListener('change', () => guard(add, out, async () => {
+    if (!file.files[0]) return;
+    const image_base64 = await photoToJpegBase64(file.files[0], 96, 28000);
+    await api(`/productes/${p.id}/imatge`, { method: 'PUT', body: { image_base64 } });
+    toast('Foto desada');
+    show('estoc');
+  }));
+  const items = [productThumb(p, 56), add, file];
+  if (p.imatge) {
+    const del = h('button', { type: 'button', class: 'small danger' }, 'Treure foto');
+    del.addEventListener('click', () => guard(del, out, async () => { await api(`/productes/${p.id}/imatge`, { method: 'DELETE' }); toast('Foto esborrada'); show('estoc'); }));
+    items.push(del);
+  }
+  return h('div', { class: 'actions imgrow' }, ...items);
+}
+
 // Un producte editable (nom, categoria, preu) amb el botó per desactivar-lo o reactivar-lo.
 function productCard(p) {
   const out = h('div');
@@ -29,6 +56,7 @@ function productCard(p) {
   return h('div', { class: 'card' },
     h('div', null, h('strong', null, p.nom), ' ', h('span', { class: 'pill ' + (p.actiu ? 'ok' : 'warn') }, p.actiu ? 'actiu' : 'inactiu'),
       ' ', h('span', { class: 'muted' }, 'Estoc: ' + p.estoc_g + ' g')),
+    imageRow(p, out),
     h('div', { class: 'row' }, field('Nom', nom), field('Categoria', cat), field('Preu per gram (€)', preu)),
     h('div', { class: 'actions' }, save, toggle), out);
 }
@@ -38,10 +66,10 @@ function productCard(p) {
 async function stockTable() {
   const prods = await api(`/locals/${S.local}/estoc`);
   return h('div', { class: 'card table-wrap' }, h('table', null,
-    h('thead', null, h('tr', null, h('th', null, 'Producte'), h('th', null, 'Categoria'), h('th', { class: 'num' }, 'Preu/g'), h('th', { class: 'num' }, 'Estoc'))),
-    h('tbody', null, prods.length ? prods.map((p) => h('tr', null, h('td', null, p.nom), h('td', { class: 'muted' }, p.categoria),
+    h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Producte'), h('th', null, 'Categoria'), h('th', { class: 'num' }, 'Preu/g'), h('th', { class: 'num' }, 'Estoc'))),
+    h('tbody', null, prods.length ? prods.map((p) => h('tr', null, h('td', null, productThumb(p, 36)), h('td', null, p.nom), h('td', { class: 'muted' }, p.categoria),
       h('td', { class: 'num' }, eur(p.preu_cent_per_g)), h('td', { class: 'num' }, p.estoc_g + ' g')))
-      : h('tr', null, h('td', { colspan: 4, class: 'empty' }, 'Encara no hi ha productes.')))));
+      : h('tr', null, h('td', { colspan: 5, class: 'empty' }, 'Encara no hi ha productes.')))));
 }
 
 async function stockMoveForm() {

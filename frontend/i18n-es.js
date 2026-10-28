@@ -500,7 +500,15 @@ Object.assign(I18N.es, {
  "Gairebé no hi ha moviment: el dispositiu no envia el traç complet.": "Casi no hay movimiento: el dispositivo no envía el trazo completo.",
  "El llapis envia pressió.": "El lápiz envía presión.",
  "El llapis no envia pressió: desmarca «sensible a la pressió» al perfil.": "El lápiz no envía presión: desmarca «sensible a la presión» en el perfil.",
- "Sense llapis: es fa servir un gruix fix.": "Sin lápiz: se usa un grosor fijo."
+ "Sense llapis: es fa servir un gruix fix.": "Sin lápiz: se usa un grosor fijo.",
+ "Treure foto": "Quitar foto",
+ "Foto esborrada": "Foto borrada",
+ "Foto del producte": "Foto del producto",
+ "La imatge ha de ser JPEG o PNG": "La imagen debe ser JPEG o PNG",
+ "La imatge no és vàlida": "La imagen no es válida",
+ "La imatge és massa gran (màxim 30 KB: es redueix sola a la pantalla)": "La imagen es demasiado grande (máximo 30 KB: se reduce sola en pantalla)",
+ "La imatge està buida": "La imagen está vacía",
+ "El producte no té imatge": "El producto no tiene imagen"
 });
 I18N.pat.es.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Código de barras $1"],
 [new RegExp("^Soci\\ núm\\.\\s+(.*)$"), "Socio n.º $1"],

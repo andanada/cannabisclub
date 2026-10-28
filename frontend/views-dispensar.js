@@ -150,7 +150,7 @@ VIEWS.dispensar = async () => {
     const list = h('div', { class: 'products' }, productes.map((p) => {
       const b = h('button', { 'aria-pressed': 'false', onclick: () => {
         chosen = p; list.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-      } }, h('strong', null, p.nom), h('span', { class: 'muted' }, p.estoc_g + ' g · ' + eur(p.preu_cent_per_g) + '/g'));
+      } }, productThumb(p, 44), h('strong', null, p.nom), h('span', { class: 'muted' }, p.estoc_g + ' g · ' + eur(p.preu_cent_per_g) + '/g'));
       return b;
     }));
     const g = h('input', { inputmode: 'decimal', placeholder: '0,000' });

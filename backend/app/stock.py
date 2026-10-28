@@ -224,3 +224,58 @@ def adjust(db: Session, actor: User, product_id: int, grams_reals: Decimal, nota
     service.audit_append(db, {"accio": "ajust_inventari", "moviment": m.id, "producte": p.id, "delta_mg": delta, "per": actor.id})
     db.commit()
     return m
+
+
+# ---------- miniatures de producte ----------
+
+MAX_IMAGE_BYTES = 30_000  # és una miniatura (uns 96 px); les fotos grans no hi caben
+IMAGE_MIN_BYTES = 100
+
+
+def _image_mime(img: bytes) -> str:
+    if img.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if img.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    raise ValueError("La imatge ha de ser JPEG o PNG")
+
+
+def set_image(db: Session, actor: User, product: Product, image_b64: str) -> None:
+    import base64
+    import binascii
+    from .models import ProductImage
+    try:
+        img = base64.b64decode(image_b64, validate=True)
+    except (binascii.Error, ValueError):
+        raise ValueError("La imatge no és vàlida")
+    mime = _image_mime(img)
+    if len(img) > MAX_IMAGE_BYTES:
+        raise ValueError("La imatge és massa gran (màxim 30 KB: es redueix sola a la pantalla)")
+    if len(img) < IMAGE_MIN_BYTES:
+        raise ValueError("La imatge està buida")
+    fila = db.get(ProductImage, product.id)
+    if fila:
+        fila.mime, fila.data, fila.user_id = mime, image_b64, actor.id
+    else:
+        db.add(ProductImage(product_id=product.id, mime=mime, data=image_b64, user_id=actor.id))
+    service.audit_append(db, {"accio": "imatge_producte", "producte": product.id, "per": actor.id})
+    db.commit()
+
+
+def remove_image(db: Session, actor: User, product: Product) -> None:
+    from .models import ProductImage
+    fila = db.get(ProductImage, product.id)
+    if not fila:
+        raise ValueError("El producte no té imatge")
+    db.delete(fila)
+    service.audit_append(db, {"accio": "esborra_imatge_producte", "producte": product.id, "per": actor.id})
+    db.commit()
+
+
+def images_for(db: Session, product_ids) -> dict[int, dict]:
+    """Miniatures de molts productes amb una sola consulta: {id: {mime, image_base64}}."""
+    from .models import ProductImage
+    ids = list(product_ids)
+    if not ids:
+        return {}
+    return {i.product_id: {"mime": i.mime, "image_base64": i.data} for i in db.scalars(select(ProductImage).where(ProductImage.product_id.in_(ids)))}
