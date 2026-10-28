@@ -147,9 +147,17 @@ VIEWS.dispensar = async () => {
   function productStep(m) {
     let chosen = null;
     const out = h('div');
+    const sense = () => h('option', { value: '' }, 'Sense descompte');
+    const descSel = h('select', null, sense());
+    // Descomptes vigents que es poden aplicar al producte triat (cada un amb el seu import o percentatge).
+    const carregaDescomptes = async (p) => {
+      const l = await api(`/locals/${S.local}/descomptes?producte=${p.id}`);
+      descSel.replaceChildren(sense(), ...l.map((d) => h('option', { value: d.id }, `${d.nom} (${d.tipus === 'percent' ? d.valor + ' %' : eur(d.valor) + '/g'})`)));
+    };
     const list = h('div', { class: 'products' }, productes.map((p) => {
       const b = h('button', { 'aria-pressed': 'false', onclick: () => {
         chosen = p; list.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        carregaDescomptes(p).catch(() => descSel.replaceChildren(sense()));
       } }, productThumb(p, 44), h('strong', null, p.nom), h('span', { class: 'muted' }, p.estoc_g + ' g · ' + eur(p.preu_cent_per_g) + '/g'));
       return b;
     }));
@@ -162,12 +170,13 @@ VIEWS.dispensar = async () => {
       guard(btn, out, async () => {
         if (!chosen) throw new Error('Tria un producte');
         const r = await api('/dispensacions', { method: 'POST', body: { member_id: m.id, product_id: chosen.id,
-          grams: parseGrams(g.value), pes_bascula_g: pes.value.trim() ? parseGrams(pes.value) : null } });
+          grams: parseGrams(g.value), pes_bascula_g: pes.value.trim() ? parseGrams(pes.value) : null,
+          discount_id: descSel.value ? Number(descSel.value) : null } });
         step.replaceChildren(chargeStep(m, r));
       });
     } }, h('h3', null, 'Producte'), list,
     scale,
-    h('div', { class: 'row' }, field('Quantitat (g)', g), field('Bàscula (g)', pes)),
+    h('div', { class: 'row' }, field('Quantitat (g)', g), field('Bàscula (g)', pes), field('Descompte', descSel)),
     h('div', { class: 'actions' }, btn), out);
   }
 
@@ -184,7 +193,7 @@ VIEWS.dispensar = async () => {
     const cash = h('button', { class: 'primary', onclick: () => pay('efectiu') }, 'Cobrar en efectiu');
     const card = h('button', { onclick: () => pay('targeta') }, 'Cobrar amb targeta');
     return h('div', { class: 'card' }, h('h2', null, 'Dispensació registrada'),
-      h('div', { class: 'big' }, eur(r.import_cent)), h('p', { class: 'muted' }, 'Falta cobrar-la.'),
+      h('div', { class: 'big' }, eur(r.import_cent)), r.descompte_cent > 0 ? h('p', { class: 'muted' }, 'Descompte aplicat: -' + eur(r.descompte_cent)) : null, h('p', { class: 'muted' }, 'Falta cobrar-la.'),
       h('div', { class: 'actions' }, cash, card), out);
   }
 

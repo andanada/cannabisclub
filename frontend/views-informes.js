@@ -18,7 +18,7 @@ const INFORMES = {
         h('h3', null, 'Per dia'), taula([['Dia'], ['Ingressos', true], ['Despeses', true]], Object.entries(r.per_dia).map(([d, v]) => [d, eur(v.ingressos_cent), eur(v.despeses_cent === 0 ? 0 : -v.despeses_cent)]))];
     } },
   vendes: { titol: 'Vendes per producte', rang: true, json: (q) => `/locals/${S.local}/informe/vendes?${q}`, csv: (q) => `/locals/${S.local}/informe/vendes.csv?${q}`, fitxer: 'vendes',
-    pinta: (r) => [h('div', { class: 'row' }, kpi('Vendes', eur(r.total.import_cent)), kpi('Dispensat', gText(r.total.grams)), kpi('Dispensacions', String(r.total.dispensacions))),
+    pinta: (r) => [h('div', { class: 'row' }, kpi('Vendes', eur(r.total.import_cent)), kpi('Dispensat', gText(r.total.grams)), kpi('Dispensacions', String(r.total.dispensacions)), r.total.descomptes_cent ? kpi('Descomptes', eur(r.total.descomptes_cent)) : null),
       h('h3', null, 'Per producte'), taula([['Producte'], ['Categoria'], ['Grams', true], ['Import', true], ['Disp.', true]], r.productes.map((p) => [p.nom, p.categoria, gText(p.grams), eur(p.import_cent), p.dispensacions])),
       r.categories.length ? h('div', null, h('h3', null, 'Per categoria'), taula([['Categoria'], ['Grams', true], ['Import', true]], r.categories.map((c) => [c.categoria, gText(c.grams), eur(c.import_cent)]))) : null] },
   estoc: { titol: 'Estoc valorat', rang: false, json: () => `/locals/${S.local}/informe/estoc`, csv: () => `/locals/${S.local}/informe/estoc.csv`, fitxer: 'estoc',
