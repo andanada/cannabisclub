@@ -40,7 +40,7 @@ const TABS = [
   ['caixa', 'Caixa', () => true],
   ['fitxatge', 'Fitxatge', () => true],
   ['informe', 'Informes', isManager],
-  ['config', 'Configuració', () => S.me.role === 'admin'],
+  ['config', 'Configuració', isManager],
   ['compte', 'Compte', () => true],
 ];
 

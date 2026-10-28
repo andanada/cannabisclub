@@ -106,5 +106,7 @@ VIEWS.config = async () => {
     ['diagnostic', 'Diagnòstic', diagnosticSection],
     ['seguretat', 'Seguretat', async () => securitySection()],
   ];
-  return h('div', null, pageHead('Configuració', 'Ajustos del local, usuaris i dispositius. Cada subpantalla fa una sola cosa.'), sections('config', items));
+  // L'encarregat només hi veu el que pot fer servir: carnets i diagnòstic. La resta és de l'administrador.
+  const visibles = S.me.role === 'admin' ? items : items.filter(([id]) => ['carnets', 'diagnostic'].includes(id));
+  return h('div', null, pageHead('Configuració', 'Ajustos del local, usuaris i dispositius. Cada subpantalla fa una sola cosa.'), sections('config', visibles));
 };
