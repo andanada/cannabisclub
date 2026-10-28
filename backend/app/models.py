@@ -245,6 +245,14 @@ class MemberCard(Base):
     creat_per: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
 
+class LoginAttempt(Base):
+    """Intents d'entrada fallits recents, per bloquejar temporalment un nom d'usuari (també si no existeix)."""
+    __tablename__ = "login_attempts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(60), index=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class LocalSetting(Base):
     """Ajustos opcionals d'un local (clau/valor). Taula a part perquè afegir-ne no canviï la taula `locals`."""
     __tablename__ = "local_settings"

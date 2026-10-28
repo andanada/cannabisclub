@@ -1,6 +1,7 @@
 """Ordres d'administració.
   python -m app.cli crear-admin <usuari>      (la contrasenya es demana per terminal)
   python -m app.cli preparar-bd <fitxer .env>  (crea el rol de l'aplicació i en desa la contrasenya al fitxer, sense mostrar-la)
+  python -m app.cli actualitzar-bd             (després d'actualitzar el programa: crea les taules noves i dona permisos; es pot repetir)
 Cal CLUB_DATABASE_URL amb l'usuari PROPIETARI per a aquestes ordres; l'aplicació en funcionament fa servir el rol sense privilegis."""
 import getpass
 import sys
@@ -30,7 +31,22 @@ def preparar_bd(env_file: str) -> int:
     return 0
 
 
+def actualitzar_bd() -> int:
+    """Després d'actualitzar el programa: crea les taules i els triggers que faltin i dona permisos al rol de l'aplicació.
+    No toca dades ni contrasenyes i es pot repetir. Cal CLUB_DATABASE_URL amb l'usuari PROPIETARI."""
+    import os
+    engine = make_engine()
+    abans = schema.missing_tables(engine)
+    schema.install(engine)
+    if engine.dialect.name == "postgresql":
+        schema.grant_app_role(engine, os.environ.get("CLUB_APP_ROLE", "club_app"))
+    print("Base de dades al dia." + (f" Taules noves: {', '.join(abans)}." if abans else " No faltava res."))
+    return 0
+
+
 def main(argv: list[str]) -> int:
+    if len(argv) == 1 and argv[0] == "actualitzar-bd":
+        return actualitzar_bd()
     if len(argv) == 2 and argv[0] == "preparar-bd":
         return preparar_bd(argv[1])
     if len(argv) != 2 or argv[0] != "crear-admin":

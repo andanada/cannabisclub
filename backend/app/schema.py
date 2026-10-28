@@ -32,6 +32,13 @@ def install(engine) -> None:
                            f"FOR EACH STATEMENT EXECUTE FUNCTION club_forbid_change()"))
 
 
+def missing_tables(engine) -> list[str]:
+    """Taules del model que encara no existeixen a la base de dades (p. ex. després d'actualitzar el programa)."""
+    from sqlalchemy import inspect
+    existents = set(inspect(engine).get_table_names())
+    return sorted(t.name for t in Base.metadata.sorted_tables if t.name not in existents)
+
+
 def _q(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 

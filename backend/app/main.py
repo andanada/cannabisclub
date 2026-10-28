@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import ajustos, cash, informes, personal, quotes, service, socis, stock
+from . import ajustos, cash, informes, personal, quotes, schema, service, socis, stock, usuaris
 from .db import make_engine, make_session_factory
 from .models import CashEntry, Local, Member, Product, StockMovement, User, UserLocal
 
@@ -17,6 +17,11 @@ CAN_CREATE_MEMBER = {"admin", "encarregat"}
 
 def get_db_factory():
     engine = make_engine()
+    falten = schema.missing_tables(engine)
+    if falten:
+        # Millor aturar-se aquí que donar errors 500 críptics a mig servei després d'actualitzar el programa.
+        raise RuntimeError(f"Falten taules a la base de dades ({', '.join(falten)}). "
+                           "Executa, amb l'usuari propietari: python -m app.cli actualitzar-bd")
     return make_session_factory(engine)
 
 
@@ -78,7 +83,10 @@ def create_app(session_factory=None) -> FastAPI:
 
     @app.post("/auth/login")
     def login(body: LoginIn, s: Session = Depends(db)):
-        token = service.login(s, body.username, body.password, body.totp)
+        try:
+            token = service.login(s, body.username, body.password, body.totp)
+        except service.LoginLocked:
+            raise HTTPException(429, "Massa intents fallits: l'accés queda bloquejat uns minuts. Torna-ho a provar més tard.")
         if not token:
             raise HTTPException(401, "Credencials incorrectes")
         return {"token": token}
@@ -523,6 +531,57 @@ def create_app(session_factory=None) -> FastAPI:
         need_admin(user)
         u, secret = run(service.create_user, s, user, body.username, body.password, body.role, body.local_ids)
         return {"id": u.id, "totp_secret": secret}
+
+    @app.get("/usuaris")
+    def llista_usuaris(user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        return usuaris.list_users(s)
+
+    class UsuariUpdateIn(BaseModel):
+        active: bool | None = None
+        role: str | None = None
+        local_ids: list[int] | None = None
+
+    def usuari_or_404(s: Session, user_id: int) -> User:
+        u = s.get(User, user_id)
+        if not u:
+            raise HTTPException(404, "Usuari inexistent")
+        return u
+
+    @app.patch("/usuaris/{user_id}")
+    def edita_usuari(user_id: int, body: UsuariUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        run(usuaris.update_user, s, user, usuari_or_404(s, user_id), body.active, body.role, body.local_ids)
+        return {"ok": True}
+
+    @app.post("/usuaris/{user_id}/totp")
+    def reinicia_totp(user_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        return {"totp_secret": usuaris.reset_totp(s, user, usuari_or_404(s, user_id))}
+
+    class ContrasenyaIn(BaseModel):
+        password: str = Field(max_length=200)
+
+    @app.post("/usuaris/{user_id}/contrasenya")
+    def posa_contrasenya(user_id: int, body: ContrasenyaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        run(usuaris.set_password, s, user, usuari_or_404(s, user_id), body.password)
+        return {"ok": True}
+
+    class CanviContrasenyaIn(BaseModel):
+        actual: str = Field(max_length=200)
+        nova: str = Field(max_length=200)
+
+    @app.post("/auth/canvi-contrasenya")
+    def canvi_contrasenya(body: CanviContrasenyaIn, authorization: str = Header(default=""), user: User = Depends(current_user), s: Session = Depends(db)):
+        _, _, token = authorization.partition(" ")
+        try:
+            usuaris.change_own_password(s, user, body.actual, body.nova, token)
+        except PermissionError as e:
+            raise HTTPException(403, str(e))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        return {"ok": True}
 
     @app.put("/locals/{local_id}/limits")
     def limits(local_id: int, body: LimitsIn, user: User = Depends(current_user), s: Session = Depends(db)):

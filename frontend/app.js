@@ -41,6 +41,7 @@ const TABS = [
   ['fitxatge', 'Fitxatge', () => true],
   ['informe', 'Informe', isManager],
   ['admin', 'Admin', () => S.me.role === 'admin'],
+  ['compte', 'Compte', () => true],
 ];
 
 function renderShell() {

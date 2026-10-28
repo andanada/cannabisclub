@@ -5,7 +5,7 @@ import os
 import secrets
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from . import audit, crypto, security
@@ -55,14 +55,34 @@ def document_index(document: str) -> str:
     return hmac.new(_index_key(), norm.encode(), hashlib.sha256).hexdigest()
 
 
+MAX_FAILED_LOGINS = 5
+LOCKOUT_MINUTES = 15
+
+
+class LoginLocked(Exception):
+    """Massa intents fallits: el nom d'usuari queda bloquejat uns minuts."""
+
+
 def login(db: Session, username: str, password: str, totp: str) -> str | None:
+    from .models import LoginAttempt
+    key = username[:60]
+    since = datetime.now(timezone.utc) - timedelta(minutes=LOCKOUT_MINUTES)
+    db.execute(delete(LoginAttempt).where(LoginAttempt.ts < since))  # esborra els intents ja caducats
+    fails = db.scalar(select(func.count()).select_from(LoginAttempt).where(LoginAttempt.username == key, LoginAttempt.ts >= since))
+    if fails >= MAX_FAILED_LOGINS:
+        # Es bloqueja abans de comprovar res i també per a noms inexistents: així no es revela si un usuari existeix.
+        audit_append(db, {"accio": "login_bloquejat", "usuari": username})
+        db.commit()
+        raise LoginLocked()
     user = db.scalar(select(User).where(User.username == username, User.active.is_(True)))
     ok = bool(user) and security.verify_password(password, user.password_hash)
     ok = ok and security.verify_totp(crypto.decrypt(user.totp_secret_enc), totp)
     audit_append(db, {"accio": "login", "usuari": username, "ok": ok})
     if not ok:
+        db.add(LoginAttempt(username=key))
         db.commit()
         return None
+    db.execute(delete(LoginAttempt).where(LoginAttempt.username == key))  # un accés correcte reinicia el compte
     token = secrets.token_urlsafe(32)
     db.add(SessionToken(
         token_hash=hashlib.sha256(token.encode()).hexdigest(),
