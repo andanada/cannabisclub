@@ -23,6 +23,17 @@ def stock_mg(db: Session, product_id: int) -> int:
                      .where(StockMovement.product_id == product_id))
 
 
+def stock_by_product(db: Session, product_ids) -> dict[int, int]:
+    """Estoc (mg) de molts productes amb UNA sola consulta (evita una consulta per producte)."""
+    ids = list(product_ids)
+    if not ids:
+        return {}
+    q = select(StockMovement.product_id, func.coalesce(func.sum(StockMovement.delta_mg), 0)).where(StockMovement.product_id.in_(ids)).group_by(StockMovement.product_id)
+    out = {i: 0 for i in ids}
+    out.update({p: int(mg) for p, mg in db.execute(q)})
+    return out
+
+
 def _lock_product(db: Session, product_id: int) -> Product:
     p = db.scalar(select(Product).where(Product.id == product_id).with_for_update())
     if not p or not p.actiu:

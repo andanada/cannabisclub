@@ -95,6 +95,7 @@ def login(db: Session, username: str, password: str, totp: str) -> str | None:
     key = username[:60]
     since = datetime.now(timezone.utc) - timedelta(minutes=LOCKOUT_MINUTES)
     db.execute(delete(LoginAttempt).where(LoginAttempt.ts < since))  # esborra els intents ja caducats
+    db.execute(delete(SessionToken).where(SessionToken.expires_at < datetime.now(timezone.utc)))  # i les sessions caducades
     fails = db.scalar(select(func.count()).select_from(LoginAttempt).where(LoginAttempt.username == key, LoginAttempt.ts >= since))
     if fails >= MAX_FAILED_LOGINS:
         # Es bloqueja abans de comprovar res i també per a noms inexistents: així no es revela si un usuari existeix.

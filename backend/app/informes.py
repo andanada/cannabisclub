@@ -10,7 +10,7 @@ from . import personal
 from .cash import _range
 from .csvutil import to_csv
 from .models import CheckIn, Product, StockMovement, User
-from .stock import TZ, stock_mg
+from .stock import TZ, stock_by_product
 
 
 def _g(mg: int) -> str:
@@ -51,8 +51,10 @@ def sales_csv(r: dict) -> str:
 def valued_stock(db: Session, local_id: int) -> dict:
     """Estoc actual de cada producte actiu i el seu valor al preu de venda vigent."""
     productes, tot_mg, tot_cent = [], 0, 0
-    for p in db.scalars(select(Product).where(Product.local_id == local_id, Product.actiu.is_(True)).order_by(Product.nom)):
-        mg = stock_mg(db, p.id)
+    prods = db.scalars(select(Product).where(Product.local_id == local_id, Product.actiu.is_(True)).order_by(Product.nom)).all()
+    per_producte = stock_by_product(db, [p.id for p in prods])
+    for p in prods:
+        mg = per_producte[p.id]
         valor = int((Decimal(mg) * p.preu_cent_per_g / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
         productes.append({"nom": p.nom, "categoria": p.categoria, "estoc_g": _g(mg), "preu_cent_per_g": p.preu_cent_per_g, "valor_cent": valor})
         tot_mg, tot_cent = tot_mg + mg, tot_cent + valor

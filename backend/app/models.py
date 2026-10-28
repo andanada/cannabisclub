@@ -1,5 +1,5 @@
 from datetime import date, datetime, timezone
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, event
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -259,3 +259,21 @@ class LocalSetting(Base):
     local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"), primary_key=True)
     clau: Mapped[str] = mapped_column(String(40), primary_key=True)
     valor: Mapped[str] = mapped_column(String(200))
+
+
+# Índexs per a les consultes habituals (estoc, caixa, informes, assistència). Les taules que ja existeixen els
+# reben amb `python -m app.cli actualitzar-bd`.
+Index("ix_stock_mov_product", StockMovement.product_id)
+Index("ix_stock_mov_local_ts", StockMovement.local_id, StockMovement.ts)
+Index("ix_stock_mov_member_ts", StockMovement.member_id, StockMovement.ts)
+Index("ix_cash_entries_local_ts", CashEntry.local_id, CashEntry.ts)
+Index("ix_cash_entries_session", CashEntry.session_id)
+Index("ix_checkins_local_ts", CheckIn.local_id, CheckIn.ts)
+Index("ix_time_events_user", TimeEvent.user_id, TimeEvent.id)
+Index("ix_members_local", Member.local_id)
+Index("ix_sessions_user", SessionToken.user_id)
+Index("ix_sessions_exp", SessionToken.expires_at)
+Index("ix_quotes_member", Quota.member_id)
+Index("ix_cards_member", MemberCard.member_id)
+Index("ix_photos_member", MemberPhoto.member_id)
+Index("ix_products_local", Product.local_id)

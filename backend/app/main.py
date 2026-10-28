@@ -1,11 +1,16 @@
+import logging
+import os
+import time
+import uuid
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from . import ajustos, cash, informes, personal, quotes, schema, service, socis, stock, usuaris
@@ -13,6 +18,7 @@ from .db import make_engine, make_session_factory
 from .models import CashEntry, Local, Member, Product, StockMovement, User, UserLocal
 
 CAN_CREATE_MEMBER = {"admin", "encarregat"}
+log = logging.getLogger("club")
 
 
 def get_db_factory():
@@ -22,15 +28,31 @@ def get_db_factory():
         # Millor aturar-se aquí que donar errors 500 críptics a mig servei després d'actualitzar el programa.
         raise RuntimeError(f"Falten taules a la base de dades ({', '.join(falten)}). "
                            "Executa, amb l'usuari propietari: python -m app.cli actualitzar-bd")
+    sense_index = schema.missing_indexes(engine)
+    if sense_index:  # no impedeix arrencar, però les consultes anirien lentes
+        logging.getLogger("club").warning("Falten índexs (%s). Executa: python -m app.cli actualitzar-bd", ", ".join(sense_index))
     return make_session_factory(engine)
 
 
 def create_app(session_factory=None) -> FastAPI:
     app = FastAPI(title="club-gestio")
 
+    @app.exception_handler(Exception)
+    async def error_inesperat(request, exc):
+        # Cap detall intern (camins, SQL, valors) arriba al client: només un identificador per buscar-lo al log.
+        rid = uuid.uuid4().hex[:12]
+        log.error("error_no_controlat id=%s %s %s", rid, request.method, request.url.path, exc_info=exc)
+        return JSONResponse({"detail": "Error intern del servidor. Si es repeteix, comunica aquest codi a l'administrador.", "id": rid},
+                            status_code=500, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
     @app.middleware("http")
     async def security_headers(request, call_next):
+        t0 = time.perf_counter()
         resp = await call_next(request)
+        # Es registra el camí SENSE la query string: hi pot haver documents o codis de carnet (dades personals).
+        log.info("%s %s %s %.0fms", request.method, request.url.path, resp.status_code, (time.perf_counter() - t0) * 1000)
+        if os.environ.get("CLUB_HSTS") == "1":
+            resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         resp.headers["Content-Security-Policy"] = (
             "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
             "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
@@ -77,6 +99,16 @@ def create_app(session_factory=None) -> FastAPI:
         naixement: date
         telefon: str | None = None
         email: str | None = None
+
+    @app.get("/salut")
+    def salut(s: Session = Depends(db)):
+        """Per a monitoratge (systemd, Tailscale, un curl des de cron): 200 si la base de dades respon, 503 si no."""
+        try:
+            s.execute(text("SELECT 1"))
+        except Exception:
+            log.exception("salut: la base de dades no respon")
+            return JSONResponse({"ok": False}, status_code=503)
+        return {"ok": True}
 
     def member_payload(s: Session, m: Member) -> dict:
         return {**service.member_view(m), "quota": quotes.status(s, m.id),
@@ -182,16 +214,18 @@ def create_app(session_factory=None) -> FastAPI:
         if user.role not in CAN_CREATE_MEMBER:
             raise HTTPException(403, "El teu rol no pot gestionar productes")
         check_local(s, user, local_id)
-        prods = s.scalars(select(Product).where(Product.local_id == local_id).order_by(Product.actiu.desc(), Product.nom))
+        prods = s.scalars(select(Product).where(Product.local_id == local_id).order_by(Product.actiu.desc(), Product.nom)).all()
+        mg = stock.stock_by_product(s, [p.id for p in prods])
         return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": p.preu_cent_per_g, "actiu": p.actiu,
-                 "estoc_g": str(Decimal(stock.stock_mg(s, p.id)) / 1000)} for p in prods]
+                 "estoc_g": str(Decimal(mg[p.id]) / 1000)} for p in prods]
 
     @app.get("/locals/{local_id}/estoc")
     def veure_estoc(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
         check_local(s, user, local_id)
-        prods = s.scalars(select(Product).where(Product.local_id == local_id, Product.actiu.is_(True)))
+        prods = s.scalars(select(Product).where(Product.local_id == local_id, Product.actiu.is_(True)).order_by(Product.nom)).all()
+        mg = stock.stock_by_product(s, [p.id for p in prods])
         return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": p.preu_cent_per_g,
-                 "estoc_g": str(Decimal(stock.stock_mg(s, p.id)) / 1000)} for p in prods]
+                 "estoc_g": str(Decimal(mg[p.id]) / 1000)} for p in prods]
 
     @app.post("/moviments/entrada", status_code=201)
     def entrada(body: EntradaIn, user: User = Depends(current_user), s: Session = Depends(db)):

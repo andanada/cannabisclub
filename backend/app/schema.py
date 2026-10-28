@@ -17,8 +17,19 @@ $$ LANGUAGE plpgsql
 """
 
 
+def missing_indexes(engine) -> list[str]:
+    """Índexs del model que falten en taules que ja existien (create_all no els crea en taules existents)."""
+    from sqlalchemy import inspect
+    insp = inspect(engine)
+    existents = {i["name"] for t in insp.get_table_names() for i in insp.get_indexes(t)}
+    return sorted(i.name for t in Base.metadata.sorted_tables for i in t.indexes if i.name not in existents)
+
+
 def install(engine) -> None:
     Base.metadata.create_all(engine)
+    for t in Base.metadata.sorted_tables:
+        for ix in t.indexes:
+            ix.create(engine, checkfirst=True)
     if engine.dialect.name != "postgresql":
         return
     with engine.begin() as c:
