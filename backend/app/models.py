@@ -214,6 +214,37 @@ def _immutable_quota(mapper, connection, target):
     raise ImmutableError("Les quotes no es poden modificar ni esborrar: corregeix l'apunt de caixa")
 
 
+class MemberPhoto(Base):
+    """Foto del soci. Només s'hi afegeixen files (la més recent és la vigent); la imatge va xifrada."""
+    __tablename__ = "member_photos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    mime: Mapped[str] = mapped_column(String(20))
+    img_enc: Mapped[str] = mapped_column(Text)
+    sha256: Mapped[str] = mapped_column(String(64))
+
+
+@event.listens_for(MemberPhoto, "before_update")
+@event.listens_for(MemberPhoto, "before_delete")
+def _immutable_photo(mapper, connection, target):
+    raise ImmutableError("Les fotos no es poden modificar ni esborrar: puja'n una de nova")
+
+
+class MemberCard(Base):
+    """Carnet (RFID, codi de barres…) d'un soci. Només es desa l'empremta HMAC del codi, mai el codi."""
+    __tablename__ = "member_cards"
+    __table_args__ = (UniqueConstraint("local_id", "code_idx"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
+    code_idx: Mapped[str] = mapped_column(String(64))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    creat: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    creat_per: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
 class LocalSetting(Base):
     """Ajustos opcionals d'un local (clau/valor). Taula a part perquè afegir-ne no canviï la taula `locals`."""
     __tablename__ = "local_settings"

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import ajustos, cash, personal, quotes, service, stock
+from . import ajustos, cash, personal, quotes, service, socis, stock
 from .db import make_engine, make_session_factory
 from .models import CashEntry, Local, Member, Product, StockMovement, User, UserLocal
 
@@ -34,7 +34,7 @@ def create_app(session_factory=None) -> FastAPI:
         resp.headers["Referrer-Policy"] = "no-referrer"
         if not request.url.path.startswith("/static-"):
             if request.url.path not in ("/", "/sw.js", "/util.js", "/bascula.js", "/app.js", "/views-dispensar.js", "/views-gestio.js",
-                                        "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
+                                        "/views-socis.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
                 resp.headers["Cache-Control"] = "no-store"
         return resp
     factory = session_factory or get_db_factory()
@@ -72,6 +72,10 @@ def create_app(session_factory=None) -> FastAPI:
         telefon: str | None = None
         email: str | None = None
 
+    def member_payload(s: Session, m: Member) -> dict:
+        return {**service.member_view(m), "quota": quotes.status(s, m.id),
+                "te_foto": socis.has_photo(s, m.id), "te_carnet": socis.has_card(s, m.id)}
+
     @app.post("/auth/login")
     def login(body: LoginIn, s: Session = Depends(db)):
         token = service.login(s, body.username, body.password, body.totp)
@@ -99,7 +103,7 @@ def create_app(session_factory=None) -> FastAPI:
         check_local(s, user, m.local_id)
         service.audit_append(s, {"accio": "consulta_soci", "soci": m.id, "per": user.id})
         s.commit()
-        return {**service.member_view(m), "quota": quotes.status(s, m.id)}
+        return member_payload(s, m)
 
     @app.get("/auditoria/verificar")
     def verificar(user: User = Depends(current_user), s: Session = Depends(db)):
@@ -362,7 +366,69 @@ def create_app(session_factory=None) -> FastAPI:
         s.commit()
         if not m:
             raise HTTPException(404, "No existeix")
-        return {**service.member_view(m), "quota": quotes.status(s, m.id)}
+        return member_payload(s, m)
+
+    @app.get("/locals/{local_id}/socis/carnet")
+    def cerca_carnet(local_id: int, codi: str, user: User = Depends(current_user), s: Session = Depends(db)):
+        check_local(s, user, local_id)
+        m = socis.find_by_card(s, local_id, codi)
+        service.audit_append(s, {"accio": "cerca_carnet", "local": local_id, "trobat": bool(m), "per": user.id})
+        s.commit()
+        if not m:
+            raise HTTPException(404, "No existeix")
+        return member_payload(s, m)
+
+    @app.get("/locals/{local_id}/socis")
+    def llista_socis(local_id: int, q: str | None = None, estat: str | None = None, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return run(socis.list_members, s, user, local_id, q, estat)
+
+    class MemberUpdateIn(BaseModel):
+        nom: str | None = Field(default=None, max_length=120)
+        document: str | None = Field(default=None, max_length=30)
+        naixement: date | None = None
+        telefon: str | None = Field(default=None, max_length=30)
+        email: str | None = Field(default=None, max_length=120)
+
+    @app.patch("/socis/{member_id}")
+    def edita_soci(member_id: int, body: MemberUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        m = member_or_404(s, user, member_id)
+        # només els camps enviats: un camp enviat com a null buida el telèfon o el correu
+        run(socis.update_member, s, user, m, {k: getattr(body, k) for k in body.model_fields_set})
+        return {"ok": True}
+
+    class FotoIn(BaseModel):
+        image_base64: str = Field(max_length=400_000)
+
+    @app.post("/socis/{member_id}/foto", status_code=201)
+    def pujar_foto(member_id: int, body: FotoIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        f = run(socis.save_photo, s, user, member_or_404(s, user, member_id), body.image_base64)
+        return {"id": f.id, "sha256": f.sha256}
+
+    @app.get("/socis/{member_id}/foto")
+    def veure_foto(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        f = socis.read_photo(s, user, member_or_404(s, user, member_id))
+        if not f:
+            raise HTTPException(404, "Sense foto")
+        return f
+
+    class CarnetIn(BaseModel):
+        codi: str = Field(max_length=100)
+
+    @app.post("/socis/{member_id}/carnet", status_code=201)
+    def assignar_carnet(member_id: int, body: CarnetIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        c = run(socis.assign_card, s, user, member_or_404(s, user, member_id), body.codi)
+        return {"id": c.id}
+
+    @app.delete("/socis/{member_id}/carnet")
+    def retirar_carnet(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        run(socis.revoke_card, s, user, member_or_404(s, user, member_id))
+        return {"ok": True}
 
     class QuotaIn(BaseModel):
         import_cent: int = Field(gt=0, le=quotes.MAX_IMPORT_CENT)

@@ -32,10 +32,12 @@ function quotaForm(m, out, onDone) {
 
 function memberCard(m, out, onChange) {
   const pill = h('span', { class: 'pill ' + (m.estat === 'actiu' ? 'ok' : 'bad') }, m.estat);
-  const card = h('div', { class: 'card' },
-    h('div', { class: 'big' }, m.nom), h('div', null, pill, ' ', quotaPill(m.quota), ' ', h('span', { class: 'muted' }, m.document + ' · ' + m.naixement)),
-    m.telefon ? h('div', { class: 'muted' }, m.telefon) : null);
+  const card = h('div', { class: 'card' }, h('div', { class: 'member' }, memberPhoto(m), h('div', null,
+    h('div', { class: 'big' }, m.nom), h('div', null, pill, ' ', quotaPill(m.quota), m.te_carnet ? h('span', { class: 'pill' }, 'carnet') : null,
+      ' ', h('span', { class: 'muted' }, m.document + ' · ' + m.naixement)),
+    m.telefon ? h('div', { class: 'muted' }, m.telefon) : null)));
   const bar = h('div', { class: 'actions' });
+  const tools = isManager() && onChange ? memberTools(m, out, onChange) : null;
   const entrada = h('button', { onclick: () => guard(entrada, out, async () => {
     await api(`/socis/${m.id}/entrada`, { method: 'POST' });
     out.replaceChildren(msg('ok', 'Entrada registrada'));
@@ -51,31 +53,39 @@ function memberCard(m, out, onChange) {
     }) }, 'Canviar estat');
     bar.append(sel, set);
   }
+  if (tools) bar.append(...tools.bar);
   card.append(bar);
+  if (tools) card.append(tools.panel);
   return card;
 }
 
+// Cerca per document o per carnet. El lector de carnets «escriu» el codi i prem Intro: això envia el formulari.
 function searchBox(onFound) {
   const out = h('div');
   const doc = h('input', { placeholder: 'DNI / NIE / passaport', autocapitalize: 'characters', autocomplete: 'off' });
+  const carnet = h('input', { placeholder: 'Passa el carnet pel lector', autocapitalize: 'characters', autocomplete: 'off' });
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Cercar');
   const form = h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
+    const perCarnet = !doc.value.trim() && carnet.value.trim();
     guard(btn, out, async () => {
-      const m = await api(`/locals/${S.local}/socis/cerca?document=${encodeURIComponent(doc.value.trim())}`);
+      const m = perCarnet
+        ? await api(`/locals/${S.local}/socis/carnet?codi=${encodeURIComponent(carnet.value.trim())}`)
+        : await api(`/locals/${S.local}/socis/cerca?document=${encodeURIComponent(doc.value.trim())}`);
+      carnet.value = '';
       onFound(m, out);
     });
-  } }, field('Document del soci', doc), h('div', { class: 'actions' }, btn), out);
+  } }, h('div', { class: 'row' }, field('Document del soci', doc), field('o carnet', carnet)), h('div', { class: 'actions' }, btn), out);
   return form;
 }
 
 VIEWS.socis = async () => {
   const box = h('div');
   const found = h('div');
-  const showMember = (m, out) => found.replaceChildren(memberCard(m, out), quotaForm(m, out, (mm) => showMember(mm, out)));
+  const showMember = (m, out) => found.replaceChildren(memberCard(m, out, (mm) => showMember(mm, out)), quotaForm(m, out, (mm) => showMember(mm, out)));
   const search = searchBox(showMember);
   box.append(h('h2', null, 'Socis'), search, found);
-  if (isManager()) box.append(altaForm());
+  if (isManager()) box.append(memberList((m, out) => { showMember(m, out); found.scrollIntoView(); }), altaForm());
   return box;
 };
 
@@ -113,7 +123,7 @@ VIEWS.dispensar = async () => {
   const showMember = (m, out) => {
     const bloquejat = loc.quota_obligatoria && !(m.quota && m.quota.al_dia);
     step.replaceChildren(...[
-      memberCard(m, out),
+      memberCard(m, out, (mm) => showMember(mm, out)),
       m.estat !== 'actiu' ? msg('err', 'El soci no està actiu: no es pot dispensar.') : null,
       m.estat === 'actiu' && bloquejat ? msg('err', 'La quota del soci no està al dia: cal cobrar-la abans de dispensar.') : null,
       m.estat !== 'baixa' && bloquejat ? quotaForm(m, out, (mm) => showMember(mm, out)) : null,

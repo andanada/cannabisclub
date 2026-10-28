@@ -37,6 +37,14 @@ def status(db: Session, member_id: int, dia: date | None = None) -> dict:
     return {"al_dia": bool(fins and fins >= dia), "valid_fins": fins.isoformat() if fins else None}
 
 
+def ultimes_quotes(db: Session, local_id: int) -> dict[int, date]:
+    """Per a cada soci del local, la data fins a la qual és vàlida la seva última quota no anul·lada (una sola consulta)."""
+    from sqlalchemy import func
+    corregit = select(CashEntry.id).where(CashEntry.corregeix_id == Quota.cash_entry_id).exists()
+    q = select(Quota.member_id, func.max(Quota.valid_fins)).where(Quota.local_id == local_id, ~corregit).group_by(Quota.member_id)
+    return {m: fins for m, fins in db.execute(q)}
+
+
 def charge(db: Session, actor: User, member: Member, import_cent: int, metode: str, mesos: int,
            dia: date | None = None) -> Quota:
     if member.estat == "baixa":
