@@ -17,17 +17,18 @@ def _g(mg: int) -> str:
     return str(Decimal(int(mg)) / 1000)
 
 
-def sales(db: Session, local_id: int, des: date, fins: date) -> dict:
+def sales(db: Session, local_id: int, des: date, fins: date, usuari: int | None = None) -> dict:
     """Vendes netes (les correccions hi resten) per producte i per categoria."""
     a, b = _range(des, fins)
     dispensat = case((StockMovement.tipus == "dispensacio", 1), else_=-1)
-    rows = db.execute(
-        select(Product.nom, Product.categoria, func.sum(-StockMovement.delta_mg), func.sum(func.coalesce(StockMovement.import_cent, 0)),
-               func.sum(dispensat))
-        .join(Product, Product.id == StockMovement.product_id)
-        .where(StockMovement.local_id == local_id, StockMovement.member_id.is_not(None),
-               StockMovement.tipus.in_(["dispensacio", "correccio"]), StockMovement.ts >= a, StockMovement.ts < b)
-        .group_by(Product.id, Product.nom, Product.categoria).order_by(Product.nom))
+    q = (select(Product.nom, Product.categoria, func.sum(-StockMovement.delta_mg), func.sum(func.coalesce(StockMovement.import_cent, 0)),
+                func.sum(dispensat))
+         .join(Product, Product.id == StockMovement.product_id)
+         .where(StockMovement.local_id == local_id, StockMovement.member_id.is_not(None),
+                StockMovement.tipus.in_(["dispensacio", "correccio"]), StockMovement.ts >= a, StockMovement.ts < b))
+    if usuari is not None:
+        q = q.where(StockMovement.user_id == usuari)
+    rows = db.execute(q.group_by(Product.id, Product.nom, Product.categoria).order_by(Product.nom))
     productes, per_cat = [], defaultdict(lambda: {"mg": 0, "import_cent": 0})
     tot_mg = tot_cent = tot_n = 0
     for nom, cat, mg, cent, n in rows:
@@ -66,12 +67,15 @@ def stock_csv(r: dict) -> str:
                   [[p["nom"], p["categoria"], p["estoc_g"], p["preu_cent_per_g"], p["valor_cent"]] for p in r["productes"]])
 
 
-def attendance(db: Session, local_id: int, des: date, fins: date) -> dict:
+def attendance(db: Session, local_id: int, des: date, fins: date, usuari: int | None = None) -> dict:
     """Entrades de socis per dia (hora local) i socis diferents."""
     a, b = _range(des, fins)
     per_dia = defaultdict(lambda: {"entrades": 0, "socis": set()})
     tots = set()
-    for c in db.scalars(select(CheckIn).where(CheckIn.local_id == local_id, CheckIn.ts >= a, CheckIn.ts < b)):
+    q = select(CheckIn).where(CheckIn.local_id == local_id, CheckIn.ts >= a, CheckIn.ts < b)
+    if usuari is not None:
+        q = q.where(CheckIn.user_id == usuari)
+    for c in db.scalars(q):
         dia = c.ts.replace(tzinfo=c.ts.tzinfo or timezone.utc).astimezone(TZ).date().isoformat()
         per_dia[dia]["entrades"] += 1
         per_dia[dia]["socis"].add(c.member_id)
@@ -85,9 +89,11 @@ def attendance_csv(r: dict) -> str:
     return to_csv(["dia", "entrades", "socis"], [[d["dia"], d["entrades"], d["socis"]] for d in r["per_dia"]])
 
 
-def staff_hours(db: Session, local_id: int, des: date, fins: date) -> dict:
+def staff_hours(db: Session, local_id: int, des: date, fins: date, usuari: int | None = None) -> dict:
     """Hores treballades per persona (amb el nom d'usuari) en el rang."""
     brut = personal.hours(db, local_id, des, fins)
+    if usuari is not None:
+        brut = {k: v for k, v in brut.items() if k == str(usuari)}
     noms = {str(i): n for i, n in db.execute(select(User.id, User.username))}
     persones = [{"usuari": noms.get(uid, uid), "hores": round(v["segons_treballats"] / 3600, 2), "torns": v["torns"], "torn_obert": v["torn_obert"]}
                 for uid, v in brut.items()]

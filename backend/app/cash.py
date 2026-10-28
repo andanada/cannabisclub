@@ -116,9 +116,12 @@ def _range(des: date, fins: date) -> tuple[datetime, datetime]:
     return a, b
 
 
-def report(db: Session, local_id: int, des: date, fins: date) -> dict:
+def report(db: Session, local_id: int, des: date, fins: date, usuari: int | None = None) -> dict:
     a, b = _range(des, fins)
-    entries = db.scalars(select(CashEntry).where(CashEntry.local_id == local_id, CashEntry.ts >= a, CashEntry.ts < b)).all()
+    q = select(CashEntry).where(CashEntry.local_id == local_id, CashEntry.ts >= a, CashEntry.ts < b)
+    if usuari is not None:
+        q = q.where(CashEntry.user_id == usuari)
+    entries = db.scalars(q).all()
     per_dia = defaultdict(lambda: {"ingressos_cent": 0, "despeses_cent": 0})
     despeses = defaultdict(int)
     ingressos = despeses_total = 0
@@ -131,9 +134,12 @@ def report(db: Session, local_id: int, des: date, fins: date) -> dict:
             per_dia[dia]["despeses_cent"] += -e.import_cent
             despeses_total += -e.import_cent
             despeses[e.categoria] += -e.import_cent
-    mg = db.scalar(select(func.coalesce(func.sum(-StockMovement.delta_mg), 0)).where(
+    qm = select(func.coalesce(func.sum(-StockMovement.delta_mg), 0)).where(
         StockMovement.local_id == local_id, StockMovement.tipus.in_(["dispensacio", "correccio"]),
-        StockMovement.member_id.is_not(None), StockMovement.ts >= a, StockMovement.ts < b))
+        StockMovement.member_id.is_not(None), StockMovement.ts >= a, StockMovement.ts < b)
+    if usuari is not None:
+        qm = qm.where(StockMovement.user_id == usuari)
+    mg = db.scalar(qm)
     return {"des": des.isoformat(), "fins": fins.isoformat(), "ingressos_cent": ingressos,
             "despeses_cent": despeses_total, "resultat_cent": ingressos - despeses_total,
             "despeses_per_categoria": dict(despeses), "dispensat_mg": mg,

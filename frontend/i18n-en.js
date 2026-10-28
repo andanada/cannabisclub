@@ -508,7 +508,10 @@ Object.assign(I18N.en, {
  "La imatge no és vàlida": "The image is not valid",
  "La imatge és massa gran (màxim 30 KB: es redueix sola a la pantalla)": "The image is too large (maximum 30 KB: it is shrunk automatically on screen)",
  "La imatge està buida": "The image is empty",
- "El producte no té imatge": "The product has no image"
+ "El producte no té imatge": "The product has no image",
+ "Tots els empleats": "All employees",
+ "Empleat": "Employee",
+ "Aquest empleat no treballa en aquest local": "This employee does not work at this venue"
 });
 I18N.pat.en.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Barcode $1"],
 [new RegExp("^Soci\\ núm\\.\\s+(.*)$"), "Member no. $1"],

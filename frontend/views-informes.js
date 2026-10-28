@@ -43,11 +43,13 @@ VIEWS.informe = async () => {
   const tipus = h('select', null, Object.entries(INFORMES).map(([k, v]) => h('option', { value: k }, v.titol)));
   const des = h('input', { type: 'date', value: avui }), fins = h('input', { type: 'date', value: avui });
   const out = h('div'), res = h('div');
-  const rangBox = h('div', { class: 'row' }, field('Des de', des), field('Fins a', fins));
+  const personal = await api(`/locals/${S.local}/personal`);
+  const emp = h('select', null, [h('option', { value: '' }, 'Tots els empleats'), ...personal.map((u) => h('option', { value: u.id }, u.username))]);
+  const rangBox = h('div', { class: 'row' }, field('Des de', des), field('Fins a', fins), field('Empleat', emp));
   tipus.addEventListener('change', () => { rangBox.hidden = !INFORMES[tipus.value].rang; res.replaceChildren(); });
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Veure informe');
   const csv = h('button', { type: 'button' }, 'Descarregar CSV');
-  const q = () => `des=${des.value}&fins=${fins.value}`;
+  const q = () => `des=${des.value}&fins=${fins.value}${emp.value ? '&usuari=' + emp.value : ''}`;
   csv.addEventListener('click', () => guard(csv, out, async () => {
     const inf = INFORMES[tipus.value];
     const r = await api(inf.csv(q()), { raw: true });

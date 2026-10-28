@@ -346,12 +346,13 @@ def create_app(session_factory=None) -> FastAPI:
         return {"apunt": e.id}
 
     @app.get("/locals/{local_id}/informe")
-    def informe(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
+    def informe(local_id: int, des: date, fins: date, usuari: int | None = None, user: User = Depends(current_user), s: Session = Depends(db)):
         need_manager(user)
         check_local(s, user, local_id)
         if fins < des:
             raise HTTPException(422, "Rang de dates invàlid")
-        return cash.report(s, local_id, des, fins)
+        empleat_valid(s, local_id, usuari)
+        return cash.report(s, local_id, des, fins, usuari)
 
     @app.get("/locals/{local_id}/apunts.csv")
     def apunts_csv(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -360,6 +361,21 @@ def create_app(session_factory=None) -> FastAPI:
         service.audit_append(s, {"accio": "exportar_csv", "informe": "apunts", "local": local_id, "per": user.id})
         s.commit()
         return Response(cash.entries_csv(s, local_id, des, fins), media_type="text/csv")
+
+    def personal_del_local(s: Session, local_id: int) -> list[User]:
+        ids = set(s.scalars(select(UserLocal.user_id).where(UserLocal.local_id == local_id)))
+        return [u for u in s.scalars(select(User).where(User.active.is_(True)).order_by(User.username)) if u.role == "admin" or u.id in ids]
+
+    def empleat_valid(s: Session, local_id: int, usuari: int | None) -> None:
+        """El filtre per empleat només admet gent que treballa en aquest local (o administradors)."""
+        if usuari is not None and usuari not in {u.id for u in personal_del_local(s, local_id)}:
+            raise HTTPException(422, "Aquest empleat no treballa en aquest local")
+
+    @app.get("/locals/{local_id}/personal")
+    def llista_personal(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return [{"id": u.id, "username": u.username, "role": u.role} for u in personal_del_local(s, local_id)]
 
     def _rang(des: date, fins: date) -> None:
         if fins < des:
@@ -383,26 +399,27 @@ def create_app(session_factory=None) -> FastAPI:
 
     # Informes de gestió (JSON i CSV). Només responsables; el CSV queda a l'auditoria.
     def registra_informe(nom: str, fn, csv_fn, amb_rang: bool):
-        def calcula(local_id: int, des: date | None, fins: date | None, user: User, s: Session):
+        def calcula(local_id: int, des: date | None, fins: date | None, user: User, s: Session, usuari: int | None = None):
             need_manager(user)
             check_local(s, user, local_id)
             if not amb_rang:
                 return fn(s, local_id)
+            empleat_valid(s, local_id, usuari)
             if des is None or fins is None:
                 raise HTTPException(422, "Cal indicar des de i fins a")
             if fins < des:
                 raise HTTPException(422, "Rang de dates invàlid")
-            return fn(s, local_id, des, fins)
+            return fn(s, local_id, des, fins, usuari)
 
         @app.get(f"/locals/{{local_id}}/informe/{nom}", name=f"informe_{nom}")
-        def veure(local_id: int, des: date | None = None, fins: date | None = None,
+        def veure(local_id: int, des: date | None = None, fins: date | None = None, usuari: int | None = None,
                   user: User = Depends(current_user), s: Session = Depends(db)):
-            return calcula(local_id, des, fins, user, s)
+            return calcula(local_id, des, fins, user, s, usuari)
 
         @app.get(f"/locals/{{local_id}}/informe/{nom}.csv", name=f"informe_{nom}_csv")
-        def exporta(local_id: int, des: date | None = None, fins: date | None = None,
+        def exporta(local_id: int, des: date | None = None, fins: date | None = None, usuari: int | None = None,
                     user: User = Depends(current_user), s: Session = Depends(db)):
-            r = calcula(local_id, des, fins, user, s)
+            r = calcula(local_id, des, fins, user, s, usuari)
             service.audit_append(s, {"accio": "exportar_csv", "informe": nom, "local": local_id, "per": user.id})
             s.commit()
             return Response(csv_fn(r), media_type="text/csv")
