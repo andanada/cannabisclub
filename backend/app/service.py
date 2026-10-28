@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 from datetime import date, datetime, timedelta, timezone
 
@@ -104,8 +105,28 @@ def user_from_token(db: Session, token: str) -> User | None:
     return u if u and u.active else None
 
 
+LLETRES_DNI = "TRWAGMYFPDXBNJZSQVHLCKE"
+
+
+def validate_document(document: str) -> None:
+    """DNI (8 xifres + lletra) i NIE (X/Y/Z + 7 xifres + lletra) es comproven amb la lletra de control;
+    qualsevol altre document (passaport…) ha de tenir 5 a 20 lletres o xifres."""
+    doc = "".join(document.split()).upper()
+    if re.fullmatch(r"\d{8}[A-Z]", doc):
+        numero = int(doc[:8])
+    elif re.fullmatch(r"[XYZ]\d{7}[A-Z]", doc):
+        numero = int(str("XYZ".index(doc[0])) + doc[1:8])
+    elif re.fullmatch(r"[A-Z0-9]{5,20}", doc):
+        return
+    else:
+        raise ValueError("El document no és vàlid (DNI, NIE o passaport: només lletres i xifres)")
+    if LLETRES_DNI[numero % 23] != doc[8]:
+        raise ValueError("La lletra de control del document no és correcta")
+
+
 def create_member(db: Session, actor: User, local_id: int, nom: str, document: str,
                   naixement: date, telefon: str | None, email: str | None) -> Member:
+    validate_document(document)
     avui = date.today()
     edat = avui.year - naixement.year - ((avui.month, avui.day) < (naixement.month, naixement.day))
     if edat < MAJORIA_EDAT:

@@ -86,6 +86,7 @@ VIEWS.estoc = async () => {
       h('p', { class: 'muted' }, 'El canvi de preu només afecta les dispensacions noves. Per desactivar un producte, l\'estoc ha de ser zero.'),
       ...tots.map(productCard));
   }
+  box.append(await stockHistory(() => show('estoc')));
   return box;
 };
 
@@ -102,6 +103,7 @@ VIEWS.caixa = async () => {
       e.preventDefault();
       guard(btn, out, async () => { await api('/caixa/obrir', { method: 'POST', body: { local_id: S.local, opening_cent: parseEur(ini.value) } }); show('caixa'); });
     } }, field('Efectiu inicial al calaix (€)', ini), h('div', { class: 'actions' }, btn), out));
+    box.append(await cashHistory(() => show('caixa')));
     return box;
   }
   box.append(h('div', { class: 'card' }, h('span', { class: 'pill ok' }, 'Oberta'),
@@ -138,6 +140,7 @@ VIEWS.caixa = async () => {
         h('p', null, 'Diferència: ', h('span', { class: 'pill ' + (d === 0 ? 'ok' : 'bad') }, (d > 0 ? '+' : '') + eur(d)))));
     });
   } }, h('h2', null, 'Tancament'), field('Efectiu comptat al calaix (€)', comptat), h('div', { class: 'actions' }, b2), out));
+  box.append(await cashHistory(() => show('caixa')));
   return box;
 };
 

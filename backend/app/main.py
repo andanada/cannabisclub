@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -39,7 +39,7 @@ def create_app(session_factory=None) -> FastAPI:
         resp.headers["Referrer-Policy"] = "no-referrer"
         if not request.url.path.startswith("/static-"):
             if request.url.path not in ("/", "/sw.js", "/util.js", "/bascula.js", "/app.js", "/views-dispensar.js", "/views-gestio.js",
-                                        "/views-socis.js", "/views-informes.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
+                                        "/views-socis.js", "/views-informes.js", "/views-historial.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
                 resp.headers["Cache-Control"] = "no-store"
         return resp
     factory = session_factory or get_db_factory()
@@ -295,6 +295,26 @@ def create_app(session_factory=None) -> FastAPI:
         service.audit_append(s, {"accio": "exportar_csv", "informe": "apunts", "local": local_id, "per": user.id})
         s.commit()
         return Response(cash.entries_csv(s, local_id, des, fins), media_type="text/csv")
+
+    def _rang(des: date, fins: date) -> None:
+        if fins < des:
+            raise HTTPException(422, "Rang de dates invàlid")
+
+    @app.get("/locals/{local_id}/apunts")
+    def llista_apunts(local_id: int, des: date, fins: date, limit: int = Query(default=100, ge=1, le=500),
+                      user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        _rang(des, fins)
+        return cash.entries_list(s, local_id, des, fins, limit)
+
+    @app.get("/locals/{local_id}/moviments")
+    def llista_moviments(local_id: int, des: date, fins: date, limit: int = Query(default=100, ge=1, le=500),
+                         user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        _rang(des, fins)
+        return stock.movements_list(s, local_id, des, fins, limit)
 
     # Informes de gestió (JSON i CSV). Només responsables; el CSV queda a l'auditoria.
     def registra_informe(nom: str, fn, csv_fn, amb_rang: bool):

@@ -140,6 +140,18 @@ def report(db: Session, local_id: int, des: date, fins: date) -> dict:
             "per_dia": {k: per_dia[k] for k in sorted(per_dia)}}
 
 
+def entries_list(db: Session, local_id: int, des: date, fins: date, limit: int = 100) -> list[dict]:
+    """Apunts de caixa del rang, del més recent al més antic, amb qui els va fer i si han estat corregits."""
+    a, b = _range(des, fins)
+    corregits = set(db.scalars(select(CashEntry.corregeix_id).where(CashEntry.local_id == local_id, CashEntry.corregeix_id.is_not(None))))
+    noms = {i: n for i, n in db.execute(select(User.id, User.username))}
+    q = (select(CashEntry).where(CashEntry.local_id == local_id, CashEntry.ts >= a, CashEntry.ts < b)
+         .order_by(CashEntry.id.desc()).limit(limit))
+    return [{"id": e.id, "ts": e.ts.replace(tzinfo=e.ts.tzinfo or timezone.utc).isoformat(), "tipus": e.tipus, "metode": e.metode,
+             "import_cent": e.import_cent, "categoria": e.categoria, "concepte": e.concepte, "usuari": noms.get(e.user_id),
+             "corregeix_id": e.corregeix_id, "corregit": e.id in corregits} for e in db.scalars(q)]
+
+
 def entries_csv(db: Session, local_id: int, des: date, fins: date) -> str:
     a, b = _range(des, fins)
     rows = [[e.id, e.ts.isoformat(), e.tipus, e.metode, e.import_cent, e.categoria or "", e.concepte or "",

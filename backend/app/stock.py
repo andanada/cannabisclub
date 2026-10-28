@@ -52,6 +52,21 @@ def _nom_lliure(db: Session, local_id: int, nom: str, excepte_id: int | None = N
     return db.scalar(q) is None
 
 
+def movements_list(db: Session, local_id: int, des: date, fins: date, limit: int = 100) -> list[dict]:
+    """Moviments d'estoc del rang, del més recent al més antic. Del soci només hi surt l'identificador (cap dada personal)."""
+    from .cash import _range
+    a, b = _range(des, fins)
+    corregits = set(db.scalars(select(StockMovement.corregeix_id).where(StockMovement.local_id == local_id, StockMovement.corregeix_id.is_not(None))))
+    noms = {i: n for i, n in db.execute(select(User.id, User.username))}
+    q = (select(StockMovement, Product.nom).join(Product, Product.id == StockMovement.product_id)
+         .where(StockMovement.local_id == local_id, StockMovement.ts >= a, StockMovement.ts < b)
+         .order_by(StockMovement.id.desc()).limit(limit))
+    return [{"id": m.id, "ts": m.ts.replace(tzinfo=m.ts.tzinfo or timezone.utc).isoformat(), "tipus": m.tipus, "producte": nom,
+             "grams": str(Decimal(m.delta_mg) / 1000), "import_cent": m.import_cent, "soci_id": m.member_id,
+             "usuari": noms.get(m.user_id), "nota": m.nota, "corregeix_id": m.corregeix_id, "corregit": m.id in corregits}
+            for m, nom in db.execute(q)]
+
+
 def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: str, preu_cent_per_g: int) -> Product:
     nom = nom.strip()
     if not nom:

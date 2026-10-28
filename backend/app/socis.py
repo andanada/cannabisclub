@@ -43,6 +43,7 @@ def update_member(db: Session, actor: User, member: Member, canvis: dict) -> Mem
         if len(doc) < 5:
             raise ValueError("El document ha de tenir almenys 5 caràcters")
         if doc != actuals["document"]:
+            service.validate_document(doc)
             idx = service.document_index(doc)
             if idx != member.document_idx and db.scalar(select(Member.id).where(
                     Member.local_id == member.local_id, Member.document_idx == idx, Member.id != member.id)):
