@@ -47,7 +47,7 @@ def test_vendes_per_producte_resten_les_correccions(ctx):
     per = {p["nom"]: p for p in r["productes"]}
     assert per["Amnesia"]["grams"] == "2" and per["Amnesia"]["import_cent"] == 1600 and per["Amnesia"]["dispensacions"] == 1  # 2 g; la d'1 g està corregida
     assert per["Hash"]["grams"] == "3" and per["Hash"]["import_cent"] == 3600
-    assert r["total"] == {"grams": "5", "import_cent": 5200, "dispensacions": 2}
+    assert r["total"] == {"grams": "5", "import_cent": 5200, "dispensacions": 2, "descomptes_cent": 0}
     assert {c["categoria"]: c["import_cent"] for c in r["categories"]} == {"flor": 1600, "resina": 3600}
 
 

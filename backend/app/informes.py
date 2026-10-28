@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from . import personal
 from .cash import _range
 from .csvutil import to_csv
-from .models import CheckIn, Product, StockMovement, User
+from .models import CheckIn, MovementDiscount, Product, StockMovement, User
 from .stock import TZ, stock_by_product
 
 
@@ -39,9 +39,14 @@ def sales(db: Session, local_id: int, des: date, fins: date, usuari: int | None 
         per_cat[cat or "(sense categoria)"]["mg"] += mg
         per_cat[cat or "(sense categoria)"]["import_cent"] += cent
         tot_mg, tot_cent, tot_n = tot_mg + mg, tot_cent + cent, tot_n + n
+    qd = (select(func.coalesce(func.sum(MovementDiscount.descompte_cent), 0)).join(StockMovement, StockMovement.id == MovementDiscount.movement_id)
+          .where(StockMovement.local_id == local_id, StockMovement.ts >= a, StockMovement.ts < b))
+    if usuari is not None:
+        qd = qd.where(StockMovement.user_id == usuari)
+    descomptes = int(db.scalar(qd) or 0)
     return {"des": des.isoformat(), "fins": fins.isoformat(), "productes": productes,
             "categories": [{"categoria": k, "grams": _g(v["mg"]), "import_cent": v["import_cent"]} for k, v in sorted(per_cat.items())],
-            "total": {"grams": _g(tot_mg), "import_cent": tot_cent, "dispensacions": tot_n}}
+            "total": {"grams": _g(tot_mg), "import_cent": tot_cent, "dispensacions": tot_n, "descomptes_cent": descomptes}}
 
 
 def sales_csv(r: dict) -> str:

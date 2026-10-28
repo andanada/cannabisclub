@@ -13,9 +13,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from . import ajustos, cash, dispositius, informes, personal, quotes, schema, service, socis, stock, usuaris
+from . import ajustos, cash, descomptes, dispositius, informes, personal, quotes, schema, service, socis, stock, usuaris
 from .db import make_engine, make_session_factory
-from .models import CashEntry, DeviceProfile, Local, Member, Product, StockMovement, User, UserLocal
+from .models import CashEntry, DeviceProfile, Discount, Local, Member, Product, StockMovement, User, UserLocal
 
 CAN_CREATE_MEMBER = {"admin", "encarregat"}
 log = logging.getLogger("club")
@@ -182,6 +182,7 @@ def create_app(session_factory=None) -> FastAPI:
         product_id: int
         grams: Decimal = Field(gt=0, max_digits=9, decimal_places=3)
         pes_bascula_g: Decimal | None = Field(default=None, gt=0, max_digits=9, decimal_places=3)
+        discount_id: int | None = None
 
     class CorreccioIn(BaseModel):
         nota: str = Field(min_length=3, max_length=300)
@@ -268,8 +269,8 @@ def create_app(session_factory=None) -> FastAPI:
     @app.post("/dispensacions", status_code=201)
     def dispensacio(body: DispensacioIn, user: User = Depends(current_user), s: Session = Depends(db)):
         product_or_404(s, user, body.product_id)
-        m = run(stock.dispense, s, user, body.member_id, body.product_id, body.grams, body.pes_bascula_g)
-        return {"id": m.id, "import_cent": m.import_cent}
+        m = run(stock.dispense, s, user, body.member_id, body.product_id, body.grams, body.pes_bascula_g, None, body.discount_id)
+        return {"id": m.id, "import_cent": m.import_cent, "descompte_cent": getattr(m, "descompte_cent", 0)}
 
     @app.post("/moviments/{movement_id}/correccio", status_code=201)
     def correccio(movement_id: int, body: CorreccioIn, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -620,6 +621,48 @@ def create_app(session_factory=None) -> FastAPI:
     def esborra_dispositiu(device_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
         need_admin(user)
         run(dispositius.delete, s, user, dispositiu_or_404(s, device_id))
+        return {"ok": True}
+
+    class DescompteIn(BaseModel):
+        nom: str = Field(max_length=60)
+        tipus: str
+        valor: int
+        ambit: str
+        categoria: str | None = Field(default=None, max_length=60)
+        product_id: int | None = None
+        inici: date | None = None
+        fi: date | None = None
+
+    class DescompteUpdateIn(BaseModel):
+        nom: str | None = Field(default=None, max_length=60)
+        valor: int | None = None
+        actiu: bool | None = None
+        inici: date | None = None
+        fi: date | None = None
+
+    @app.get("/locals/{local_id}/descomptes")
+    def llista_descomptes(local_id: int, producte: int | None = None, tots: bool = False, user: User = Depends(current_user), s: Session = Depends(db)):
+        check_local(s, user, local_id)
+        if tots:
+            need_manager(user)
+        p = product_or_404(s, user, producte) if producte else None
+        return descomptes.list_discounts(s, local_id, quotes.avui(), p, tots)
+
+    @app.post("/locals/{local_id}/descomptes", status_code=201)
+    def alta_descompte(local_id: int, body: DescompteIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        d = run(descomptes.create, s, user, local_id, body.nom, body.tipus, body.valor, body.ambit, body.categoria, body.product_id, body.inici, body.fi)
+        return {"id": d.id}
+
+    @app.put("/descomptes/{discount_id}")
+    def edita_descompte(discount_id: int, body: DescompteUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        d = s.get(Discount, discount_id)
+        if not d:
+            raise HTTPException(404, "Descompte inexistent")
+        check_local(s, user, d.local_id)
+        run(descomptes.update, s, user, d, body.actiu, body.nom, body.valor, body.inici, body.fi, bool({"inici", "fi"} & body.model_fields_set))
         return {"ok": True}
 
     class QuotaIn(BaseModel):

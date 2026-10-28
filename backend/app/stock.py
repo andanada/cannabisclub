@@ -138,7 +138,7 @@ def receive(db: Session, actor: User, product_id: int, grams: Decimal, nota: str
 
 
 def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: Decimal,
-             pes_bascula_g: Decimal | None, now: datetime | None = None) -> StockMovement:
+             pes_bascula_g: Decimal | None, now: datetime | None = None, discount_id: int | None = None) -> StockMovement:
     now = now or datetime.now(timezone.utc)
     p = _lock_product(db, product_id)
     member = db.get(Member, member_id)
@@ -159,15 +159,23 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     for period, limit in (("dia", local.limit_diari_mg), ("mes", local.limit_mensual_mg)):
         if limit is not None and dispensed_mg(db, member_id, period, now) + mg > limit:
             raise ValueError(f"Supera el límit {'diari' if period == 'dia' else 'mensual'} del soci")
+    original = int((Decimal(mg) * p.preu_cent_per_g / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    descompte, rebaixa = None, 0
+    if discount_id is not None:
+        from . import descomptes
+        descompte, rebaixa = descomptes.apply(db, discount_id, p, original, mg, now.astimezone(TZ).date())
     m = StockMovement(
         ts=now, local_id=p.local_id, product_id=p.id, tipus="dispensacio", delta_mg=-mg, member_id=member_id,
         pes_bascula_mg=grams_to_mg(pes_bascula_g) if pes_bascula_g is not None else None,
-        import_cent=int((Decimal(mg) * p.preu_cent_per_g / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP)),
-        user_id=actor.id)
+        import_cent=original - rebaixa, user_id=actor.id)
     db.add(m)
     db.flush()
+    if descompte is not None:
+        from .models import MovementDiscount
+        db.add(MovementDiscount(movement_id=m.id, discount_id=descompte.id, nom=descompte.nom, original_cent=original, descompte_cent=rebaixa))
+    m.descompte_cent = rebaixa  # només per a la resposta (no és una columna)
     service.audit_append(db, {"accio": "dispensacio", "moviment": m.id, "soci": member_id, "producte": p.id,
-                              "mg": mg, "import_cent": m.import_cent, "per": actor.id})
+                              "mg": mg, "import_cent": m.import_cent, "descompte": descompte.id if descompte else None, "per": actor.id})
     db.commit()
     return m
 

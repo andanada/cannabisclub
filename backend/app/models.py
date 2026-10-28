@@ -304,3 +304,39 @@ class ProductImage(Base):
     data: Mapped[str] = mapped_column(Text)  # base64
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Discount(Base):
+    """Descompte configurable d'un local: percentatge o import fix per gram, per a tot, una categoria o un producte."""
+    __tablename__ = "discounts"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    tipus: Mapped[str] = mapped_column(String(10))  # percent | import_g
+    valor: Mapped[int] = mapped_column(Integer)  # percent: 1-100; import_g: cèntims per gram
+    ambit: Mapped[str] = mapped_column(String(10))  # tot | categoria | producte
+    categoria: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    inici: Mapped[date | None] = mapped_column(Date, nullable=True)
+    fi: Mapped[date | None] = mapped_column(Date, nullable=True)
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class MovementDiscount(Base):
+    """Descompte aplicat a una dispensació. Només d'afegir: guarda l'import original i el descomptat."""
+    __tablename__ = "movement_discounts"
+    movement_id: Mapped[int] = mapped_column(ForeignKey("stock_movements.id"), primary_key=True)
+    discount_id: Mapped[int] = mapped_column(ForeignKey("discounts.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    original_cent: Mapped[int] = mapped_column(Integer)
+    descompte_cent: Mapped[int] = mapped_column(Integer)
+
+
+@event.listens_for(MovementDiscount, "before_update")
+@event.listens_for(MovementDiscount, "before_delete")
+def _immutable_movement_discount(mapper, connection, target):
+    raise ImmutableError("Els descomptes aplicats no es poden modificar ni esborrar: corregeix la dispensació")
+
+
+Index("ix_discounts_local", Discount.local_id)

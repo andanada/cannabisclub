@@ -41,8 +41,8 @@ def test_vendes_per_empleat(ctx):
     tot = client.get("/locals/1/informe/vendes", params=rang(), headers=enc).json()["total"]
     d = client.get("/locals/1/informe/vendes", params=rang(usuari=uid(factory, "disp")), headers=enc).json()["total"]
     e = client.get("/locals/1/informe/vendes", params=rang(usuari=uid(factory, "enc")), headers=enc).json()["total"]
-    assert tot["import_cent"] == 2400 and d == {"grams": "1", "import_cent": 800, "dispensacions": 1}
-    assert e == {"grams": "2", "import_cent": 1600, "dispensacions": 1}
+    assert tot["import_cent"] == 2400 and d == {"grams": "1", "import_cent": 800, "dispensacions": 1, "descomptes_cent": 0}
+    assert e == {"grams": "2", "import_cent": 1600, "dispensacions": 1, "descomptes_cent": 0}
 
 
 def test_assistencia_i_hores_per_empleat(ctx):
