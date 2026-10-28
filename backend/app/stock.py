@@ -43,7 +43,12 @@ def _lock_product(db: Session, product_id: int) -> Product:
 
 def _window_start(period: str, now: datetime) -> datetime:
     local = now.astimezone(TZ)
-    d = local.date() if period == "dia" else local.date().replace(day=1)
+    if period == "dia":
+        d = local.date()
+    elif period == "setmana":
+        d = local.date() - timedelta(days=local.weekday())
+    else:
+        d = local.date().replace(day=1)
     return datetime.combine(d, time.min, tzinfo=TZ).astimezone(timezone.utc)
 
 
@@ -159,6 +164,8 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     for period, limit in (("dia", local.limit_diari_mg), ("mes", local.limit_mensual_mg)):
         if limit is not None and dispensed_mg(db, member_id, period, now) + mg > limit:
             raise ValueError(f"Supera el límit {'diari' if period == 'dia' else 'mensual'} del soci")
+    from . import regles
+    regles.check(db, member_id, p, mg, now)
     original = int((Decimal(mg) * p.preu_cent_per_g / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     descompte, rebaixa = None, 0
     if discount_id is not None:

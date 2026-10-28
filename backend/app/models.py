@@ -306,6 +306,21 @@ class ProductImage(Base):
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class Regla(Base):
+    """Límit de gramatge per soci i període, per a tot el catàleg, una categoria o un producte."""
+    __tablename__ = "dispensing_rules"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    ambit: Mapped[str] = mapped_column(String(10))  # tot | categoria | producte
+    categoria: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), nullable=True)
+    periode: Mapped[str] = mapped_column(String(10))  # dia | setmana | mes
+    max_mg: Mapped[int] = mapped_column(Integer)
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class Discount(Base):
     """Descompte configurable d'un local: percentatge o import fix per gram, per a tot, una categoria o un producte."""
     __tablename__ = "discounts"
@@ -340,3 +355,4 @@ def _immutable_movement_discount(mapper, connection, target):
 
 
 Index("ix_discounts_local", Discount.local_id)
+Index("ix_dispensing_rules_local", Regla.local_id)
