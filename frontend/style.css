@@ -145,3 +145,64 @@ img.thumb, .thumb.vacia { border-radius: 10px; object-fit: cover; flex: none; }
 .prod-cell { display: inline-flex; align-items: center; gap: 10px; }
 .searchbar { display: flex; justify-content: flex-end; margin: 8px 0; }
 .searchbar input { max-width: 280px; min-height: 40px; }
+
+/* ---- Pulit visual: micro-interaccions i detalls (només classes; la CSP no permet estils en línia) ---- */
+:root { --ease: cubic-bezier(.2, .7, .2, 1); --ring: color-mix(in srgb, var(--brand) 28%, transparent); }
+body { font-feature-settings: "cv11", "ss01"; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea, nav.tabs button, .segments button { transition: background-color .15s var(--ease), border-color .15s var(--ease), box-shadow .15s var(--ease), transform .12s var(--ease), color .15s var(--ease); }
+button:active:not(:disabled) { transform: translateY(1px) scale(.985); }
+button.primary { box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset, 0 1px 2px rgba(16, 32, 26, .18); }
+button.primary:hover:not(:disabled) { filter: none; background: color-mix(in srgb, var(--brand) 88%, #000); }
+input:hover:not(:focus), select:hover:not(:focus) { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 4px var(--ring); outline: none; }
+
+/* Entrada suau de cada pantalla */
+@keyframes entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.main > div, .segments + div > * { animation: entra .28s var(--ease) both; }
+.card { transition: box-shadow .2s var(--ease), border-color .2s var(--ease); }
+.card:hover { border-color: color-mix(in srgb, var(--brand) 22%, var(--line)); }
+
+/* Capçalera de pàgina amb filet de marca */
+.page-head { box-shadow: 0 1px 0 var(--line), 0 6px 18px -12px rgba(16, 32, 26, .25); position: relative; }
+.page-head::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, #8dc177, #4aa38a); }
+.page-head h2 { font-size: 1.5rem; }
+
+/* Taules: capçalera fixa en llistats llargs, files amb hover i xifres alineades */
+.table-wrap { border-radius: var(--radius); }
+.table-wrap th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+tbody tr { transition: background-color .12s var(--ease); }
+tbody tr:hover { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+td input { min-height: 38px; padding: 5px 10px; }
+
+/* Barra lateral: indicador d'activa més clar i sortida suau dels submenús */
+nav.tabs button { position: relative; }
+nav.tabs button[aria-current="page"]::after { content: ""; position: absolute; right: 14px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: #f4e27a; }
+nav.tabs .sub-group { animation: entra .2s var(--ease) both; }
+nav.tabs button.sub[aria-current="page"] { background: rgba(0, 0, 0, .22); box-shadow: inset 3px 0 0 #f4e27a; }
+
+/* Segments (subpantalles): estat actiu amb més presència */
+.segments button[aria-selected="true"] { box-shadow: var(--shadow), 0 0 0 1px var(--line); }
+.segments button:hover:not([aria-selected="true"]) { color: var(--ink); background: color-mix(in srgb, var(--card) 60%, transparent); }
+
+/* Etiquetes i miniatures */
+.pill { letter-spacing: .01em; }
+.thumb { border-radius: 10px; object-fit: cover; }
+.thumb.vacia { background: linear-gradient(135deg, var(--brand-soft), var(--soft)); color: var(--brand); font-weight: 700; display: grid; place-items: center; }
+
+/* KPI dels informes */
+.row > div > .big { color: var(--brand); }
+progress { width: 100%; height: 8px; accent-color: var(--brand); border-radius: 999px; }
+
+/* Pantalla d'entrada: fons suau de marca i targeta centrada */
+.login { margin-top: 12vh; padding: 28px; box-shadow: 0 10px 40px -12px rgba(16, 32, 26, .28); border-radius: calc(var(--radius) + 4px); }
+.login h1 { font-size: 1.6rem; letter-spacing: -.02em; margin-bottom: 6px; }
+#app:has(.login) { background: radial-gradient(1200px 500px at 50% -10%, color-mix(in srgb, #8dc177 30%, transparent), transparent 70%), var(--bg); }
+
+/* Toast i missatges */
+#toast { animation: entra .25s var(--ease) both; box-shadow: 0 8px 28px -8px rgba(0, 0, 0, .35); }
+.msg { animation: entra .2s var(--ease) both; }
+
+/* Accessibilitat: sense moviment si l'usuari ho demana */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
