@@ -125,3 +125,11 @@ test('ordres de tara i zero configurables i registre cru', async () => {
   assert.deepEqual(log, ['tx:TARE', 'tx:ZERO']);
   await b.disconnect();
 });
+
+test('format ST/US amb GS/NT (bàscules tipus WANT o A&D)', () => {
+  assert.deepEqual(pick(parsePesLine('ST,GS,+  123.45 g')), { mg: 123450, unit: 'g', stable: true, mode: 'G' });
+  assert.deepEqual(pick(parsePesLine('US,GS,+  123.40 g')), { mg: 123400, unit: 'g', stable: false, mode: 'G' });
+  assert.deepEqual(pick(parsePesLine('ST,NT,+0000.00 g')), { mg: 0, unit: 'g', stable: true, mode: 'N' });
+  assert.deepEqual(pick(parsePesLine('ST,+  1.00 g')), { mg: 1000, unit: 'g', stable: true, mode: null });
+  assert.equal(parsePesLine('ST,GS,'), null);
+});

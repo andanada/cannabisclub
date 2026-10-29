@@ -8,6 +8,14 @@ const MG_PER_UNIT = { mg: 1, g: 1000, kg: 1e6, oz: 28349.523125, lb: 453592.37, 
 
 // Analitza una línia de la bàscula. Torna null si no té pes; llança error si la unitat no és suportada.
 function parsePesLine(line) {
+  // Format «ST,GS,+  123.45 g» (A&D i moltes bàscules de laboratori, com les WANT): ST = estable, US = inestable; GS = brut, NT = net.
+  const st = /^\s*(ST|US)\s*,\s*(?:(GS|NT|GW|TR)\s*,\s*)?(.*)$/i.exec(line);
+  if (st) {
+    const inner = parsePesLine(st[3]);
+    if (!inner) return null;
+    const mode = st[2] ? (st[2].toUpperCase() === 'NT' ? 'N' : st[2].toUpperCase() === 'TR' ? null : 'G') : inner.mode;
+    return Object.assign({}, inner, { stable: st[1].toUpperCase() === 'ST', mode, raw: line.trim() });
+  }
   const m = /^\s*(?:(?:N|G|T|Net|Gross|Wt|Weight)\s*[:=]?\s+)?([+-]?)\s*(\d+(?:[.,]\d+)?)\s*([A-Za-z]{1,5})?\s*(\?)?(?:\s+([GNgn]))?\s*$/.exec(line);
   if (!m) return null;
   const unit = (m[3] || 'g').toLowerCase();
