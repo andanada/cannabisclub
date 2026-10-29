@@ -675,7 +675,24 @@ Object.assign(I18N.es, {
  "Buscar…": "Buscar…",
  "Buscar producte": "Buscar producto",
  "TOTS ELS EMPLEATS": "TODOS LOS EMPLEADOS",
- "Caixa, vendes, dispensacions, estoc valorat, assistència i hores, amb exportació a CSV.": "Caja, ventas, dispensaciones, estoc valorado, asistencia y horas, con exportación a CSV."
+ "Caixa, vendes, dispensacions, estoc valorat, assistència i hores, amb exportació a CSV.": "Caja, ventas, dispensaciones, estoc valorado, asistencia y horas, con exportación a CSV.",
+ "Evolució del club": "Evolución del club",
+ "Demografia": "Demografía",
+ "Demografia dels socis": "Demografía de los socios",
+ "Altes": "Altas",
+ "Baixes": "Bajas",
+ "Quotes noves": "Cuotas nuevas",
+ "Renovacions": "Renovaciones",
+ "Mes": "Mes",
+ "Socis (sense baixes)": "Socios (sin bajas)",
+ "Edat mitjana": "Edad media",
+ "Franja d'edat": "Franja de edad",
+ "Historial de consum": "Historial de consumo",
+ "Veure consum": "Ver consumo",
+ "Cap dispensació en aquest període.": "Ninguna dispensación en este período.",
+ "Detall": "Detalle",
+ "Data": "Fecha",
+ "corregida": "corregida"
 });
 I18N.pat.es.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Código de barras $1"],
 [new RegExp("^Soci\\ núm\\.\\s+(.*)$"), "Socio n.º $1"],
@@ -780,4 +797,6 @@ I18N.pat.es.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Código de barras
 [new RegExp("^Tara: (.+) g$"), "Tara: $1 g"],
 [new RegExp("^Pes brut: (.+)$"), "Peso bruto: $1"],
 [new RegExp("^Quantitat: (\\d+)$"), "Cantidad: $1"],
-[new RegExp("^\\s*DES DE (.+) FINS A (.+)$"), " DESDE $1 HASTA $2"]);
+[new RegExp("^\\s*DES DE (.+) FINS A (.+)$"), " DESDE $1 HASTA $2"],
+[new RegExp("^Ara: (\\d+) actius · (\\d+) suspesos · (\\d+) de baixa$"), "Ahora: $1 activos · $2 suspendidos · $3 de baja"],
+[new RegExp("^(.+) anys$"), "$1 años"]);

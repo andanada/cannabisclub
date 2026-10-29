@@ -110,7 +110,7 @@ function memberTools(m, out, onChange) {
     return b;
   };
   return { bar: [...photoUploader(m, out, reload), toggle('Carnet', () => cardManager(m, out, reload)), toggle('Editar dades', () => editForm(m, out, reload)),
-    ...(isManager() ? [toggle('Línia de preu', () => { const box = h('div'); memberPriceLine(m, out, reload).then((f) => box.replaceChildren(f)).catch((e) => box.replaceChildren(msg('err', e.message))); return box; })] : [])], panel };
+    ...(isManager() ? [toggle('Historial de consum', () => memberConsumption(m)), toggle('Línia de preu', () => { const box = h('div'); memberPriceLine(m, out, reload).then((f) => box.replaceChildren(f)).catch((e) => box.replaceChildren(msg('err', e.message))); return box; })] : [])], panel };
 }
 
 // Llistat de socis del local amb filtre per nom i estat (només responsables).

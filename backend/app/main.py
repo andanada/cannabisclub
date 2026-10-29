@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from . import ajustos, cash, contenidors, descomptes, dispositius, informes, inventaris, linies_preu, magatzems, personal, quotes, regles, schema, service, socis, stock, usuaris
+from . import ajustos, cash, contenidors, descomptes, dispositius, informes, informes_socis, inventaris, linies_preu, magatzems, personal, quotes, regles, schema, service, socis, stock, usuaris
 from .db import make_engine, make_session_factory
 from .models import CashEntry, Container, ContainerType, DeviceProfile, Discount, Local, InventorySession, Member, PriceLine, Product, Regla, StockMovement, User, UserLocal, Warehouse
 
@@ -440,6 +440,14 @@ def create_app(session_factory=None) -> FastAPI:
     registra_informe("vendes", informes.sales, informes.sales_csv, True)
     registra_informe("estoc", informes.valued_stock, informes.stock_csv, False)
     registra_informe("assistencia", informes.attendance, informes.attendance_csv, True)
+    registra_informe("evolucio", informes_socis.evolution, informes_socis.evolution_csv, True)
+    registra_informe("demografia", informes_socis.demographics, informes_socis.demographics_csv, False)
+
+    @app.get("/socis/{member_id}/consum")
+    def consum_del_soci(member_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        _rang(des, fins)
+        return informes_socis.consumption(s, member_or_404(s, user, member_id), des, fins)
     registra_informe("hores", informes.staff_hours, informes.hours_csv, True)
 
     class EstatIn(BaseModel):

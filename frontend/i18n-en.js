@@ -675,7 +675,24 @@ Object.assign(I18N.en, {
  "Buscar…": "Search…",
  "Buscar producte": "Search product",
  "TOTS ELS EMPLEATS": "ALL EMPLOYEES",
- "Caixa, vendes, dispensacions, estoc valorat, assistència i hores, amb exportació a CSV.": "Cash, sales, dispensings, valued stock, attendance and hours, with CSV export."
+ "Caixa, vendes, dispensacions, estoc valorat, assistència i hores, amb exportació a CSV.": "Cash, sales, dispensings, valued stock, attendance and hours, with CSV export.",
+ "Evolució del club": "Club evolution",
+ "Demografia": "Demographics",
+ "Demografia dels socis": "Member demographics",
+ "Altes": "Sign-ups",
+ "Baixes": "Cancellations",
+ "Quotes noves": "New fees",
+ "Renovacions": "Renewals",
+ "Mes": "Month",
+ "Socis (sense baixes)": "Members (excluding cancelled)",
+ "Edat mitjana": "Average age",
+ "Franja d'edat": "Age range",
+ "Historial de consum": "Consumption history",
+ "Veure consum": "View consumption",
+ "Cap dispensació en aquest període.": "No dispensing in this period.",
+ "Detall": "Details",
+ "Data": "Date",
+ "corregida": "corrected"
 });
 I18N.pat.en.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Barcode $1"],
 [new RegExp("^Soci\\ núm\\.\\s+(.*)$"), "Member no. $1"],
@@ -780,4 +797,6 @@ I18N.pat.en.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Barcode $1"],
 [new RegExp("^Tara: (.+) g$"), "Tare: $1 g"],
 [new RegExp("^Pes brut: (.+)$"), "Gross weight: $1"],
 [new RegExp("^Quantitat: (\\d+)$"), "Quantity: $1"],
-[new RegExp("^\\s*DES DE (.+) FINS A (.+)$"), " FROM $1 TO $2"]);
+[new RegExp("^\\s*DES DE (.+) FINS A (.+)$"), " FROM $1 TO $2"],
+[new RegExp("^Ara: (\\d+) actius · (\\d+) suspesos · (\\d+) de baixa$"), "Now: $1 active · $2 suspended · $3 cancelled"],
+[new RegExp("^(.+) anys$"), "$1 years"]);

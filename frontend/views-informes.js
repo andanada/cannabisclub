@@ -44,6 +44,13 @@ const INFORMES = {
         h('div', { class: 'table-wrap' }, h('table', null, h('thead', null, h('tr', null, ['Producte', 'Categoria', 'És genètic', 'Grams', 'Import', 'Disp.'].map((t, i) => h('th', { class: i > 2 ? 'num' : '' }, t)))), cos)),
         comptador];
     } },
+  evolucio: { titol: "Evolució del club", rang: true, json: (q) => `/locals/${S.local}/informe/evolucio?${q}`, csv: (q) => `/locals/${S.local}/informe/evolucio.csv?${q}`, fitxer: 'evolucio',
+    pinta: (r) => [h('div', { class: 'row' }, kpi('Altes', String(r.total.altes)), kpi('Baixes', String(r.total.baixes)), kpi('Quotes noves', String(r.total.quotes_noves)), kpi('Renovacions', String(r.total.renovacions))),
+      h('p', { class: 'muted' }, `Ara: ${r.estat_actual.actiu} actius · ${r.estat_actual.suspes} suspesos · ${r.estat_actual.baixa} de baixa`),
+      taula([['Mes'], ['Altes', true], ['Baixes', true], ['Quotes noves', true], ['Renovacions', true]], r.mesos.map((m) => [m.mes, m.altes, m.baixes, m.quotes_noves, m.renovacions]))] },
+  demografia: { titol: 'Demografia dels socis', rang: false, json: () => `/locals/${S.local}/informe/demografia`, csv: () => `/locals/${S.local}/informe/demografia.csv`, fitxer: 'demografia',
+    pinta: (r) => [h('div', { class: 'row' }, kpi('Socis (sense baixes)', String(r.total)), kpi('Edat mitjana', r.edat_mitjana.toLocaleString(loc()) + ' anys')),
+      taula([["Franja d'edat"],['Socis', true], ['']], r.franges.map((f) => [f.franja, f.socis, h('progress', { max: Math.max(1, r.total), value: f.socis })]))] },
   estoc: { titol: 'Estoc valorat', rang: false, json: () => `/locals/${S.local}/informe/estoc`, csv: () => `/locals/${S.local}/informe/estoc.csv`, fitxer: 'estoc',
     pinta: (r) => [h('div', { class: 'row' }, kpi('Valor de l\'estoc', eur(r.total_cent)), kpi('Estoc total', gText(r.total_g))),
       taula([['Producte'], ['Categoria'], ['Estoc', true], ['Preu/g', true], ['Valor', true]], r.productes.map((p) => [p.nom, p.categoria, gText(p.estoc_g), eur(p.preu_cent_per_g), eur(p.valor_cent)]), 'Encara no hi ha productes.')] },
@@ -94,3 +101,24 @@ VIEWS.informe = async () => {
   if (INFORMES[triat]) setTimeout(() => form.requestSubmit(), 0);
   return h('div', null, pageHead('Informes', 'Caixa, vendes, dispensacions, estoc valorat, assistència i hores, amb exportació a CSV.'), form, res);
 };
+
+
+// Historial de consum d'un soci (només responsables): dispensacions dels últims 90 dies per defecte.
+function memberConsumption(m) {
+  const avui = new Date();
+  const fa90 = new Date(avui.getTime() - 90 * 86400000);
+  const iso = (d) => d.toLocaleDateString('sv-SE');
+  const des = h('input', { type: 'date', value: iso(fa90) }), fins = h('input', { type: 'date', value: iso(avui) });
+  const out = h('div'), res = h('div');
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Veure consum');
+  return h('form', { class: 'card', onsubmit: (e) => {
+    e.preventDefault();
+    guard(btn, out, async () => {
+      const r = await api(`/socis/${m.id}/consum?des=${des.value}&fins=${fins.value}`);
+      res.replaceChildren(h('div', { class: 'row' }, kpi('Dispensat', gText(r.total.grams)), kpi('Import', eur(r.total.import_cent)), kpi('Dispensacions', String(r.total.dispensacions))),
+        r.productes.length ? taula([['Producte'], ['Grams', true], ['Import', true]], r.productes.map((p) => [p.producte, gText(p.grams), eur(p.import_cent)])) : h('p', { class: 'muted' }, 'Cap dispensació en aquest període.'),
+        r.dispensacions.length ? h('div', null, h('h3', null, 'Detall'), taula([['Data'], ['Producte'], ['Grams', true], ['Import', true], ['']],
+          r.dispensacions.map((d) => [new Date(d.ts).toLocaleString(loc()), d.producte, gText(d.grams), eur(d.import_cent), d.corregida ? 'corregida' : '']))) : null);
+    });
+  } }, h('div', { class: 'row' }, field('Des de', des), field('Fins a', fins)), h('div', { class: 'actions' }, btn), out, res);
+}

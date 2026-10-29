@@ -45,7 +45,7 @@ const TABS = [
     ['regles', 'Regles'], ['productes', 'Productes'], ['historial', 'Historial']]],
   ['caixa', 'Caixa', () => true],
   ['fitxatge', 'Fitxatge', () => true],
-  ['informe', 'Informes', isManager, [['vendes', 'Vendes'], ['dispensacions', 'Dispensacions'], ['caixa', 'Caixa'], ['estoc', 'Estoc valorat'], ['assistencia', 'Assistència'], ['hores', 'Hores']]],
+  ['informe', 'Informes', isManager, [['vendes', 'Vendes'], ['dispensacions', 'Dispensacions'], ['evolucio', 'Evolució del club'], ['demografia', 'Demografia'], ['caixa', 'Caixa'], ['estoc', 'Estoc valorat'], ['assistencia', 'Assistència'], ['hores', 'Hores']]],
   ['config', 'Configuració', isManager],
   ['compte', 'Compte', () => true],
 ];
