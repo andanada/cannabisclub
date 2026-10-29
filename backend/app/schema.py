@@ -25,8 +25,35 @@ def missing_indexes(engine) -> list[str]:
     return sorted(i.name for t in Base.metadata.sorted_tables for i in t.indexes if i.name not in existents)
 
 
+# Columnes afegides després de crear la taula. create_all no les afegeix a taules que ja existeixen, així que
+# s'afegeixen amb ALTER TABLE (sempre amb valor per defecte: les files existents continuen valent).
+COLUMNES_NOVES = {"products": [("es_genetic", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"})]}
+
+
+def missing_columns(engine) -> list[str]:
+    from sqlalchemy import inspect
+    insp = inspect(engine)
+    out = []
+    for taula, cols in COLUMNES_NOVES.items():
+        if taula in insp.get_table_names():
+            existents = {c["name"] for c in insp.get_columns(taula)}
+            out += [f"{taula}.{c}" for c, _ in cols if c not in existents]
+    return out
+
+
+def add_missing_columns(engine) -> list[str]:
+    afegides = missing_columns(engine)
+    with engine.begin() as c:
+        for tc in afegides:
+            taula, col = tc.split(".")
+            ddl = dict(COLUMNES_NOVES[taula])[col]
+            c.execute(text(f"ALTER TABLE {taula} ADD COLUMN {col} {ddl[engine.dialect.name] if engine.dialect.name in ddl else ddl['default']}"))
+    return afegides
+
+
 def install(engine) -> None:
     Base.metadata.create_all(engine)
+    add_missing_columns(engine)
     for t in Base.metadata.sorted_tables:
         for ix in t.indexes:
             ix.create(engine, checkfirst=True)

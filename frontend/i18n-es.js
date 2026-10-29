@@ -297,7 +297,7 @@ Object.assign(I18N.es, {
  "Per producte": "Por producto",
  "Disp.": "Disp.",
  "Per categoria": "Por categoría",
- "Estoc valorat": "Stock valorado",
+ "Estoc valorat": "Estoc valorado",
  "Valor de l'estoc": "Valor del stock",
  "Estoc total": "Stock total",
  "Valor": "Valor",
@@ -620,7 +620,7 @@ Object.assign(I18N.es, {
  "Els administradors veuen tots els locals; marca els locals dels encarregats i treballadors.": "Los administradores ven todos los locales; marca los locales de los encargados y trabajadores.",
  "Contenidors": "Contenedores",
  "Tipus de contenidor": "Tipo de contenedor",
- "Tipus de contenidors": "Tipos de contenedor",
+ "Tipus de contenidors": "Tipos de contenedores",
  "Nou tipus de contenidor": "Nuevo tipo de contenedor",
  "Crear tipus": "Crear tipo",
  "Tipus creat": "Tipo creado",
@@ -668,7 +668,14 @@ Object.assign(I18N.es, {
  "No hi ha prou estoc al magatzem d'origen": "No hay estoc suficiente en el almacén de origen",
  "Magatzem inexistent": "Almacén inexistente",
  "Origen": "Origen",
- "Destí": "Destino"
+ "Destí": "Destino",
+ "És genètic": "Es genético",
+ "Inventaris": "Inventarios",
+ "Assistència": "Asistencia",
+ "Buscar…": "Buscar…",
+ "Buscar producte": "Buscar producto",
+ "TOTS ELS EMPLEATS": "TODOS LOS EMPLEADOS",
+ "Caixa, vendes, dispensacions, estoc valorat, assistència i hores, amb exportació a CSV.": "Caja, ventas, dispensaciones, estoc valorado, asistencia y horas, con exportación a CSV."
 });
 I18N.pat.es.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Código de barras $1"],
 [new RegExp("^Soci\\ núm\\.\\s+(.*)$"), "Socio n.º $1"],
@@ -771,4 +778,6 @@ I18N.pat.es.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Código de barras
 [new RegExp("^Usuari «(.+)» creat\\. Ja pot entrar amb el seu usuari i la contrasenya\\.$"), "Usuario «$1» creado. Ya puede entrar con su usuario y contraseña."],
 [new RegExp("^Usuari «(.+)» creat\\. Dona-li aquest secret per a l'app d'autenticació; no es tornarà a mostrar:$"), "Usuario «$1» creado. Dale este secreto para la app de autenticación; no se volverá a mostrar:"],
 [new RegExp("^Tara: (.+) g$"), "Tara: $1 g"],
-[new RegExp("^Pes brut: (.+)$"), "Peso bruto: $1"]);
+[new RegExp("^Pes brut: (.+)$"), "Peso bruto: $1"],
+[new RegExp("^Quantitat: (\\d+)$"), "Cantidad: $1"],
+[new RegExp("^\\s*DES DE (.+) FINS A (.+)$"), " DESDE $1 HASTA $2"]);

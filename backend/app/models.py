@@ -1,5 +1,5 @@
 from datetime import date, datetime, timezone
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, false
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -74,6 +74,7 @@ class Product(Base):
     categoria: Mapped[str] = mapped_column(String(60), default="")
     preu_cent_per_g: Mapped[int] = mapped_column(Integer, default=0)
     actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+    es_genetic: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # genètic (flor, clons…) o no (accessoris, begudes)
 
 
 class StockMovement(Base):

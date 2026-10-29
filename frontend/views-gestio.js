@@ -34,6 +34,7 @@ function imageRow(p, out) {
 function productCard(p) {
   const out = h('div');
   const nom = h('input', { value: p.nom }), cat = h('input', { value: p.categoria }), preu = h('input', { inputmode: 'decimal', value: preuText(p.preu_cent_per_g) });
+  const gen = h('input', { type: 'checkbox', checked: !!p.es_genetic });
   const patch = (btn, body, ok) => guard(btn, out, async () => {
     await api(`/productes/${p.id}`, { method: 'PATCH', body });
     toast(ok);
@@ -46,6 +47,7 @@ function productCard(p) {
     if (cat.value.trim() !== p.categoria) body.categoria = cat.value.trim();
     const c = parseEur(preu.value);
     if (c !== p.preu_cent_per_g) body.preu_cent_per_g = c;
+    if (gen.checked !== !!p.es_genetic) body.es_genetic = gen.checked;
     if (!Object.keys(body).length) throw new Error('No hi ha cap canvi');
     await api(`/productes/${p.id}`, { method: 'PATCH', body });
     toast('Producte actualitzat');
@@ -58,6 +60,7 @@ function productCard(p) {
       ' ', h('span', { class: 'muted' }, 'Estoc: ' + p.estoc_g + ' g')),
     imageRow(p, out),
     h('div', { class: 'row' }, field('Nom', nom), field('Categoria', cat), field('Preu per gram (€)', preu)),
+    h('label', null, gen, ' És genètic'),
     h('div', { class: 'actions' }, save, toggle), out);
 }
 
@@ -99,15 +102,16 @@ async function productsSection() {
   const tots = await api(`/locals/${S.local}/productes`);
   const out2 = h('div');
   const n = h('input'), c = h('input'), p = h('input', { inputmode: 'decimal', placeholder: '8,00' });
+  const genNou = h('input', { type: 'checkbox' });
   const b2 = h('button', { class: 'primary', type: 'submit' }, 'Crear producte');
   const nou = h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(b2, out2, async () => {
-      await api('/productes', { method: 'POST', body: { local_id: S.local, nom: n.value.trim(), categoria: c.value.trim(), preu_cent_per_g: parseEur(p.value) } });
+      await api('/productes', { method: 'POST', body: { local_id: S.local, nom: n.value.trim(), categoria: c.value.trim(), preu_cent_per_g: parseEur(p.value), es_genetic: genNou.checked } });
       toast('Producte creat');
       show('estoc');
     });
-  } }, h('h3', null, 'Nou producte'), h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)), h('div', { class: 'actions' }, b2), out2);
+  } }, h('h3', null, 'Nou producte'), h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)), h('label', null, genNou, ' És genètic'), h('div', { class: 'actions' }, b2), out2);
   return h('div', null, nou, h('h3', null, 'Productes existents'),
     h('p', { class: 'muted' }, "El canvi de preu només afecta les dispensacions noves. Per desactivar un producte, l'estoc ha de ser zero."),
     ...(tots.length ? tots.map(productCard) : [h('div', { class: 'card empty' }, 'Encara no hi ha productes.')]));

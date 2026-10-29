@@ -121,6 +121,7 @@ function sections(viewId, items) {
   async function open(id) {
     const mine = ++token;
     sessionStorage.setItem('s:' + viewId, id);
+    if (typeof marcaMenu === 'function') marcaMenu();
     buttons.forEach((b) => b.setAttribute('aria-selected', String(b.dataset.sec === id)));
     body.replaceChildren(h('p', { class: 'muted' }, 'Carregant…'));
     try {

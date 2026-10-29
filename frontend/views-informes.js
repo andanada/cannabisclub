@@ -21,6 +21,29 @@ const INFORMES = {
     pinta: (r) => [h('div', { class: 'row' }, kpi('Vendes', eur(r.total.import_cent)), kpi('Dispensat', gText(r.total.grams)), kpi('Dispensacions', String(r.total.dispensacions)), r.total.descomptes_cent ? kpi('Descomptes', eur(r.total.descomptes_cent)) : null),
       h('h3', null, 'Per producte'), taula([['Producte'], ['Categoria'], ['Grams', true], ['Import', true], ['Disp.', true]], r.productes.map((p) => [p.nom, p.categoria, gText(p.grams), eur(p.import_cent), p.dispensacions])),
       r.categories.length ? h('div', null, h('h3', null, 'Per categoria'), taula([['Categoria'], ['Grams', true], ['Import', true]], r.categories.map((c) => [c.categoria, gText(c.grams), eur(c.import_cent)]))) : null] },
+  dispensacions: { titol: 'Dispensacions', rang: true, json: (q) => `/locals/${S.local}/informe/vendes?${q}`, csv: (q) => `/locals/${S.local}/informe/vendes.csv?${q}`, fitxer: 'dispensacions',
+    pinta: (r, ctx) => {
+      const dia = (d) => new Date(d + 'T12:00:00').toLocaleDateString(loc(), { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+      const cerca = h('input', { type: 'search', placeholder: 'Buscar…', 'aria-label': 'Buscar producte' });
+      const comptador = h('div', { class: 'muted' });
+      const cos = h('tbody');
+      const pintaFiles = () => {
+        const t = cerca.value.trim().toLowerCase();
+        const files = r.productes.filter((p) => !t || p.nom.toLowerCase().includes(t) || (p.categoria || '').toLowerCase().includes(t));
+        cos.replaceChildren(...(files.length ? files.map((p) => h('tr', null, h('td', null, h('span', { class: 'prod-cell' }, productThumb(p, 32), h('strong', null, p.nom))),
+          h('td', { class: 'muted' }, p.categoria), h('td', null, h('input', { type: 'checkbox', checked: p.es_genetic, disabled: true, 'aria-label': 'És genètic' })),
+          h('td', { class: 'num' }, gText(p.grams)), h('td', { class: 'num' }, eur(p.import_cent)), h('td', { class: 'num' }, p.dispensacions)))
+          : [h('tr', null, h('td', { colspan: 6, class: 'muted' }, 'Sense dades en aquest període.'))]));
+        comptador.textContent = 'Quantitat: ' + files.length;
+      };
+      cerca.addEventListener('input', pintaFiles);
+      pintaFiles();
+      return [h('p', null, h('strong', null, (ctx && !ctx.tots ? ctx.empleat : 'TOTS ELS EMPLEATS').toUpperCase()), ` DES DE ${dia(r.des)} FINS A ${dia(r.fins)}`),
+        h('div', { class: 'row' }, kpi('Dispensat', gText(r.total.grams)), kpi('Import', eur(r.total.import_cent)), kpi('Dispensacions', String(r.total.dispensacions))),
+        h('div', { class: 'searchbar' }, cerca),
+        h('div', { class: 'table-wrap' }, h('table', null, h('thead', null, h('tr', null, ['Producte', 'Categoria', 'És genètic', 'Grams', 'Import', 'Disp.'].map((t, i) => h('th', { class: i > 2 ? 'num' : '' }, t)))), cos)),
+        comptador];
+    } },
   estoc: { titol: 'Estoc valorat', rang: false, json: () => `/locals/${S.local}/informe/estoc`, csv: () => `/locals/${S.local}/informe/estoc.csv`, fitxer: 'estoc',
     pinta: (r) => [h('div', { class: 'row' }, kpi('Valor de l\'estoc', eur(r.total_cent)), kpi('Estoc total', gText(r.total_g))),
       taula([['Producte'], ['Categoria'], ['Estoc', true], ['Preu/g', true], ['Valor', true]], r.productes.map((p) => [p.nom, p.categoria, gText(p.estoc_g), eur(p.preu_cent_per_g), eur(p.valor_cent)]), 'Encara no hi ha productes.')] },
@@ -46,7 +69,10 @@ VIEWS.informe = async () => {
   const personal = await api(`/locals/${S.local}/personal`);
   const emp = h('select', null, [h('option', { value: '' }, 'Tots els empleats'), ...personal.map((u) => h('option', { value: u.id }, u.username))]);
   const rangBox = h('div', { class: 'row' }, field('Des de', des), field('Fins a', fins), field('Empleat', emp));
-  tipus.addEventListener('change', () => { rangBox.hidden = !INFORMES[tipus.value].rang; res.replaceChildren(); });
+  const triat = sessionStorage.getItem('s:informe');
+  if (INFORMES[triat]) tipus.value = triat;
+  rangBox.hidden = !INFORMES[tipus.value].rang;
+  tipus.addEventListener('change', () => { rangBox.hidden = !INFORMES[tipus.value].rang; res.replaceChildren(); sessionStorage.setItem('s:informe', tipus.value); marcaMenu(); });
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Veure informe');
   const csv = h('button', { type: 'button' }, 'Descarregar CSV');
   const q = () => `des=${des.value}&fins=${fins.value}${emp.value ? '&usuari=' + emp.value : ''}`;
@@ -61,8 +87,10 @@ VIEWS.informe = async () => {
     guard(btn, out, async () => {
       const inf = INFORMES[tipus.value];
       const r = await api(inf.json(q()));
-      res.replaceChildren(h('div', { class: 'card' }, h('h3', null, inf.titol), ...inf.pinta(r).filter(Boolean)));
+      res.replaceChildren(h('div', { class: 'card' }, h('h3', null, inf.titol), ...inf.pinta(r, { empleat: emp.options[emp.selectedIndex].text, tots: !emp.value }).filter(Boolean)));
     });
   } }, h('h3', null, "Tria l'informe"), field('Informe', tipus), rangBox, h('div', { class: 'actions' }, btn, csv), out);
-  return h('div', null, pageHead('Informes', 'Caixa, vendes, estoc valorat, assistència i hores, amb exportació a CSV.'), form, res);
+  // Si s'hi arriba des del menú lateral (Vendes, Dispensacions…), l'informe es mostra de seguida.
+  if (INFORMES[triat]) setTimeout(() => form.requestSubmit(), 0);
+  return h('div', null, pageHead('Informes', 'Caixa, vendes, dispensacions, estoc valorat, assistència i hores, amb exportació a CSV.'), form, res);
 };

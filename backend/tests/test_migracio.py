@@ -99,3 +99,18 @@ def test_actualitzar_bd_a_postgres_crea_taules_triggers_i_permisos(monkeypatch):
             c.execute(text(f"DROP SCHEMA {nom} CASCADE"))
             c.execute(text(f"DROP ROLE IF EXISTS {rol}"))
         admin.dispose()
+
+
+def test_les_columnes_noves_s_afegeixen_a_una_base_de_dades_existent(entorn):
+    engine = bd_antiga(entorn)
+    with engine.begin() as c:
+        c.execute(text("INSERT INTO locals (nom) VALUES ('L')"))
+        c.execute(text("INSERT INTO products (local_id, nom, categoria, preu_cent_per_g, actiu) VALUES (1, 'A', '', 100, 1)"))
+        c.execute(text("ALTER TABLE products DROP COLUMN es_genetic"))  # com la deixava la versió anterior
+    assert schema.missing_columns(engine) == ["products.es_genetic"]
+    with pytest.raises(RuntimeError):
+        get_db_factory()
+    schema.install(engine)
+    assert schema.missing_columns(engine) == []
+    with engine.connect() as c:
+        assert c.execute(text("SELECT es_genetic FROM products")).scalar() in (0, False)  # les files existents queden com a no genètiques

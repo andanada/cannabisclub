@@ -23,7 +23,7 @@ log = logging.getLogger("club")
 
 def get_db_factory():
     engine = make_engine()
-    falten = schema.missing_tables(engine)
+    falten = schema.missing_tables(engine) + schema.missing_columns(engine)
     if falten:
         # Millor aturar-se aquí que donar errors 500 críptics a mig servei després d'actualitzar el programa.
         raise RuntimeError(f"Falten taules a la base de dades ({', '.join(falten)}). "
@@ -178,6 +178,7 @@ def create_app(session_factory=None) -> FastAPI:
         nom: str = Field(min_length=1, max_length=120)
         categoria: str = Field(default="", max_length=60)
         preu_cent_per_g: int = Field(ge=0, le=10_000_000)
+        es_genetic: bool = False
 
     class EntradaIn(BaseModel):
         product_id: int
@@ -213,7 +214,7 @@ def create_app(session_factory=None) -> FastAPI:
         if user.role not in CAN_CREATE_MEMBER:
             raise HTTPException(403, "El teu rol no pot crear productes")
         check_local(s, user, body.local_id)
-        p = run(stock.add_product, s, user, body.local_id, body.nom, body.categoria, body.preu_cent_per_g)
+        p = run(stock.add_product, s, user, body.local_id, body.nom, body.categoria, body.preu_cent_per_g, body.es_genetic)
         return {"id": p.id}
 
     class ProductUpdateIn(BaseModel):
@@ -221,13 +222,14 @@ def create_app(session_factory=None) -> FastAPI:
         categoria: str | None = Field(default=None, max_length=60)
         preu_cent_per_g: int | None = Field(default=None, ge=0, le=10_000_000)
         actiu: bool | None = None
+        es_genetic: bool | None = None
 
     @app.patch("/productes/{product_id}")
     def edita_producte(product_id: int, body: ProductUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
         if user.role not in CAN_CREATE_MEMBER:
             raise HTTPException(403, "El teu rol no pot editar productes")
         product_or_404(s, user, product_id)
-        run(stock.update_product, s, user, product_id, body.nom, body.categoria, body.preu_cent_per_g, body.actiu)
+        run(stock.update_product, s, user, product_id, body.nom, body.categoria, body.preu_cent_per_g, body.actiu, body.es_genetic)
         return {"ok": True}
 
     class ImatgeIn(BaseModel):
@@ -254,7 +256,7 @@ def create_app(session_factory=None) -> FastAPI:
         prods = s.scalars(select(Product).where(Product.local_id == local_id).order_by(Product.actiu.desc(), Product.nom)).all()
         mg = stock.stock_by_product(s, [p.id for p in prods])
         imatges = stock.images_for(s, [p.id for p in prods])
-        return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": p.preu_cent_per_g, "actiu": p.actiu,
+        return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": p.preu_cent_per_g, "actiu": p.actiu, "es_genetic": p.es_genetic,
                  "estoc_g": str(Decimal(mg[p.id]) / 1000), "imatge": imatges.get(p.id)} for p in prods]
 
     @app.get("/locals/{local_id}/estoc")

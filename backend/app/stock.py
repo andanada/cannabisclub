@@ -105,13 +105,13 @@ def movements_list(db: Session, local_id: int, des: date, fins: date, limit: int
             for m, nom in db.execute(q)]
 
 
-def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: str, preu_cent_per_g: int) -> Product:
+def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: str, preu_cent_per_g: int, es_genetic: bool = False) -> Product:
     nom = nom.strip()
     if not nom:
         raise ValueError("El nom del producte no pot estar buit")
     if not _nom_lliure(db, local_id, nom):
         raise ValueError("Ja existeix un producte amb aquest nom en aquest local")
-    p = Product(local_id=local_id, nom=nom, categoria=categoria, preu_cent_per_g=preu_cent_per_g)
+    p = Product(local_id=local_id, nom=nom, categoria=categoria, preu_cent_per_g=preu_cent_per_g, es_genetic=es_genetic)
     db.add(p)
     db.flush()
     service.audit_append(db, {"accio": "alta_producte", "producte": p.id, "local": local_id, "per": actor.id})
@@ -120,7 +120,7 @@ def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: st
 
 
 def update_product(db: Session, actor: User, product_id: int, nom: str | None = None, categoria: str | None = None,
-                   preu_cent_per_g: int | None = None, actiu: bool | None = None) -> Product:
+                   preu_cent_per_g: int | None = None, actiu: bool | None = None, es_genetic: bool | None = None) -> Product:
     """Canvia el nom, la categoria, el preu o l'estat d'un producte. El preu només afecta les dispensacions
     noves: les antigues guarden el seu import. Per desactivar, l'estoc ha de ser zero (sinó quedaria encallat)."""
     p = db.scalar(select(Product).where(Product.id == product_id).with_for_update())
@@ -140,6 +140,8 @@ def update_product(db: Session, actor: User, product_id: int, nom: str | None = 
         if preu_cent_per_g < 0:
             raise ValueError("El preu no pot ser negatiu")
         canvis["preu_cent_per_g"] = [p.preu_cent_per_g, preu_cent_per_g]
+    if es_genetic is not None and es_genetic != p.es_genetic:
+        canvis["es_genetic"] = [p.es_genetic, es_genetic]
     if actiu is not None and actiu != p.actiu:
         if not actiu and stock_total_mg(db, p.id) != 0:
             raise ValueError("Per desactivar el producte l'estoc ha de ser zero: registra una merma o un ajust d'inventari")

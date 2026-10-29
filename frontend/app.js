@@ -39,13 +39,28 @@ function renderLogin() {
 const TABS = [
   ['dispensar', 'Dispensar', () => true],
   ['socis', 'Socis', () => true],
-  ['estoc', 'Estoc', isManager],
+  ['estoc', 'Estoc', isManager, [
+    ['existencies', 'Existències'], ['magatzems', 'Magatzems'], ['linies', 'Línies de preu'], ['contenidors', 'Contenidors'],
+    ['tipus-contenidor', 'Tipus de contenidors'], ['moviment', 'Moviments'], ['inventari', 'Inventaris'], ['descomptes', 'Descomptes'],
+    ['regles', 'Regles'], ['productes', 'Productes'], ['historial', 'Historial']]],
   ['caixa', 'Caixa', () => true],
   ['fitxatge', 'Fitxatge', () => true],
-  ['informe', 'Informes', isManager],
+  ['informe', 'Informes', isManager, [['vendes', 'Vendes'], ['dispensacions', 'Dispensacions'], ['caixa', 'Caixa'], ['estoc', 'Estoc valorat'], ['assistencia', 'Assistència'], ['hores', 'Hores']]],
   ['config', 'Configuració', isManager],
   ['compte', 'Compte', () => true],
 ];
+
+// Marca l'entrada activa del menú (i la subentrada, si n'hi ha) i desplega el grup de la vista actual.
+function marcaMenu() {
+  document.querySelectorAll('nav.tabs button[data-view]').forEach((b) => {
+    const actual = b.dataset.view === S.view;
+    const sub = b.dataset.sub;
+    const triada = sessionStorage.getItem('s:' + S.view);
+    const marcat = sub ? actual && triada === sub : actual && !b.classList.contains('has-sub');
+    if (marcat || (actual && b.classList.contains('has-sub') && !triada)) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('nav.tabs .sub-group').forEach((g) => { g.hidden = g.dataset.view !== S.view; });
+}
 
 function localSelect() {
   const sel = h('select', { 'aria-label': 'Local', onchange: () => { S.local = Number(sel.value); sessionStorage.setItem('l', S.local); show(S.view); } },
@@ -55,8 +70,13 @@ function localSelect() {
 
 function renderShell() {
   const nav = h('nav', { class: 'tabs', 'aria-label': 'Seccions' },
-    TABS.filter((t) => t[2]()).map(([id, label]) =>
-      h('button', { 'data-view': id, onclick: () => show(id) }, icon(id), h('span', null, label))));
+    TABS.filter((t) => t[2]()).flatMap(([id, label, , subs]) => {
+      const main = h('button', { 'data-view': id, class: subs ? 'has-sub' : '', onclick: () => show(id) }, icon(id), h('span', null, label));
+      if (!subs) return [main];
+      const grup = h('div', { class: 'sub-group', 'data-view': id, hidden: true }, subs.map(([sid, slabel]) =>
+        h('button', { 'data-view': id, 'data-sub': sid, class: 'sub', onclick: () => { sessionStorage.setItem('s:' + id, sid); show(id); } }, h('span', null, slabel))));
+      return [main, grup];
+    }));
   const side = h('aside', { class: 'side' }, h('div', { class: 'side-in' },
     h('div', { class: 'brand' }, h('div', { class: 'logo', 'aria-hidden': 'true' }, 'C'), h('div', null, 'Gestió del club', h('small', null, 'Panell de treball'))),
     nav,
@@ -69,9 +89,7 @@ function renderShell() {
 
 async function show(view) {
   S.view = view;
-  document.querySelectorAll('nav.tabs button').forEach((b) => {
-    if (b.dataset.view === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
-  });
+  marcaMenu();
   const main = $('#main');
   main.replaceChildren(h('p', { class: 'muted' }, 'Carregant…'));
   try { main.replaceChildren(await VIEWS[view]()); } catch (e) { main.replaceChildren(msg('err', e.message)); }

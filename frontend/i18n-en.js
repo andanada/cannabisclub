@@ -235,7 +235,7 @@ Object.assign(I18N.en, {
  "Nou producte": "New product",
  "Productes existents": "Existing products",
  "El canvi de preu només afecta les dispensacions noves. Per desactivar un producte, l'estoc ha de ser zero.": "A price change only affects new dispensings. To deactivate a product, its stock must be zero.",
- "Existències": "On hand",
+ "Existències": "Stock",
  "Moviments": "Movements",
  "Productes": "Products",
  "Historial": "History",
@@ -297,7 +297,7 @@ Object.assign(I18N.en, {
  "Per producte": "By product",
  "Disp.": "Disp.",
  "Per categoria": "By category",
- "Estoc valorat": "Stock valuation",
+ "Estoc valorat": "Valued stock",
  "Valor de l'estoc": "Stock value",
  "Estoc total": "Total stock",
  "Valor": "Value",
@@ -668,7 +668,14 @@ Object.assign(I18N.en, {
  "No hi ha prou estoc al magatzem d'origen": "Not enough stock in the origin warehouse",
  "Magatzem inexistent": "Warehouse not found",
  "Origen": "From",
- "Destí": "To"
+ "Destí": "To",
+ "És genètic": "Is genetic",
+ "Inventaris": "Inventories",
+ "Assistència": "Attendance",
+ "Buscar…": "Search…",
+ "Buscar producte": "Search product",
+ "TOTS ELS EMPLEATS": "ALL EMPLOYEES",
+ "Caixa, vendes, dispensacions, estoc valorat, assistència i hores, amb exportació a CSV.": "Cash, sales, dispensings, valued stock, attendance and hours, with CSV export."
 });
 I18N.pat.en.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Barcode $1"],
 [new RegExp("^Soci\\ núm\\.\\s+(.*)$"), "Member no. $1"],
@@ -771,4 +778,6 @@ I18N.pat.en.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Barcode $1"],
 [new RegExp("^Usuari «(.+)» creat\\. Ja pot entrar amb el seu usuari i la contrasenya\\.$"), "User «$1» created. They can now sign in with their username and password."],
 [new RegExp("^Usuari «(.+)» creat\\. Dona-li aquest secret per a l'app d'autenticació; no es tornarà a mostrar:$"), "User «$1» created. Give them this secret for the authenticator app; it will not be shown again:"],
 [new RegExp("^Tara: (.+) g$"), "Tare: $1 g"],
-[new RegExp("^Pes brut: (.+)$"), "Gross weight: $1"]);
+[new RegExp("^Pes brut: (.+)$"), "Gross weight: $1"],
+[new RegExp("^Quantitat: (\\d+)$"), "Quantity: $1"],
+[new RegExp("^\\s*DES DE (.+) FINS A (.+)$"), " FROM $1 TO $2"]);

@@ -21,24 +21,29 @@ def sales(db: Session, local_id: int, des: date, fins: date, usuari: int | None 
     """Vendes netes (les correccions hi resten) per producte i per categoria."""
     a, b = _range(des, fins)
     dispensat = case((StockMovement.tipus == "dispensacio", 1), else_=-1)
-    q = (select(Product.nom, Product.categoria, func.sum(-StockMovement.delta_mg), func.sum(func.coalesce(StockMovement.import_cent, 0)),
+    q = (select(Product.nom, Product.categoria, Product.id, Product.es_genetic, func.sum(-StockMovement.delta_mg), func.sum(func.coalesce(StockMovement.import_cent, 0)),
                 func.sum(dispensat))
          .join(Product, Product.id == StockMovement.product_id)
          .where(StockMovement.local_id == local_id, StockMovement.member_id.is_not(None),
                 StockMovement.tipus.in_(["dispensacio", "correccio"]), StockMovement.ts >= a, StockMovement.ts < b))
     if usuari is not None:
         q = q.where(StockMovement.user_id == usuari)
-    rows = db.execute(q.group_by(Product.id, Product.nom, Product.categoria).order_by(Product.nom))
+    rows = db.execute(q.group_by(Product.id, Product.nom, Product.categoria, Product.es_genetic).order_by(Product.nom))
     productes, per_cat = [], defaultdict(lambda: {"mg": 0, "import_cent": 0})
     tot_mg = tot_cent = tot_n = 0
-    for nom, cat, mg, cent, n in rows:
+    imatges = {}
+    for nom, cat, pid, genetic, mg, cent, n in rows:
         mg, cent, n = int(mg or 0), int(cent or 0), int(n or 0)
         if mg == 0 and cent == 0 and n == 0:
             continue  # totalment corregit: no apareix
-        productes.append({"nom": nom, "categoria": cat, "grams": _g(mg), "import_cent": cent, "dispensacions": n})
+        productes.append({"product_id": pid, "nom": nom, "categoria": cat, "es_genetic": bool(genetic), "grams": _g(mg), "import_cent": cent, "dispensacions": n})
         per_cat[cat or "(sense categoria)"]["mg"] += mg
         per_cat[cat or "(sense categoria)"]["import_cent"] += cent
         tot_mg, tot_cent, tot_n = tot_mg + mg, tot_cent + cent, tot_n + n
+    from .stock import images_for
+    imatges = images_for(db, [p["product_id"] for p in productes])
+    for p in productes:
+        p["imatge"] = imatges.get(p["product_id"])
     qd = (select(func.coalesce(func.sum(MovementDiscount.descompte_cent), 0)).join(StockMovement, StockMovement.id == MovementDiscount.movement_id)
           .where(StockMovement.local_id == local_id, StockMovement.ts >= a, StockMovement.ts < b))
     if usuari is not None:

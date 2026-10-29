@@ -96,3 +96,20 @@ def test_llista_completa_nomes_per_a_responsables_i_del_seu_local(ctx):
     assert client.patch(f"/productes/{pid}", json={"preu_cent_per_g": 1}, headers=disp).status_code == 403
     pid2 = nou(client, admin, "Altre local", local=2)
     assert client.patch(f"/productes/{pid2}", json={"preu_cent_per_g": 1}, headers=enc).status_code == 403
+
+
+def test_producte_genetic_es_pot_crear_i_canviar_i_surt_a_les_vendes(ctx):
+    from datetime import date, timedelta
+    from tests.test_stock import setup_data
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid, pid = setup_data(client, enc, factory)
+    assert client.get("/locals/1/productes", headers=enc).json()[0]["es_genetic"] is False
+    nou = client.post("/productes", json={"local_id": 1, "nom": "Clon", "categoria": "clons", "preu_cent_per_g": 100, "es_genetic": True}, headers=enc).json()["id"]
+    assert next(p for p in client.get("/locals/1/productes", headers=enc).json() if p["id"] == nou)["es_genetic"] is True
+    assert client.patch(f"/productes/{pid}", json={"es_genetic": True}, headers=enc).status_code == 200
+    client.post("/dispensacions", json={"member_id": mid, "product_id": pid, "grams": "1"}, headers=enc)
+    avui = date.today()
+    r = client.get("/locals/1/informe/vendes", params={"des": (avui - timedelta(days=1)).isoformat(), "fins": (avui + timedelta(days=1)).isoformat()}, headers=enc).json()
+    p = r["productes"][0]
+    assert p["product_id"] == pid and p["es_genetic"] is True and p["imatge"] is None
