@@ -692,7 +692,13 @@ Object.assign(I18N.es, {
  "Cap dispensació en aquest període.": "Ninguna dispensación en este período.",
  "Detall": "Detalle",
  "Data": "Fecha",
- "corregida": "corregida"
+ "corregida": "corregida",
+ "Inicia la sessió": "Inicia sesión",
+ "Entra amb el teu usuari per treballar.": "Entra con tu usuario para trabajar.",
+ "Tot el club en un sol lloc: ràpid, segur i fàcil de fer servir.": "Todo el club en un solo lugar: rápido, seguro y fácil de usar.",
+ "Socis, quotes i carnets": "Socios, cuotas y carnés",
+ "Estoc, magatzems i inventaris": "Estoc, almacenes e inventarios",
+ "Caixa, informes i fitxatge": "Caja, informes y fichaje"
 });
 I18N.pat.es.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Código de barras $1"],
 [new RegExp("^Soci\\ núm\\.\\s+(.*)$"), "Socio n.º $1"],

@@ -29,10 +29,17 @@ function renderLogin() {
       await boot();
     });
   } },
-  h('div', { class: 'actions' }, langSelect()), h('h1', null, 'Gestió del club'),
+  h('h2', { class: 'auth-title' }, 'Inicia la sessió'), h('p', { class: 'muted' }, 'Entra amb el teu usuari per treballar.'),
   field('Usuari', user), field('Contrasenya', pass), codeField,
   h('div', { class: 'actions' }, btn), out);
-  $('#app').replaceChildren(form);
+  const trets = ['Socis, quotes i carnets', 'Estoc, magatzems i inventaris', 'Caixa, informes i fitxatge'];
+  $('#app').replaceChildren(h('div', { class: 'auth' },
+    h('aside', { class: 'auth-brand' },
+      h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, 'C'),
+      h('h1', null, 'Gestió del club'),
+      h('p', null, 'Tot el club en un sol lloc: ràpid, segur i fàcil de fer servir.'),
+      h('ul', null, trets.map((t) => h('li', null, t)))),
+    h('main', { class: 'auth-panel' }, h('div', { class: 'auth-lang' }, langSelect()), form)));
   user.focus();
 }
 
@@ -89,6 +96,7 @@ function renderShell() {
 
 async function show(view) {
   S.view = view;
+  document.body.dataset.view = view;
   marcaMenu();
   const main = $('#main');
   main.replaceChildren(h('p', { class: 'muted' }, 'Carregant…'));
