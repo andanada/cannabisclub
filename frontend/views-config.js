@@ -61,11 +61,39 @@ function quotesSection() {
   h('label', null, obl, ' Exigir la quota al dia per poder dispensar'), h('div', { class: 'actions' }, btn), out);
 }
 
+// Contrasenya aleatòria de 16 caràcters sense lletres ambigües (0/O, 1/l/I), amb majúscules, minúscules, xifres i símbol.
+function contrasenyaAleatoria() {
+  const grups = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', '#$%&*+=?'];
+  const tots = grups.join('');
+  const bytes = new Uint32Array(16);
+  crypto.getRandomValues(bytes);
+  const out = Array.from(bytes, (b, i) => (i < grups.length ? grups[i][b % grups[i].length] : tots[b % tots.length]));
+  for (let i = out.length - 1; i > 0; i--) { const j = bytes[i] % (i + 1); [out[i], out[j]] = [out[j], out[i]]; }
+  return out.join('');
+}
+
+const ROL_DESCRIPCIONS = {
+  admin: 'Accés total: configuració, usuaris, informes, estoc, caixa i socis. Veu tots els locals.',
+  encarregat: 'Gestiona estoc, caixa, socis i informes dels seus locals. No toca la configuració ni els usuaris.',
+  dispensador: 'Treballador: dispensa, cobra, fitxa i consulta socis dels seus locals.',
+};
+
 async function usersSection() {
-  const un = h('input', { autocomplete: 'off' });
-  const pw = h('input', { type: 'password', autocomplete: 'new-password' });
-  const rol = h('select', null, Object.keys(ROL_NOMS).map((r) => h('option', { value: r }, ROL_NOMS[r])));
-  const checks = S.me.locals.map((l) => h('label', null, h('input', { type: 'checkbox', value: l.id }), ' ', l.nom));
+  const un = h('input', { autocomplete: 'off', placeholder: 'p. ex. maria', 'aria-label': "Nom d'usuari" });
+  const pw = h('input', { type: 'password', autocomplete: 'new-password', placeholder: 'Mínim 12 caràcters' });
+  const rol = h('select', null, Object.keys(ROL_NOMS).reverse().map((r) => h('option', { value: r }, ROL_NOMS[r])));
+  rol.value = 'dispensador';
+  const descRol = h('p', { class: 'muted' }, ROL_DESCRIPCIONS[rol.value]);
+  const checks = S.me.locals.map((l) => h('label', { class: 'check' }, h('input', { type: 'checkbox', value: l.id }), ' ', l.nom));
+  const localsBox = h('div');
+  localsBox.append(h('h3', null, 'Locals amb accés'), h('p', { class: 'muted' }, 'Marca els locals on podrà treballar.'), h('div', null, checks));
+  const mostraLocals = () => { localsBox.hidden = rol.value === 'admin'; descRol.textContent = ROL_DESCRIPCIONS[rol.value]; };
+  rol.addEventListener('change', mostraLocals);
+  mostraLocals();
+  const gen = h('button', { type: 'button', class: 'small' }, 'Generar contrasenya');
+  gen.addEventListener('click', () => { pw.value = contrasenyaAleatoria(); pw.type = 'text'; });
+  const veure = h('button', { type: 'button', class: 'small' }, 'Mostrar');
+  veure.addEventListener('click', () => { pw.type = pw.type === 'password' ? 'text' : 'password'; veure.textContent = pw.type === 'password' ? 'Mostrar' : 'Amagar'; });
   const outU = h('div');
   const llista = h('div');
   const pintaLlista = async () => llista.replaceChildren(await usersCard());
@@ -74,19 +102,26 @@ async function usersSection() {
   const nou = h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(bU, outU, async () => {
-      const ids = checks.map((c) => c.querySelector('input')).filter((i) => i.checked).map((i) => Number(i.value));
-      const r = await api('/usuaris', { method: 'POST', body: { username: un.value.trim(), password: pw.value, role: rol.value, local_ids: ids } });
-      const nomCreat = un.value.trim();
-      pw.value = ''; un.value = '';
+      const usuari = un.value.trim(), clau = pw.value;
+      if (usuari.length < 3) throw new Error("El nom d'usuari ha de tenir almenys 3 caràcters");
+      if (clau.length < 12) throw new Error('La contrasenya ha de tenir almenys 12 caràcters');
+      const ids = rol.value === 'admin' ? [] : checks.map((c) => c.querySelector('input')).filter((i) => i.checked).map((i) => Number(i.value));
+      if (rol.value !== 'admin' && !ids.length) throw new Error('Marca almenys un local');
+      const r = await api('/usuaris', { method: 'POST', body: { username: usuari, password: clau, role: rol.value, local_ids: ids } });
+      un.value = ''; pw.value = ''; pw.type = 'password';
       checks.forEach((c) => { c.querySelector('input').checked = false; });
-      outU.replaceChildren(...(opcions.totp
-        ? [msg('ok', `Usuari «${nomCreat}» creat. Dona-li aquest secret per a l'app d'autenticació; no es tornarà a mostrar:`), h('div', { class: 'secret' }, r.totp_secret)]
-        : [msg('ok', `Usuari «${nomCreat}» creat. Ja pot entrar amb el seu usuari i la contrasenya.`)]));
+      const credencials = `Usuari: ${usuari}\nContrasenya: ${clau}` + (opcions.totp ? `\nSecret TOTP: ${r.totp_secret}` : '');
+      const copia = h('button', { type: 'button', class: 'small' }, 'Copiar credencials');
+      copia.addEventListener('click', async () => { try { await navigator.clipboard.writeText(credencials); toast('Credencials copiades'); } catch (_) { toast('No s\'ha pogut copiar: selecciona el text'); } });
+      outU.replaceChildren(msg('ok', `Usuari «${usuari}» creat. Copia les credencials ara: no es tornaran a mostrar.`),
+        h('pre', { class: 'secret' }, credencials), h('div', { class: 'actions' }, copia));
       await pintaLlista();
     });
   } }, h('h3', null, 'Nou usuari'),
-  h('div', { class: 'row' }, field("Nom d'usuari", un), field('Contrasenya (mínim 12 caràcters)', pw), field('Rol', rol)),
-  h('h3', null, 'Locals amb accés'), h('p', { class: 'muted' }, 'Els administradors veuen tots els locals; marca els locals dels encarregats i treballadors.'), h('div', null, checks), h('div', { class: 'actions' }, bU), outU);
+  h('div', { class: 'row' }, field("Nom d'usuari", un), field('Rol', rol)),
+  descRol,
+  h('div', { class: 'row' }, field('Contrasenya (mínim 12 caràcters)', pw), h('div', { class: 'actions' }, gen, veure)),
+  localsBox, h('div', { class: 'actions' }, bU), outU);
   await pintaLlista();
   return h('div', null, nou, llista);
 }

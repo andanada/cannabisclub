@@ -96,7 +96,7 @@ VIEWS.socis = async () => {
       const panel = memberPanel();
       return h('div', null, memberList((m, out) => { panel.show(m, out); panel.found.scrollIntoView(); }), panel.found);
     }]);
-    items.push(['alta', 'Alta de soci', async () => altaForm()]);
+    items.push(['alta', 'Alta de soci', async () => altaWizard()]);
   }
   return h('div', null, pageHead('Socis', 'Cerca un soci, consulta la llista o registra un soci nou.'), sections('socis', items));
 };
@@ -204,13 +204,14 @@ VIEWS.dispensar = async () => {
 
 
 // Signatura de l'alta amb el perfil de la tauleta del local (mida, traç, traços mínims).
-function signaturePad(memberId, out) {
+function signaturePad(memberId, out, onDone) {
   const holder = h('div', { class: 'card' }, h('p', { class: 'muted' }, 'Preparant la tauleta de signatura…'));
   defaultProfile('signatura').then((cfg) => {
     const res = h('div');
     const pad = signatureCanvas(Object.assign({}, DEFAULTS.signatura, cfg || {}), (s) => guard(pad.saveButton, res, async () => {
       if (!s.valid) throw new Error(`El soci ha de signar abans de desar (calen almenys ${s.min} traços).`);
       await api(`/socis/${memberId}/signatura`, { method: 'POST', body: { png_base64: s.png } });
+      if (onDone) { await onDone(); return; }
       out.replaceChildren(msg('ok', "Soci donat d'alta i signatura desada (núm. " + memberId + ')'));
     }), 'Desar signatura');
     holder.replaceChildren(h('p', { class: 'muted' }, 'Signa dins del quadre:'), pad, res);

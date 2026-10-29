@@ -43,10 +43,30 @@ function userCard(u) {
     const r = await api(`/usuaris/${u.id}/totp`, { method: 'POST' });
     out.replaceChildren(msg('ok', 'Nou secret per a l\'app d\'autenticació; no es tornarà a mostrar:'), h('div', { class: 'secret' }, r.totp_secret));
   }));
+  // Carnet RFID d'entrada: el treballador entra passant-lo pel lector, sense escriure (no per a administradors).
+  const carnet = h('input', { placeholder: 'Passa el carnet pel lector', autocomplete: 'off', autocapitalize: 'characters', 'aria-label': 'Carnet de ' + u.username });
+  const posaCarnet = h('button', { type: 'button' }, u.te_carnet ? 'Canviar carnet' : 'Assignar carnet');
+  posaCarnet.addEventListener('click', () => guard(posaCarnet, out, async () => {
+    await api(`/usuaris/${u.id}/carnet`, { method: 'PUT', body: { codi: carnet.value.trim() } });
+    toast('Carnet assignat');
+    reload();
+  }));
+  carnet.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); posaCarnet.click(); } });
+  const treuCarnet = u.te_carnet ? h('button', { type: 'button', class: 'danger' }, 'Retirar carnet') : null;
+  if (treuCarnet) treuCarnet.addEventListener('click', () => guard(treuCarnet, out, async () => {
+    await api(`/usuaris/${u.id}/carnet`, { method: 'DELETE' });
+    toast('Carnet retirat');
+    reload();
+  }));
+  const blocCarnet = u.role === 'admin'
+    ? h('p', { class: 'muted' }, "Els administradors entren sempre amb contrasenya: no poden tenir carnet d'entrada.")
+    : h('div', null, h('div', { class: 'row' }, field('Carnet', carnet), h('div', { class: 'actions' }, posaCarnet, treuCarnet)),
+      u.te_carnet ? h('p', { class: 'muted' }, 'Aquest usuari ja té carnet. El codi no es pot veure: només es desa una empremta.') : null);
   return h('div', { class: 'card' },
     h('div', null, h('strong', null, u.username), ' ', h('span', { class: 'pill' }, ROL_NOMS[u.role] || u.role), ' ', h('span', { class: 'pill ' + (u.active ? 'ok' : 'warn') }, u.active ? 'actiu' : 'desactivat')),
     h('div', { class: 'row' }, field('Rol', rol), field('Contrasenya nova', pw)),
     h('h3', null, 'Locals amb accés'), h('div', null, checks),
+    h('h3', null, "Carnet d'entrada"), blocCarnet,
     h('div', { class: 'actions' }, save, setPw, totp, toggle), out);
 }
 

@@ -5,7 +5,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from . import crypto, security, service
-from .models import Local, SessionToken, User, UserLocal
+from .models import Local, SessionToken, User, UserCard, UserLocal
 
 
 def _local_ids(db: Session, user_id: int) -> list[int]:
@@ -13,7 +13,8 @@ def _local_ids(db: Session, user_id: int) -> list[int]:
 
 
 def list_users(db: Session) -> list[dict]:
-    return [{"id": u.id, "username": u.username, "role": u.role, "active": u.active, "local_ids": _local_ids(db, u.id)}
+    amb_carnet = set(db.scalars(select(UserCard.user_id)))
+    return [{"id": u.id, "username": u.username, "role": u.role, "active": u.active, "local_ids": _local_ids(db, u.id), "te_carnet": u.id in amb_carnet}
             for u in db.scalars(select(User).order_by(User.username))]
 
 

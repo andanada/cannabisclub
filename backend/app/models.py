@@ -328,6 +328,15 @@ class InventoryCount(Base):
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class UserCard(Base):
+    """Carnet RFID d'un treballador per entrar al programa sense escriure. Només s'hi desa l'empremta HMAC del codi."""
+    __tablename__ = "user_cards"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    code_idx: Mapped[str] = mapped_column(String(64), unique=True)
+    creat: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    creat_per: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
 class Warehouse(Base):
     """Magatzem addicional d'un local. El magatzem «principal» és implícit: és on es dispensa."""
     __tablename__ = "warehouses"

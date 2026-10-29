@@ -16,7 +16,27 @@ function renderLogin() {
   const code = h('input', { inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 6, required: true });
   const codeField = field("Codi de l'app d'autenticació", code);
   // Si el servidor no exigeix el segon factor (servidor de proves), el camp no es mostra.
-  fetch('/auth/opcions').then((r) => r.json()).then((o) => { if (!o.totp) { codeField.hidden = true; code.required = false; } }).catch(() => {});
+  const carnet = h('input', { class: 'card-input', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', placeholder: 'Passa el carnet pel lector', 'aria-label': 'Carnet' });
+  const carnetOut = h('div');
+  const carnetBtn = h('button', { class: 'primary', type: 'submit' }, 'Entrar amb carnet');
+  const carnetBox = h('form', { class: 'auth-carnet', hidden: true, onsubmit: (e) => {
+    e.preventDefault();
+    if (!carnet.value.trim()) return;
+    guard(carnetBtn, carnetOut, async () => {
+      try {
+        const r = await api('/auth/login-carnet', { method: 'POST', noAuthRedirect: true, body: { codi: carnet.value.trim() } });
+        S.token = r.token;
+        sessionStorage.setItem('t', r.token);
+        await boot();
+      } finally { carnet.value = ''; carnet.focus(); }
+    });
+  } }, h('div', { class: 'carnet-icona', 'aria-hidden': 'true' }, '▦'), h('div', { class: 'carnet-text' }, h('strong', null, 'Entra amb el carnet'), h('span', { class: 'muted' }, 'Passa el carnet pel lector: entrarà tot sol.')),
+  carnet, h('div', { class: 'actions' }, carnetBtn), carnetOut, h('div', { class: 'separador' }, h('span', null, 'o amb usuari i contrasenya')));
+  // Si el servidor no exigeix el segon factor (servidor de proves), el camp no es mostra; si permet el carnet, es mostra i s'enfoca.
+  fetch('/auth/opcions').then((r) => r.json()).then((o) => {
+    if (!o.totp) { codeField.hidden = true; code.required = false; }
+    if (o.carnet) { carnetBox.hidden = false; carnet.focus(); }
+  }).catch(() => {});
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Entrar');
   const form = h('form', { class: 'card login', onsubmit: (e) => {
     e.preventDefault();
@@ -39,7 +59,7 @@ function renderLogin() {
       h('h1', null, 'Més que un Club'),
       h('p', null, 'Tot el club en un sol lloc: ràpid, segur i fàcil de fer servir.'),
       h('ul', null, trets.map((t) => h('li', null, t)))),
-    h('main', { class: 'auth-panel' }, h('div', { class: 'auth-lang' }, langSelect()), form)));
+    h('main', { class: 'auth-panel' }, h('div', { class: 'auth-lang' }, langSelect()), carnetBox, form)));
   user.focus();
 }
 
@@ -53,7 +73,9 @@ const TABS = [
   ['caixa', 'Caixa', () => true],
   ['fitxatge', 'Fitxatge', () => true],
   ['informe', 'Informes', isManager, [['vendes', 'Vendes'], ['dispensacions', 'Dispensacions'], ['evolucio', 'Evolució del club'], ['demografia', 'Demografia'], ['caixa', 'Caixa'], ['estoc', 'Estoc valorat'], ['assistencia', 'Assistència'], ['hores', 'Hores']]],
-  ['config', 'Configuració', isManager],
+  ['config', 'Configuració', isManager, () => (S.me.role === 'admin'
+    ? [['local', 'Local i límits'], ['quotes', 'Quotes'], ['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura'], ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ['seguretat', 'Seguretat']]
+    : [['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic']])],
   ['compte', 'Compte', () => true],
 ];
 
@@ -77,7 +99,8 @@ function localSelect() {
 
 function renderShell() {
   const nav = h('nav', { class: 'tabs', 'aria-label': 'Seccions' },
-    TABS.filter((t) => t[2]()).flatMap(([id, label, , subs]) => {
+    TABS.filter((t) => t[2]()).flatMap(([id, label, , subsDef]) => {
+      const subs = typeof subsDef === 'function' ? subsDef() : subsDef;
       const main = h('button', { 'data-view': id, class: subs ? 'has-sub' : '', onclick: () => show(id) }, icon(id), h('span', null, label));
       if (!subs) return [main];
       const grup = h('div', { class: 'sub-group', 'data-view': id, hidden: true }, subs.map(([sid, slabel]) =>
@@ -88,7 +111,7 @@ function renderShell() {
     h('div', { class: 'brand' }, h('div', { class: 'logo', 'aria-hidden': 'true' }, 'M'), h('div', null, 'Més que un Club', h('small', null, 'Gestió del club'))),
     nav,
     h('div', { class: 'who' }, h('div', null, h('strong', null, S.me.username), ' · ', S.me.role), localSelect(), langSelect(),
-      h('button', { class: 'small', onclick: logout }, 'Sortir'))));
+      h('button', { class: 'small', onclick: logout }, "Canviar d'usuari"))));
   const topbar = h('div', { class: 'topbar' }, h('strong', null, 'Més que un Club'),
     h('div', { class: 'row' }, localSelect(), langSelect(), h('button', { class: 'small', onclick: logout }, 'Sortir')));
   $('#app').replaceChildren(h('div', { class: 'shell' }, side, h('div', null, topbar, h('main', { id: 'main', class: 'main' }))));

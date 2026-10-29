@@ -138,10 +138,10 @@ def test_auditoria_registra_i_detecta_manipulacio(ctx):
 
 def test_segon_factor_es_pot_desactivar_nomes_amb_la_variable(ctx, monkeypatch):
     client, _factory, _sec = ctx
-    assert client.get("/auth/opcions").json() == {"totp": True}
+    assert client.get("/auth/opcions").json()["totp"] is True
     sense_codi = {"username": "enc", "password": PASS}
     assert client.post("/auth/login", json=sense_codi).status_code == 401  # per defecte el codi és obligatori
     monkeypatch.setenv("CLUB_TOTP", "0")
-    assert client.get("/auth/opcions").json() == {"totp": False}
+    assert client.get("/auth/opcions").json()["totp"] is False
     assert client.post("/auth/login", json={**sense_codi, "password": "mala-contrasenya"}).status_code == 401  # la contrasenya segueix sent obligatòria
     assert client.post("/auth/login", json=sense_codi).status_code == 200

@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from . import ajustos, cash, contenidors, descomptes, dispositius, informes, informes_socis, inventaris, linies_preu, magatzems, personal, quotes, regles, schema, service, socis, stock, usuaris
+from . import ajustos, carnet_login, cash, contenidors, descomptes, dispositius, informes, informes_socis, inventaris, linies_preu, magatzems, personal, quotes, regles, schema, service, socis, stock, usuaris
 from .db import make_engine, make_session_factory
 from .models import CashEntry, Container, ContainerType, DeviceProfile, Discount, Local, InventorySession, Member, PriceLine, Product, Regla, StockMovement, User, UserLocal, Warehouse
 
@@ -74,7 +74,7 @@ def create_app(session_factory=None) -> FastAPI:
         resp.headers["Referrer-Policy"] = "no-referrer"
         if not request.url.path.startswith("/static-"):
             if request.url.path not in ("/", "/sw.js", "/i18n-es.js", "/i18n-en.js", "/i18n.js", "/util.js", "/bascula.js", "/app.js", "/views-dispensar.js", "/views-gestio.js",
-                                        "/views-socis.js", "/views-descomptes.js", "/views-regles.js", "/views-linies-preu.js", "/views-contenidors.js", "/views-magatzems.js", "/views-inventari.js", "/views-informes.js", "/views-historial.js", "/views-config.js", "/diagnostic.js", "/views-dispositius.js", "/views-diagnostic.js", "/views-carnets.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
+                                        "/views-socis.js", "/validacio.js", "/views-alta.js", "/views-descomptes.js", "/views-regles.js", "/views-linies-preu.js", "/views-contenidors.js", "/views-magatzems.js", "/views-inventari.js", "/views-informes.js", "/views-historial.js", "/views-config.js", "/diagnostic.js", "/views-dispositius.js", "/views-diagnostic.js", "/views-carnets.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
                 resp.headers["Cache-Control"] = "no-store"
             else:
                 resp.headers["Cache-Control"] = "no-cache"  # el navegador revalida sempre: mai barreja fitxers vells i nous
@@ -118,7 +118,7 @@ def create_app(session_factory=None) -> FastAPI:
     @app.get("/auth/opcions")
     def opcions_login():
         """Públic: la pantalla d'entrada hi consulta si ha de demanar el codi de l'app d'autenticació."""
-        return {"totp": service.totp_required()}
+        return {"totp": service.totp_required(), "carnet": carnet_login.enabled()}
 
     @app.get("/salut")
     def salut(s: Session = Depends(db)):
@@ -142,6 +142,22 @@ def create_app(session_factory=None) -> FastAPI:
             raise HTTPException(429, "Massa intents fallits: l'accés queda bloquejat uns minuts. Torna-ho a provar més tard.")
         if not token:
             raise HTTPException(401, "Credencials incorrectes")
+        return {"token": token}
+
+    class LoginCarnetIn(BaseModel):
+        codi: str = Field(max_length=64)
+
+    @app.post("/auth/login-carnet")
+    def login_carnet(body: LoginCarnetIn, s: Session = Depends(db)):
+        """Entrada ràpida d'un treballador passant el carnet RFID pel lector (no per a administradors)."""
+        if not carnet_login.enabled():
+            raise HTTPException(403, "L'entrada amb carnet està desactivada en aquest servidor")
+        try:
+            token = carnet_login.login(s, body.codi)
+        except service.LoginLocked:
+            raise HTTPException(429, "Massa intents fallits amb carnet: queda bloquejat uns minuts. Entra amb usuari i contrasenya.")
+        if not token:
+            raise HTTPException(401, "Carnet no reconegut")
         return {"token": token}
 
     @app.post("/socis", status_code=201)
@@ -1009,6 +1025,22 @@ def create_app(session_factory=None) -> FastAPI:
     def llista_usuaris(user: User = Depends(current_user), s: Session = Depends(db)):
         need_admin(user)
         return usuaris.list_users(s)
+
+    class CarnetUsuariIn(BaseModel):
+        codi: str = Field(max_length=64)
+
+    @app.put("/usuaris/{user_id}/carnet")
+    def posa_carnet_usuari(user_id: int, body: CarnetUsuariIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        run(carnet_login.assign, s, user, usuari_or_404(s, user_id), body.codi)
+        return {"ok": True}
+
+    @app.delete("/usuaris/{user_id}/carnet")
+    def retira_carnet_usuari(user_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        if not carnet_login.remove(s, user, usuari_or_404(s, user_id)):
+            raise HTTPException(404, "Aquest usuari no té carnet")
+        return {"ok": True}
 
     class UsuariUpdateIn(BaseModel):
         active: bool | None = None
