@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from . import ajustos, carnet_login, cash, contenidors, descomptes, dispositius, informes, informes_socis, inventaris, linies_preu, magatzems, personal, quotes, regles, schema, service, socis, stock, usuaris
 from .db import make_engine, make_session_factory
-from .models import CashEntry, Container, ContainerType, DeviceProfile, Discount, Local, InventorySession, Member, PriceLine, Product, Regla, StockMovement, User, UserLocal, Warehouse
+from .models import CashEntry, Container, ContainerType, DeviceProfile, Discount, Local, InventorySession, Member, PriceLine, Product, Regla, StockMovement, User, UserCard, UserLocal, Warehouse
 
 CAN_CREATE_MEMBER = {"admin", "encarregat"}
 log = logging.getLogger("club")
@@ -146,19 +146,32 @@ def create_app(session_factory=None) -> FastAPI:
 
     class LoginCarnetIn(BaseModel):
         codi: str = Field(max_length=64)
+        pin: str = Field(default="", max_length=12)
 
     @app.post("/auth/login-carnet")
-    def login_carnet(body: LoginCarnetIn, s: Session = Depends(db)):
-        """Entrada ràpida d'un treballador passant el carnet RFID pel lector (no per a administradors)."""
+    def login_carnet(body: LoginCarnetIn, request: Request, s: Session = Depends(db)):
+        """Entrada ràpida d'un treballador: carnet RFID + PIN (no per a administradors)."""
         if not carnet_login.enabled():
             raise HTTPException(403, "L'entrada amb carnet està desactivada en aquest servidor")
+        ip = carnet_login.client_ip(request.client.host if request.client else None, request.headers.get("x-forwarded-for"))
+        if not carnet_login.network_allowed(ip):
+            raise HTTPException(403, "L'entrada amb carnet només es pot fer des de la xarxa del club")
         try:
-            token = carnet_login.login(s, body.codi)
+            token = carnet_login.login(s, body.codi, body.pin)
         except service.LoginLocked:
             raise HTTPException(429, "Massa intents fallits amb carnet: queda bloquejat uns minuts. Entra amb usuari i contrasenya.")
         if not token:
-            raise HTTPException(401, "Carnet no reconegut")
+            raise HTTPException(401, "Carnet o PIN incorrectes")
         return {"token": token}
+
+    class PinCarnetIn(BaseModel):
+        actual: str = Field(max_length=12)
+        nova: str = Field(max_length=12)
+
+    @app.post("/auth/carnet-pin")
+    def canvia_pin_carnet(body: PinCarnetIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        run(carnet_login.change_pin, s, user, body.actual, body.nova)
+        return {"ok": True}
 
     @app.post("/socis", status_code=201)
     def alta_soci(body: MemberIn, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -1028,12 +1041,22 @@ def create_app(session_factory=None) -> FastAPI:
 
     class CarnetUsuariIn(BaseModel):
         codi: str = Field(max_length=64)
+        pin: str = Field(max_length=12)
+
+    class CarnetUsuariGenerarIn(BaseModel):
+        pin: str = Field(max_length=12)
+        prefix: str = Field(default="STF", pattern=r"^[A-Z0-9]{2,6}$")
 
     @app.put("/usuaris/{user_id}/carnet")
     def posa_carnet_usuari(user_id: int, body: CarnetUsuariIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_admin(user)
-        run(carnet_login.assign, s, user, usuari_or_404(s, user_id), body.codi)
+        run(carnet_login.assign, s, user, usuari_or_404(s, user_id), body.codi, body.pin)
         return {"ok": True}
+
+    @app.post("/usuaris/{user_id}/carnet/generar", status_code=201)
+    def genera_carnet_usuari(user_id: int, body: CarnetUsuariGenerarIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        return {"codi": run(carnet_login.generate, s, user, usuari_or_404(s, user_id), body.pin, body.prefix)}  # l'únic cop que es mostra
 
     @app.delete("/usuaris/{user_id}/carnet")
     def retira_carnet_usuari(user_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -1110,7 +1133,7 @@ def create_app(session_factory=None) -> FastAPI:
         else:
             ids = [r.local_id for r in s.scalars(select(UserLocal).where(UserLocal.user_id == user.id))]
             locs = [s.get(Local, i) for i in ids]
-        return {"id": user.id, "username": user.username, "role": user.role,
+        return {"id": user.id, "username": user.username, "role": user.role, "te_carnet": s.get(UserCard, user.id) is not None,
                 "locals": [{"id": l.id, "nom": l.nom, "limit_diari_mg": l.limit_diari_mg,
                             "limit_mensual_mg": l.limit_mensual_mg,
                             "tolerancia_bascula_mg": l.tolerancia_bascula_mg, **ajustos.get(s, l.id)} for l in locs]}

@@ -11,6 +11,13 @@ async function usersCard() {
   return wrap;
 }
 
+// Carnet imprimible d'un treballador: nom, codi de barres i el codi en text.
+function printableStaffCard(u, codi) {
+  return h('div', { class: 'print-area' }, h('div', { class: 'carnet-print' }, h('div'),
+    h('div', null, h('div', { class: 'nom' }, u.username), h('div', null, 'Treballador'), h('div', null, 'Més que un Club')),
+    barcodeSvg(codi), h('div', { class: 'codi-text' }, codi)));
+}
+
 function userCard(u) {
   const out = h('div');
   const reload = () => show('config');
@@ -43,15 +50,18 @@ function userCard(u) {
     const r = await api(`/usuaris/${u.id}/totp`, { method: 'POST' });
     out.replaceChildren(msg('ok', 'Nou secret per a l\'app d\'autenticació; no es tornarà a mostrar:'), h('div', { class: 'secret' }, r.totp_secret));
   }));
-  // Carnet RFID d'entrada: el treballador entra passant-lo pel lector, sense escriure (no per a administradors).
-  const carnet = h('input', { placeholder: 'Passa el carnet pel lector', autocomplete: 'off', autocapitalize: 'characters', 'aria-label': 'Carnet de ' + u.username });
-  const posaCarnet = h('button', { type: 'button' }, u.te_carnet ? 'Canviar carnet' : 'Assignar carnet');
-  posaCarnet.addEventListener('click', () => guard(posaCarnet, out, async () => {
-    await api(`/usuaris/${u.id}/carnet`, { method: 'PUT', body: { codi: carnet.value.trim() } });
-    toast('Carnet assignat');
-    reload();
+  // Carnet RFID d'entrada (carnet + PIN). Només carnets generats pel programa: codi llarg i imprevisible. No per a administradors.
+  const pinNou = h('input', { type: 'password', inputmode: 'numeric', maxlength: 8, autocomplete: 'new-password', placeholder: '4 a 8 xifres', 'aria-label': 'PIN de ' + u.username });
+  const generat = h('div');
+  const genera = h('button', { type: 'button', class: 'primary' }, u.te_carnet ? 'Generar carnet nou' : 'Generar carnet');
+  genera.addEventListener('click', () => guard(genera, out, async () => {
+    if (u.te_carnet && !confirm(`Generar un carnet nou per a ${u.username}? L'actual deixarà de servir.`)) return;
+    const r = await api(`/usuaris/${u.id}/carnet/generar`, { method: 'POST', body: { pin: pinNou.value } });
+    pinNou.value = '';
+    generat.replaceChildren(msg('ok', "Carnet generat. Imprimeix-lo o grava'l ara: el codi no es tornarà a mostrar. Dona el PIN al treballador en persona."),
+      printableStaffCard(u, r.codi), cardOutputs(r.codi, null));
+    toast('Carnet generat');
   }));
-  carnet.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); posaCarnet.click(); } });
   const treuCarnet = u.te_carnet ? h('button', { type: 'button', class: 'danger' }, 'Retirar carnet') : null;
   if (treuCarnet) treuCarnet.addEventListener('click', () => guard(treuCarnet, out, async () => {
     await api(`/usuaris/${u.id}/carnet`, { method: 'DELETE' });
@@ -60,8 +70,9 @@ function userCard(u) {
   }));
   const blocCarnet = u.role === 'admin'
     ? h('p', { class: 'muted' }, "Els administradors entren sempre amb contrasenya: no poden tenir carnet d'entrada.")
-    : h('div', null, h('div', { class: 'row' }, field('Carnet', carnet), h('div', { class: 'actions' }, posaCarnet, treuCarnet)),
-      u.te_carnet ? h('p', { class: 'muted' }, 'Aquest usuari ja té carnet. El codi no es pot veure: només es desa una empremta.') : null);
+    : h('div', null,
+      h('p', { class: 'muted' }, u.te_carnet ? "Aquest usuari ja té carnet. Per canviar-lo o posar-li un PIN nou, genera'n un de nou." : 'Entrarà amb el carnet més un PIN que només sap ell. Un carnet perdut no obre cap sessió sense el PIN.'),
+      h('div', { class: 'row' }, field('PIN (4 a 8 xifres, no seqüències)', pinNou), h('div', { class: 'actions' }, genera, treuCarnet)), generat);
   return h('div', { class: 'card' },
     h('div', null, h('strong', null, u.username), ' ', h('span', { class: 'pill' }, ROL_NOMS[u.role] || u.role), ' ', h('span', { class: 'pill ' + (u.active ? 'ok' : 'warn') }, u.active ? 'actiu' : 'desactivat')),
     h('div', { class: 'row' }, field('Rol', rol), field('Contrasenya nova', pw)),
@@ -88,5 +99,22 @@ VIEWS.compte = async () => {
       });
     } }, h('h3', null, 'Canviar la contrasenya'),
     field('Contrasenya actual', act), field('Contrasenya nova (mínim 12 caràcters)', nova), field('Repeteix la contrasenya nova', rep),
-    h('div', { class: 'actions' }, btn), out));
+    h('div', { class: 'actions' }, btn), out),
+    S.me.te_carnet ? pinForm() : null);
 };
+
+// El treballador canvia el seu propi PIN de carnet (cal el PIN actual).
+function pinForm() {
+  const act = h('input', { type: 'password', inputmode: 'numeric', maxlength: 8, autocomplete: 'off' });
+  const nou = h('input', { type: 'password', inputmode: 'numeric', maxlength: 8, autocomplete: 'new-password' });
+  const out = h('div');
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Canviar el PIN');
+  return h('form', { class: 'card', onsubmit: (e) => {
+    e.preventDefault();
+    guard(btn, out, async () => {
+      await api('/auth/carnet-pin', { method: 'POST', body: { actual: act.value, nova: nou.value } });
+      act.value = nou.value = '';
+      out.replaceChildren(msg('ok', 'PIN canviat.'));
+    });
+  } }, h('h3', null, 'PIN del carnet'), h('div', { class: 'row' }, field('PIN actual', act), field('PIN nou (4 a 8 xifres)', nou)), h('div', { class: 'actions' }, btn), out);
+}

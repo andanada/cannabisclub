@@ -342,3 +342,14 @@ ul.resum li.ok .marca { background: var(--brand-soft); color: var(--brand); }
 .auth-carnet .separador { margin: 14px 0 0; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; }
 .auth-carnet .separador::before, .auth-carnet .separador::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 @media (max-width: 880px) { .auth-carnet { margin-top: 8px; } }
+
+/* Entrada amb carnet + PIN: teclat numèric tàctil */
+.auth-carnet .carnet-pas { grid-column: 1 / -1; }
+.auth-carnet .carnet-pas[hidden] { display: none; }
+.auth-carnet .carnet-pas p { margin: 8px 0 0; font-size: .85rem; }
+.auth-carnet .carnet-hola { margin: 12px 0 8px; font-weight: 600; font-size: .95rem; }
+.auth-carnet .pin-input { font-size: 1.5rem; letter-spacing: .5em; padding-left: .5em; }
+.teclat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.teclat button { min-height: 52px; font-size: 1.25rem; font-weight: 600; width: 100%; }
+@media (pointer: fine) { .teclat button { min-height: 44px; font-size: 1.1rem; } }
+.auth-carnet .carnet-pas .actions button { width: auto; }

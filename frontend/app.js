@@ -16,22 +16,47 @@ function renderLogin() {
   const code = h('input', { inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 6, required: true });
   const codeField = field("Codi de l'app d'autenticació", code);
   // Si el servidor no exigeix el segon factor (servidor de proves), el camp no es mostra.
+  // Entrada amb carnet + PIN: primer es passa el carnet pel lector (el lector «escriu» el codi i prem Intro) i després es demana el PIN.
   const carnet = h('input', { class: 'card-input', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', placeholder: 'Passa el carnet pel lector', 'aria-label': 'Carnet' });
+  const pinInput = h('input', { class: 'card-input pin-input', type: 'password', inputmode: 'numeric', autocomplete: 'off', maxlength: 8, placeholder: 'PIN', 'aria-label': 'PIN' });
   const carnetOut = h('div');
-  const carnetBtn = h('button', { class: 'primary', type: 'submit' }, 'Entrar amb carnet');
+  const pasCarnet = h('div', { class: 'carnet-pas' }, carnet, h('p', { class: 'muted' }, 'El lector escriu el codi tot sol i continua amb el PIN.'));
+  const teclat = h('div', { class: 'teclat', role: 'group', 'aria-label': 'Teclat numèric' },
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '↵'].map((k) => {
+      const b = h('button', { type: 'button', class: k === '↵' ? 'primary' : '', 'aria-label': k === '⌫' ? 'Esborrar' : k === '↵' ? 'Entrar' : k }, k);
+      b.addEventListener('click', () => {
+        if (k === '⌫') pinInput.value = pinInput.value.slice(0, -1);
+        else if (k === '↵') carnetBox.requestSubmit();
+        else if (pinInput.value.length < 8) pinInput.value += k;
+        pinInput.focus();
+      });
+      return b;
+    }));
+  const enrere = h('button', { type: 'button', class: 'small' }, 'Altre carnet');
+  const pasPin = h('div', { class: 'carnet-pas', hidden: true }, h('p', { class: 'carnet-hola' }, 'Carnet llegit. Escriu el teu PIN:'), pinInput, teclat, h('div', { class: 'actions' }, enrere));
+  let codiLlegit = '';
+  const tornaAlCarnet = () => { codiLlegit = ''; pinInput.value = ''; pasPin.hidden = true; pasCarnet.hidden = false; carnet.value = ''; carnet.focus(); };
+  enrere.addEventListener('click', tornaAlCarnet);
   const carnetBox = h('form', { class: 'auth-carnet', hidden: true, onsubmit: (e) => {
     e.preventDefault();
-    if (!carnet.value.trim()) return;
-    guard(carnetBtn, carnetOut, async () => {
+    if (!codiLlegit) {
+      if (!carnet.value.trim()) return;
+      codiLlegit = carnet.value.trim();
+      carnet.value = '';
+      pasCarnet.hidden = true; pasPin.hidden = false; pinInput.focus();
+      return;
+    }
+    if (pinInput.value.length < 4) { carnetOut.replaceChildren(msg('err', 'Escriu el PIN (de 4 a 8 xifres)')); return; }
+    guard({}, carnetOut, async () => {
       try {
-        const r = await api('/auth/login-carnet', { method: 'POST', noAuthRedirect: true, body: { codi: carnet.value.trim() } });
+        const r = await api('/auth/login-carnet', { method: 'POST', noAuthRedirect: true, body: { codi: codiLlegit, pin: pinInput.value } });
         S.token = r.token;
         sessionStorage.setItem('t', r.token);
         await boot();
-      } finally { carnet.value = ''; carnet.focus(); }
+      } catch (err) { tornaAlCarnet(); throw err; }
     });
-  } }, h('div', { class: 'carnet-icona', 'aria-hidden': 'true' }, '▦'), h('div', { class: 'carnet-text' }, h('strong', null, 'Entra amb el carnet'), h('span', { class: 'muted' }, 'Passa el carnet pel lector: entrarà tot sol.')),
-  carnet, h('div', { class: 'actions' }, carnetBtn), carnetOut, h('div', { class: 'separador' }, h('span', null, 'o amb usuari i contrasenya')));
+  } }, h('div', { class: 'carnet-icona', 'aria-hidden': 'true' }, '▦'), h('div', { class: 'carnet-text' }, h('strong', null, 'Entra amb el carnet'), h('span', { class: 'muted' }, 'Carnet més PIN: ràpid i segur.')),
+  pasCarnet, pasPin, carnetOut, h('div', { class: 'separador' }, h('span', null, 'o amb usuari i contrasenya')));
   // Si el servidor no exigeix el segon factor (servidor de proves), el camp no es mostra; si permet el carnet, es mostra i s'enfoca.
   fetch('/auth/opcions').then((r) => r.json()).then((o) => {
     if (!o.totp) { codeField.hidden = true; code.required = false; }

@@ -333,6 +333,7 @@ class UserCard(Base):
     __tablename__ = "user_cards"
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     code_idx: Mapped[str] = mapped_column(String(64), unique=True)
+    pin_hash: Mapped[str | None] = mapped_column(Text, nullable=True)  # Argon2 del PIN amb pebre (HMAC): sense la clau no es pot atacar fora de línia
     creat: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     creat_per: Mapped[int] = mapped_column(ForeignKey("users.id"))
 

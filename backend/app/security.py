@@ -24,6 +24,11 @@ def dummy_hash() -> str:
     return _dummy
 
 
+def hash_secret(text: str) -> str:
+    """Hash Argon2 d'un valor curt (p. ex. un PIN ja barrejat amb pebre). No aplica la longitud mínima de les contrasenyes."""
+    return _ph.hash(text)
+
+
 def verify_password(password: str, hashed: str) -> bool:
     try:
         return _ph.verify(hashed, password)

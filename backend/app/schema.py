@@ -27,7 +27,8 @@ def missing_indexes(engine) -> list[str]:
 
 # Columnes afegides després de crear la taula. create_all no les afegeix a taules que ja existeixen, així que
 # s'afegeixen amb ALTER TABLE (sempre amb valor per defecte: les files existents continuen valent).
-COLUMNES_NOVES = {"products": [("es_genetic", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"})]}
+COLUMNES_NOVES = {"products": [("es_genetic", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"})],
+                  "user_cards": [("pin_hash", {"default": "TEXT"})]}
 
 
 def missing_columns(engine) -> list[str]:
