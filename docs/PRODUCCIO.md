@@ -16,6 +16,18 @@ Aquest document és per posar el programa en servei i mantenir-lo. Les còpies d
 
 Per defecte l'inici de sessió exigeix usuari, contrasenya i codi de l'app d'autenticació. Només en un **servidor de proves** es pot desactivar amb `CLUB_TOTP=0` al fitxer d'entorn del servei (la pantalla d'entrada amaga el camp). **No el deixis així amb dades reals**: sense el segon factor, la contrasenya és l'única protecció. Per tornar-lo a activar, treu la línia i reinicia el servei.
 
+### Entrada amb carnet RFID + PIN
+
+Els treballadors (no els administradors) poden entrar passant un carnet pel lector i escrivint un PIN, per canviar de lloc de feina sense escriure l'usuari. Es configura a **Configuració → Usuaris → Carnet d'entrada** (només administradors).
+
+- **Dues capes**: el carnet («alguna cosa que tens») i el PIN de 4 a 8 xifres («alguna cosa que saps»). Es rebutgen PIN fàcils (xifres repetides, seqüències). El PIN es desa com Argon2 d'un HMAC amb `CLUB_INDEX_KEY`: sense aquesta clau no es pot atacar fora de línia.
+- **Només carnets generats pel programa** (codi llarg i imprevisible amb dígit de control). No s'accepta l'UID d'un xip qualsevol: és curt i es pot copiar o endevinar. El codi es mostra una sola vegada en generar-lo; s'imprimeix amb codi de barres o es grava en una etiqueta NFC.
+- **Bloqueig**: 5 PIN erronis en 15 minuts bloquegen el carnet d'aquell usuari (la contrasenya segueix funcionant); hi ha un límit global per a carnets desconeguts. El bloqueig i cada entrada queden a l'auditoria.
+- **Carnet perdut**: retira'l a Usuaris → Retirar carnet; deixa de servir a l'acte.
+- **Només des de la xarxa del club (recomanat)**: `CLUB_CARNET_XARXES=192.168.1.0/24` (llista de CIDR separats per comes). Darrere nginx cal també `CLUB_TRUST_PROXY=1`; només es fa cas de l'última entrada de `X-Forwarded-For`, la que afegeix el proxy.
+- **Apagar-ho**: `CLUB_LOGIN_CARNET=0`.
+- Un carnet RFID segueix sent copiable: per això el PIN és obligatori i els administradors no hi entren mai.
+
 ### Primer arrencada
 
 Una base de dades sense cap local mostra a l'administrador un formulari per crear-ne el primer. Un usuari que no és administrador i no té cap local assignat veu un missatge que ho explica.
