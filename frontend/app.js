@@ -35,8 +35,8 @@ function renderLogin() {
   const trets = ['Socis, quotes i carnets', 'Estoc, magatzems i inventaris', 'Caixa, informes i fitxatge'];
   $('#app').replaceChildren(h('div', { class: 'auth' },
     h('aside', { class: 'auth-brand' },
-      h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, 'C'),
-      h('h1', null, 'Gestió del club'),
+      h('div', { class: 'brand-mark', 'aria-hidden': 'true' }, 'M'),
+      h('h1', null, 'Més que un Club'),
       h('p', null, 'Tot el club en un sol lloc: ràpid, segur i fàcil de fer servir.'),
       h('ul', null, trets.map((t) => h('li', null, t)))),
     h('main', { class: 'auth-panel' }, h('div', { class: 'auth-lang' }, langSelect()), form)));
@@ -85,11 +85,11 @@ function renderShell() {
       return [main, grup];
     }));
   const side = h('aside', { class: 'side' }, h('div', { class: 'side-in' },
-    h('div', { class: 'brand' }, h('div', { class: 'logo', 'aria-hidden': 'true' }, 'C'), h('div', null, 'Gestió del club', h('small', null, 'Panell de treball'))),
+    h('div', { class: 'brand' }, h('div', { class: 'logo', 'aria-hidden': 'true' }, 'M'), h('div', null, 'Més que un Club', h('small', null, 'Gestió del club'))),
     nav,
     h('div', { class: 'who' }, h('div', null, h('strong', null, S.me.username), ' · ', S.me.role), localSelect(), langSelect(),
       h('button', { class: 'small', onclick: logout }, 'Sortir'))));
-  const topbar = h('div', { class: 'topbar' }, h('strong', null, 'Gestió del club'),
+  const topbar = h('div', { class: 'topbar' }, h('strong', null, 'Més que un Club'),
     h('div', { class: 'row' }, localSelect(), langSelect(), h('button', { class: 'small', onclick: logout }, 'Sortir')));
   $('#app').replaceChildren(h('div', { class: 'shell' }, side, h('div', null, topbar, h('main', { id: 'main', class: 'main' }))));
 }

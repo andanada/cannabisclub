@@ -1,4 +1,6 @@
-# club-gestio
+# Més que un Club
+
+(Nom tècnic del projecte: `club-gestio`.)
 
 Programa propi de gestió d'un club (socis, estoc, caixa, personal, multi-local). Els requisits són a `REQUISITS.md`.
 Backend FastAPI + SQLAlchemy (PostgreSQL en producció, SQLite per a proves) i una PWA sense dependències a `frontend/`.
