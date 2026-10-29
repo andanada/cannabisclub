@@ -37,10 +37,10 @@ Una pantalla = una àrea de treball, i dins de cada àrea cada **subpantalla fa 
 
 - **Dispensar**: identificar el soci → producte i quantitat → cobrar.
 - **Socis**: Cercar · Llista · Alta de soci.
-- **Estoc**: Existències · Moviments · Productes · Historial.
+- **Estoc**: Existències · Moviments · Productes · Descomptes · Línies de preu · Regles · Inventari · Magatzems · Contenidors · Tipus de contenidor · Historial. A la barra lateral es desplega amb una entrada per cada subpantalla.
 - **Caixa**: Estat · Despesa · Apunts · Tancament.
-- **Fitxatge** · **Informes** · **Compte**.
-- **Configuració** (administrador): Local i límits · Quotes · Usuaris · **Bàscules** · **Tauletes de signatura** · **Carnets i lectors** · Seguretat.
+- **Fitxatge** · **Informes** (Vendes · Dispensacions · Evolució del club · Demografia · Caixa · Estoc valorat · Assistència · Hores) · **Compte**.
+- **Configuració** (administrador; l'encarregat hi veu Carnets i lectors i Diagnòstic): Local i límits · Quotes · Usuaris · **Bàscules** · **Tauletes de signatura** · **Carnets i lectors** · Diagnòstic · Seguretat.
 
 A l'escriptori hi ha una barra lateral; al mòbil i a la tauleta, pestanyes a baix. Mode fosc automàtic.
 
@@ -61,7 +61,14 @@ Producció i manteniment: `docs/PRODUCCIO.md`.
 - **Productes i estoc**: catàleg amb preu per gram (es pot editar; el canvi només afecta les dispensacions noves), desactivar/reactivar productes (cal estoc zero), entrades, merma, ajust d'inventari, dispensacions amb límit diari i mensual per soci i tolerància de bàscula.
 - **Caixa**: obertura i tancament amb quadrament i diferència, cobraments, despeses, historial d'apunts i correccions.
 - **Personal**: fitxatge d'entrada, sortida i pauses; hores treballades.
-- **Informes** (amb exportació a CSV, que queda a l'auditoria): caixa, vendes per producte i categoria, estoc valorat, assistència de socis i hores del personal.
+- **Informes** (amb exportació a CSV, que queda a l'auditoria): caixa, vendes per producte i categoria, dispensacions (amb miniatura, indicador de producte genètic, cercador i filtre per empleat), evolució del club (altes, baixes, quotes noves i renovacions per mes), demografia (franges d'edat, sense dades personals), estoc valorat, assistència de socis i hores del personal. A la fitxa del soci, historial de consum.
+- **Descomptes**: percentatge o import per gram, per a tot, una categoria o un producte, amb dates de vigència; l'import original i el descomptat queden registrats a la dispensació.
+- **Línies de preu**: llistes de preus per gram alternatives (p. ex. «VIP») que s'assignen a cada soci; un producte sense preu a la línia es cobra al preu base.
+- **Regles**: límit de grams per soci i període (dia, setmana o mes) per a tot el catàleg, una categoria o un producte; es comproven en dispensar i les correccions alliberen gramatge.
+- **Inventari**: recompte guiat producte a producte; en tancar, l'estoc s'ajusta a la quantitat comptada en una sola transacció.
+- **Magatzems**: el principal és on es dispensa; els altres guarden estoc que es mou amb traspassos atòmics.
+- **Contenidors**: tipus amb tara i contenidors amb codi, producte i pes brut/net.
+- **Idiomes**: català, castellà i anglès (selector a la barra lateral).
 - **Administració**: locals, usuaris (rol, locals amb accés, activar/desactivar, contrasenya nova, reinici del segon factor TOTP), límits per soci, canvi de la pròpia contrasenya (pestanya «Compte»), verificació de la cadena d'auditoria.
 - **Seguretat**: dades personals xifrades camp a camp, contrasenyes Argon2id + TOTP, bloqueig temporal després de 5 intents fallits en 15 minuts (també en canviar la contrasenya), límits de mida a les dades de login, auditoria serialitzada a PostgreSQL perquè la cadena de hash no es bifurqui, auditoria encadenada per hash i només d'afegir, registre d'accessos a dades de socis, taules d'apunts només d'afegir (triggers a PostgreSQL) i rol de base de dades sense privilegis per a l'aplicació. Capçaleres: CSP estricta (`script-src 'self'`), `no-store` a l'API, `X-Frame-Options: DENY`. El token de sessió viu a `sessionStorage` i el service worker només desa l'estructura de l'app, mai respostes de l'API.
 
@@ -80,7 +87,7 @@ Cada versió pot afegir taules noves. **Després d'actualitzar el codi i abans d
 
     cd backend && CLUB_DATABASE_URL=<url del propietari> ../.venv/bin/python -m app.cli actualitzar-bd
 
-Crea les taules i els triggers que falten i dona al rol `club_app` els permisos justos. No toca dades ni contrasenyes i es pot repetir. Si te n'oblides, l'aplicació no arrenca i ho diu clarament («Falten taules a la base de dades…») en comptes de donar errors a mig servei.
+Crea les taules, les columnes noves (amb valor per defecte), els índexs i els triggers que falten i dona al rol `club_app` els permisos justos. No toca dades ni contrasenyes i es pot repetir. Si te n'oblides, l'aplicació no arrenca i ho diu clarament («Falten taules a la base de dades…») en comptes de donar errors a mig servei.
 
 Si algú bloqueja un usuari a posta amb intents fallits (és temporal, 15 minuts), es pot treure al moment amb l'usuari propietari:
 
@@ -105,7 +112,7 @@ Sense Docker, a la màquina de desenvolupament es pot fer servir un PostgreSQL i
     .venv/bin/python -c "import pgserver; s = pgserver.get_server('/tmp/pgdata', cleanup_mode=None); print(s.get_uri())"
     # la URI que mostra (postgresql://postgres:@127.0.0.1:PORT/postgres) serveix canviant el prefix per postgresql+psycopg://
 
-Amb PostgreSQL les proves es passen totes (cap saltada).
+Amb PostgreSQL les proves es passen totes (228 de 228, cap saltada).
 
 ## Bàscula OHAUS
 

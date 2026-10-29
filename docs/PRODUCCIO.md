@@ -12,6 +12,14 @@ Aquest document és per posar el programa en servei i mantenir-lo. Les còpies d
 - [ ] Còpies xifrades programades (`scripts/systemd/club-backup.timer`) i **una restauració provada**.
 - [ ] No obris el port 8099 a cap interfície pública: només `127.0.0.1` darrere de Tailscale.
 
+### Segon factor (TOTP)
+
+Per defecte l'inici de sessió exigeix usuari, contrasenya i codi de l'app d'autenticació. Només en un **servidor de proves** es pot desactivar amb `CLUB_TOTP=0` al fitxer d'entorn del servei (la pantalla d'entrada amaga el camp). **No el deixis així amb dades reals**: sense el segon factor, la contrasenya és l'única protecció. Per tornar-lo a activar, treu la línia i reinicia el servei.
+
+### Primer arrencada
+
+Una base de dades sense cap local mostra a l'administrador un formulari per crear-ne el primer. Un usuari que no és administrador i no té cap local assignat veu un missatge que ho explica.
+
 ## 2. Monitoratge
 
 - `GET /salut` (sense autenticació): `200 {"ok": true}` si la base de dades respon, `503` si no. Fes-lo servir des d'un `cron` o del teu sistema de monitoratge.
@@ -22,9 +30,9 @@ Aquest document és per posar el programa en servei i mantenir-lo. Les còpies d
 
 1. Còpia de seguretat de la base de dades.
 2. Actualitza el codi i `pip install -r requirements.txt`.
-3. Amb l'usuari propietari: `python -m app.cli actualitzar-bd` (crea taules i **índexs** nous i dona permisos; es pot repetir).
-4. Reinicia el servei. Si t'has oblidat del pas 3, el servei no arrenca i diu què falta.
-5. Les pestanyes obertes agafen la versió nova la propera vegada que es recarreguen (el service worker renova l'estructura).
+3. Amb l'usuari propietari: `python -m app.cli actualitzar-bd` (crea taules, **columnes** noves amb valor per defecte i **índexs**, i dona permisos; es pot repetir).
+4. Reinicia el servei. Si t'has oblidat del pas 3, el servei no arrenca i diu què falta (taules o columnes).
+5. Les pestanyes obertes agafen la versió nova la propera vegada que es recarreguen: els fitxers del front es serveixen amb `Cache-Control: no-cache` (el navegador revalida sempre) i el service worker s'activa de seguida.
 
 ## 4. Incidències habituals
 
