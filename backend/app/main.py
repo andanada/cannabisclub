@@ -13,9 +13,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from . import ajustos, cash, contenidors, descomptes, dispositius, informes, inventaris, linies_preu, personal, quotes, regles, schema, service, socis, stock, usuaris
+from . import ajustos, cash, contenidors, descomptes, dispositius, informes, inventaris, linies_preu, magatzems, personal, quotes, regles, schema, service, socis, stock, usuaris
 from .db import make_engine, make_session_factory
-from .models import CashEntry, Container, ContainerType, DeviceProfile, Discount, Local, InventorySession, Member, PriceLine, Product, Regla, StockMovement, User, UserLocal
+from .models import CashEntry, Container, ContainerType, DeviceProfile, Discount, Local, InventorySession, Member, PriceLine, Product, Regla, StockMovement, User, UserLocal, Warehouse
 
 CAN_CREATE_MEMBER = {"admin", "encarregat"}
 log = logging.getLogger("club")
@@ -74,7 +74,7 @@ def create_app(session_factory=None) -> FastAPI:
         resp.headers["Referrer-Policy"] = "no-referrer"
         if not request.url.path.startswith("/static-"):
             if request.url.path not in ("/", "/sw.js", "/i18n-es.js", "/i18n-en.js", "/i18n.js", "/util.js", "/bascula.js", "/app.js", "/views-dispensar.js", "/views-gestio.js",
-                                        "/views-socis.js", "/views-descomptes.js", "/views-regles.js", "/views-linies-preu.js", "/views-contenidors.js", "/views-inventari.js", "/views-informes.js", "/views-historial.js", "/views-config.js", "/diagnostic.js", "/views-dispositius.js", "/views-diagnostic.js", "/views-carnets.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
+                                        "/views-socis.js", "/views-descomptes.js", "/views-regles.js", "/views-linies-preu.js", "/views-contenidors.js", "/views-magatzems.js", "/views-inventari.js", "/views-informes.js", "/views-historial.js", "/views-config.js", "/diagnostic.js", "/views-dispositius.js", "/views-diagnostic.js", "/views-carnets.js", "/views-admin.js", "/style.css", "/manifest.webmanifest", "/icon.svg"):
                 resp.headers["Cache-Control"] = "no-store"
             else:
                 resp.headers["Cache-Control"] = "no-cache"  # el navegador revalida sempre: mai barreja fitxers vells i nous
@@ -183,6 +183,7 @@ def create_app(session_factory=None) -> FastAPI:
         product_id: int
         grams: Decimal = Field(gt=0, max_digits=9, decimal_places=3)
         nota: str | None = Field(default=None, max_length=300)
+        magatzem_id: int | None = None  # buit = magatzem principal
 
     class DispensacioIn(BaseModel):
         member_id: int
@@ -272,7 +273,7 @@ def create_app(session_factory=None) -> FastAPI:
         if user.role not in CAN_CREATE_MEMBER:
             raise HTTPException(403, "El teu rol no pot registrar entrades")
         product_or_404(s, user, body.product_id)
-        m = run(stock.receive, s, user, body.product_id, body.grams, body.nota)
+        m = run(stock.receive, s, user, body.product_id, body.grams, body.nota, body.magatzem_id)
         return {"id": m.id}
 
     @app.post("/dispensacions", status_code=201)
@@ -672,6 +673,54 @@ def create_app(session_factory=None) -> FastAPI:
             raise HTTPException(404, "Descompte inexistent")
         check_local(s, user, d.local_id)
         run(descomptes.update, s, user, d, body.actiu, body.nom, body.valor, body.inici, body.fi, bool({"inici", "fi"} & body.model_fields_set))
+        return {"ok": True}
+
+    class MagatzemIn(BaseModel):
+        nom: str = Field(max_length=60)
+
+    class MagatzemUpdateIn(BaseModel):
+        nom: str | None = Field(default=None, max_length=60)
+        actiu: bool | None = None
+
+    class TraspasIn(BaseModel):
+        product_id: int
+        de: int | None = None  # buit = magatzem principal
+        a: int | None = None
+        grams: Decimal = Field(gt=0, max_digits=9, decimal_places=3)
+
+    @app.get("/locals/{local_id}/magatzems")
+    def llista_magatzems(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return magatzems.llista(s, local_id)
+
+    @app.post("/locals/{local_id}/magatzems", status_code=201)
+    def alta_magatzem(local_id: int, body: MagatzemIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return {"id": run(magatzems.create, s, user, local_id, body.nom).id}
+
+    @app.put("/magatzems/{magatzem_id}")
+    def edita_magatzem(magatzem_id: int, body: MagatzemUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        w = s.get(Warehouse, magatzem_id)
+        if not w:
+            raise HTTPException(404, "Magatzem inexistent")
+        check_local(s, user, w.local_id)
+        run(magatzems.update, s, user, w, body.nom, body.actiu)
+        return {"ok": True}
+
+    @app.get("/locals/{local_id}/magatzems/estoc")
+    def estoc_per_magatzem(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return magatzems.estoc(s, local_id)
+
+    @app.post("/moviments/traspas", status_code=201)
+    def traspas_estoc(body: TraspasIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        p = product_or_404(s, user, body.product_id)
+        run(magatzems.transfer, s, user, p, body.de, body.a, body.grams)
         return {"ok": True}
 
     class TipusContenidorIn(BaseModel):

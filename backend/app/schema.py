@@ -5,7 +5,7 @@ from sqlalchemy import text
 from .db import Base
 from . import models  # noqa: F401  (registra les taules)
 
-APPEND_ONLY = ["stock_movements", "cash_entries", "time_events", "checkins", "audit_log", "signatures", "quotes", "member_photos", "movement_discounts"]
+APPEND_ONLY = ["stock_movements", "cash_entries", "time_events", "checkins", "audit_log", "signatures", "quotes", "member_photos", "movement_discounts", "movement_warehouses"]
 
 FUNCTION = """
 CREATE OR REPLACE FUNCTION club_forbid_change() RETURNS trigger AS $$

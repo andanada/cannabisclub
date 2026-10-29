@@ -327,6 +327,30 @@ class InventoryCount(Base):
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class Warehouse(Base):
+    """Magatzem addicional d'un local. El magatzem «principal» és implícit: és on es dispensa."""
+    __tablename__ = "warehouses"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class MovementWarehouse(Base):
+    """Magatzem addicional d'un moviment d'estoc. Un moviment sense fila aquí és del magatzem principal.
+    Només d'afegir: així `stock_movements` no canvia i les bases de dades existents continuen valent."""
+    __tablename__ = "movement_warehouses"
+    movement_id: Mapped[int] = mapped_column(ForeignKey("stock_movements.id"), primary_key=True)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
+
+
+@event.listens_for(MovementWarehouse, "before_update")
+@event.listens_for(MovementWarehouse, "before_delete")
+def _immutable_movement_warehouse(mapper, connection, target):
+    raise ImmutableError("El magatzem d'un moviment no es pot modificar ni esborrar: fes un traspàs")
+
+
 class ContainerType(Base):
     """Tipus de contenidor (pot, bossa, caixa…) amb la seva tara en mg."""
     __tablename__ = "container_types"
@@ -427,6 +451,8 @@ Index("ix_discounts_local", Discount.local_id)
 Index("ix_dispensing_rules_local", Regla.local_id)
 Index("ix_price_lines_local", PriceLine.local_id)
 Index("ix_container_types_local", ContainerType.local_id)
+Index("ix_warehouses_local", Warehouse.local_id)
+Index("ix_movement_warehouses_wh", MovementWarehouse.warehouse_id)
 Index("ix_containers_local", Container.local_id)
 Index("ix_member_price_lines_line", MemberPriceLine.price_line_id)
 Index("ix_inventory_sessions_local", InventorySession.local_id, InventorySession.estat)

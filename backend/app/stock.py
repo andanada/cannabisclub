@@ -2,11 +2,11 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from . import service
-from .models import CashEntry, Local, Member, Product, StockMovement, User
+from .models import CashEntry, Local, Member, MovementWarehouse, Product, StockMovement, User
 
 TZ = ZoneInfo("Europe/Madrid")
 
@@ -18,17 +18,39 @@ def grams_to_mg(g: Decimal) -> int:
     return int(mg)
 
 
+def _del_principal():
+    """Condició SQL: el moviment és del magatzem principal (no té magatzem addicional assignat)."""
+    return ~exists().where(MovementWarehouse.movement_id == StockMovement.id)
+
+
 def stock_mg(db: Session, product_id: int) -> int:
+    """Estoc del magatzem principal, que és el que es pot dispensar."""
     return db.scalar(select(func.coalesce(func.sum(StockMovement.delta_mg), 0))
-                     .where(StockMovement.product_id == product_id))
+                     .where(StockMovement.product_id == product_id, _del_principal()))
 
 
-def stock_by_product(db: Session, product_ids) -> dict[int, int]:
-    """Estoc (mg) de molts productes amb UNA sola consulta (evita una consulta per producte)."""
+def stock_total_mg(db: Session, product_id: int) -> int:
+    """Estoc a tots els magatzems del local."""
+    return db.scalar(select(func.coalesce(func.sum(StockMovement.delta_mg), 0)).where(StockMovement.product_id == product_id))
+
+
+def stock_in_mg(db: Session, product_id: int, warehouse_id: int | None) -> int:
+    if warehouse_id is None:
+        return stock_mg(db, product_id)
+    return db.scalar(select(func.coalesce(func.sum(StockMovement.delta_mg), 0))
+                     .join(MovementWarehouse, MovementWarehouse.movement_id == StockMovement.id)
+                     .where(StockMovement.product_id == product_id, MovementWarehouse.warehouse_id == warehouse_id))
+
+
+def stock_by_product(db: Session, product_ids, total: bool = False) -> dict[int, int]:
+    """Estoc (mg) de molts productes amb UNA sola consulta (evita una consulta per producte).
+    Per defecte, el del magatzem principal; amb total=True, el de tots els magatzems."""
     ids = list(product_ids)
     if not ids:
         return {}
     q = select(StockMovement.product_id, func.coalesce(func.sum(StockMovement.delta_mg), 0)).where(StockMovement.product_id.in_(ids)).group_by(StockMovement.product_id)
+    if not total:
+        q = q.where(_del_principal())
     out = {i: 0 for i in ids}
     out.update({p: int(mg) for p, mg in db.execute(q)})
     return out
@@ -119,7 +141,7 @@ def update_product(db: Session, actor: User, product_id: int, nom: str | None = 
             raise ValueError("El preu no pot ser negatiu")
         canvis["preu_cent_per_g"] = [p.preu_cent_per_g, preu_cent_per_g]
     if actiu is not None and actiu != p.actiu:
-        if not actiu and stock_mg(db, p.id) != 0:
+        if not actiu and stock_total_mg(db, p.id) != 0:
             raise ValueError("Per desactivar el producte l'estoc ha de ser zero: registra una merma o un ajust d'inventari")
         canvis["actiu"] = [p.actiu, actiu]
     if not canvis:
@@ -131,12 +153,16 @@ def update_product(db: Session, actor: User, product_id: int, nom: str | None = 
     return p
 
 
-def receive(db: Session, actor: User, product_id: int, grams: Decimal, nota: str | None) -> StockMovement:
+def receive(db: Session, actor: User, product_id: int, grams: Decimal, nota: str | None, warehouse_id: int | None = None) -> StockMovement:
     p = _lock_product(db, product_id)
+    from . import magatzems
+    magatzems.check_active(db, p.local_id, warehouse_id)
     m = StockMovement(local_id=p.local_id, product_id=p.id, tipus="entrada",
                       delta_mg=grams_to_mg(grams), user_id=actor.id, nota=nota)
     db.add(m)
     db.flush()
+    if warehouse_id is not None:
+        db.add(MovementWarehouse(movement_id=m.id, warehouse_id=warehouse_id))
     service.audit_append(db, {"accio": "entrada_estoc", "moviment": m.id, "producte": p.id, "mg": m.delta_mg, "per": actor.id})
     db.commit()
     return m
