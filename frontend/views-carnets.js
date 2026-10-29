@@ -62,7 +62,7 @@ function normalizeScan(text, cfg) {
 
 function printableCard(member, codi, photoSrc) {
   const nom = h('div', { class: 'nom' }, member.nom);
-  return h('div', { class: 'print-area' }, h('div', { class: 'carnet-print' },
+  return h('div', { class: 'print-area' }, h('div', { class: 'carnet-print' }, h('img', { class: 'carnet-logo', src: '/logo-petit.png', alt: '' }),
     photoSrc ? h('img', { src: photoSrc, alt: '' }) : h('div'),
     h('div', null, nom, h('div', null, 'Soci núm. ' + member.id), h('div', null, 'Local ' + (localActual() ? localActual().nom : ''))),
     barcodeSvg(codi), h('div', { class: 'codi-text' }, codi)));

@@ -353,3 +353,14 @@ ul.resum li.ok .marca { background: var(--brand-soft); color: var(--brand); }
 .teclat button { min-height: 52px; font-size: 1.25rem; font-weight: 600; width: 100%; }
 @media (pointer: fine) { .teclat button { min-height: 44px; font-size: 1.1rem; } }
 .auth-carnet .carnet-pas .actions button { width: auto; }
+
+/* Logotip */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.auth-logo { width: min(80%, 340px); height: auto; margin: 0 0 8px -6px; filter: drop-shadow(0 12px 28px rgba(0, 0, 0, .35)); }
+.brand .brand-logo { width: 42px; height: auto; flex: none; margin: -2px 0; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35)); }
+.topbar-marca { display: flex; align-items: center; gap: 8px; }
+.topbar-marca img { height: 30px; width: auto; }
+.carnet-print { position: relative; }
+.carnet-print img.carnet-logo { position: absolute; top: 3mm; right: 3mm; width: auto; height: 12mm; border-radius: 0; object-fit: contain; }
+.carnet-print > div:nth-child(3) { padding-right: 13mm; }
+@media (max-width: 880px) { .auth-logo { width: 150px; margin: 0; } }

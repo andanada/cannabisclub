@@ -13,7 +13,7 @@ async function usersCard() {
 
 // Carnet imprimible d'un treballador: nom, codi de barres i el codi en text.
 function printableStaffCard(u, codi) {
-  return h('div', { class: 'print-area' }, h('div', { class: 'carnet-print' }, h('div'),
+  return h('div', { class: 'print-area' }, h('div', { class: 'carnet-print' }, h('img', { class: 'carnet-logo', src: '/logo-petit.png', alt: '' }), h('div'),
     h('div', null, h('div', { class: 'nom' }, u.username), h('div', null, 'Treballador'), h('div', null, 'Més que un Club')),
     barcodeSvg(codi), h('div', { class: 'codi-text' }, codi)));
 }
