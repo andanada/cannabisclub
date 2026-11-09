@@ -82,8 +82,13 @@ def demographics_csv(r: dict) -> str:
     return to_csv(["franja", "socis"], [[f["franja"], f["socis"]] for f in r["franges"]])
 
 
-def consumption(db: Session, member: Member, des: date, fins: date) -> dict:
-    """Dispensacions d'un soci en un rang (les corregides surten marcades i no compten als totals)."""
+def consumption(db: Session, member: Member, des: date, fins: date, actor=None) -> dict:
+    """Dispensacions d'un soci en un rang (les corregides surten marcades i no compten als totals).
+    Amb `actor` la consulta queda a l'auditoria (accés a dades personals)."""
+    if actor is not None:
+        from . import service
+        service.audit_append(db, {"accio": "consulta_consum", "soci": member.id, "des": des.isoformat(), "fins": fins.isoformat(), "per": actor.id})
+        db.commit()
     a, b = _range(des, fins)
     rows = db.execute(
         select(StockMovement, Product.nom).join(Product, Product.id == StockMovement.product_id)
