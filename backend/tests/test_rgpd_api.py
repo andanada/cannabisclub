@@ -165,10 +165,38 @@ def test_alta_enllaca_la_signatura_ja_desada(ctx):
     mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
     cos = {"versio": "v1", "text_sha256": H, "finalitats": ["basic", "contacte"], "sig_ultima": True}
     assert client.post(f"/socis/{mid}/alta-rgpd", json=cos, headers=enc).status_code == 422  # sense signatura
-    sid = client.post(f"/socis/{mid}/signatura", json={"png_base64": PNG}, headers=enc).json()["id"]
+    sid = client.post(f"/socis/{mid}/signatura", json={"png_base64": PNG, "text_sha256": H}, headers=enc).json()["id"]
     assert client.post(f"/socis/{mid}/alta-rgpd", json=cos, headers=enc).status_code == 201
     h = client.get(f"/socis/{mid}/consentiments", headers=enc).json()["historial"]
     assert {x["signature_id"] for x in h} == {sid} and {x["text_sha256"] for x in h} == {H}
+
+
+def test_s7_sig_ultima_exigeix_signatura_del_mateix_text_i_recent(ctx):
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import update
+    from app.models import Signature
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
+    cos = {"versio": "v1", "text_sha256": H, "finalitats": ["basic"], "sig_ultima": True}
+    altre = textos.sha256("v1", "es")
+    assert altre != H
+    # signatura sense hash de text (o d'un altre text): no serveix per lligar aquest consentiment
+    client.post(f"/socis/{mid}/signatura", json={"png_base64": PNG}, headers=enc)
+    assert client.post(f"/socis/{mid}/alta-rgpd", json=cos, headers=enc).status_code == 422
+    client.post(f"/socis/{mid}/signatura", json={"png_base64": PNG, "text_sha256": altre}, headers=enc)
+    assert client.post(f"/socis/{mid}/alta-rgpd", json=cos, headers=enc).status_code == 422
+    assert client.post(f"/socis/{mid}/signatura", json={"png_base64": PNG, "text_sha256": "x"}, headers=enc).status_code == 422
+    # signatura del text correcte però vella
+    sid = client.post(f"/socis/{mid}/signatura", json={"png_base64": PNG, "text_sha256": H}, headers=enc).json()["id"]
+    with factory() as s:
+        if s.get_bind().dialect.name == "sqlite":
+            s.execute(update(Signature.__table__).where(Signature.id == sid).values(ts=datetime.now(timezone.utc) - timedelta(days=2)))
+            s.commit()
+            assert client.post(f"/socis/{mid}/alta-rgpd", json=cos, headers=enc).status_code == 422
+            s.execute(update(Signature.__table__).where(Signature.id == sid).values(ts=datetime.now(timezone.utc)))
+            s.commit()
+    assert client.post(f"/socis/{mid}/alta-rgpd", json=cos, headers=enc).status_code == 201
 
 
 def test_s6_retencio_per_local_no_toca_altres_locals_ni_dades_globals(ctx, monkeypatch):

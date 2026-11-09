@@ -1,5 +1,5 @@
 """Rutes RGPD: text informatiu i consentiments, accés/portabilitat, supressió, retenció, consulta d'auditoria i ancoratges."""
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from .. import auditoria_consulta, consentiments, controls, exportacio, retencio, service, supressio, textos
 from ..models import AuditAnchor, Signature, User
 from .comu import check_local, member_or_404, need_admin, need_manager, run
+
+SIG_MAX_EDAT = timedelta(minutes=30)  # la signatura enllaçada amb sig_ultima ha de ser de la mateixa alta
 
 
 class ConsentIn(BaseModel):
@@ -66,6 +68,10 @@ def router(db, current_user) -> APIRouter:
             sig = s.scalar(select(Signature).where(Signature.member_id == m.id).order_by(Signature.id.desc()).limit(1))
             if sig is None:
                 raise HTTPException(422, "El soci encara no ha signat")
+            if sig.text_sha256 != body.text_sha256:  # la signatura ha de ser del mateix text que s'accepta
+                raise HTTPException(422, "La darrera signatura no correspon al text informatiu acceptat: cal tornar a signar")
+            if datetime.now(timezone.utc) - supressio._aware(sig.ts) > SIG_MAX_EDAT:
+                raise HTTPException(422, "La darrera signatura és massa antiga: cal tornar a signar")
         run(consentiments.grant, s, user, m, body.finalitats, body.versio, body.text_sha256, body.canal, sig.id if sig else None, False)
         s.commit()
         return {"consentiments": consentiments.status(s, m.id), "signatura": sig.id if sig else None}

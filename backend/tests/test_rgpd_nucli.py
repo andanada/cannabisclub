@@ -264,7 +264,7 @@ def test_pg_rol_de_l_aplicacio_fa_servir_les_funcions_rgpd_i_de_club(app_pg, mon
     adm = token(client, sec, "admin")
     mid = _soci(client, enc)
     h = textos.sha256("v1", "ca")
-    assert client.post(f"/socis/{mid}/signatura", json={"png_base64": PNG}, headers=enc).status_code == 201
+    assert client.post(f"/socis/{mid}/signatura", json={"png_base64": PNG, "text_sha256": h}, headers=enc).status_code == 201
     assert client.post(f"/socis/{mid}/alta-rgpd", json={"versio": "v1", "text_sha256": h, "finalitats": ["basic", "foto"], "sig_ultima": True, "doc_verificat": True}, headers=enc).status_code == 201
     assert client.post(f"/socis/{mid}/consentiments/retirada", json={"finalitat": "foto"}, headers=enc).status_code == 200
     pid = client.post("/productes", json={"local_id": 1, "nom": "P", "preu_cent_per_g": 100, "es_genetic": True}, headers=enc).json()["id"]

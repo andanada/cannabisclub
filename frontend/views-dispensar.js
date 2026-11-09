@@ -216,13 +216,13 @@ VIEWS.dispensar = async () => {
 
 
 // Signatura de l'alta amb el perfil de la tauleta del local (mida, traç, traços mínims).
-function signaturePad(memberId, out, onDone) {
+function signaturePad(memberId, out, onDone, textSha256) {
   const holder = h('div', { class: 'card' }, h('p', { class: 'muted' }, 'Preparant la tauleta de signatura…'));
   defaultProfile('signatura').then((cfg) => {
     const res = h('div');
     const pad = signatureCanvas(Object.assign({}, DEFAULTS.signatura, cfg || {}), (s) => guard(pad.saveButton, res, async () => {
       if (!s.valid) throw new Error(`El soci ha de signar abans de desar (calen almenys ${s.min} traços).`);
-      await api(`/socis/${memberId}/signatura`, { method: 'POST', body: { png_base64: s.png } });
+      await api(`/socis/${memberId}/signatura`, { method: 'POST', body: { png_base64: s.png, ...(textSha256 ? { text_sha256: textSha256 } : {}) } });
       if (onDone) { await onDone(); return; }
       out.replaceChildren(msg('ok', "Soci donat d'alta i signatura desada (núm. " + memberId + ')'));
     }), 'Desar signatura');

@@ -99,7 +99,7 @@ function altaWizard() {
       } catch (e) { out.replaceChildren(msg('err', e.message)); return; }
       st.fets.add(1);
       nav(2);
-    }), out);
+    }, st.rgpd && st.rgpd.text_sha256), out);
   }
 
   function pasFoto() {

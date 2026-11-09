@@ -46,11 +46,12 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     class SignaturaIn(BaseModel):
         png_base64: str = Field(max_length=300_000)
+        text_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")  # text informatiu que el soci accepta en signar
 
     @app.post("/socis/{member_id}/signatura", status_code=201)
     def signar(member_id: int, body: SignaturaIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_manager(user)
-        sig = run(service.save_signature, s, user, member_or_404(s, user, member_id), body.png_base64)
+        sig = run(service.save_signature, s, user, member_or_404(s, user, member_id), body.png_base64, body.text_sha256)
         return {"id": sig.id, "sha256": sig.sha256}
 
     @app.get("/socis/{member_id}/signatura")
