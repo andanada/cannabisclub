@@ -30,25 +30,70 @@ def audit_append(db: Session, payload: dict) -> AuditLog:
         db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": AUDIT_LOCK_KEY})
     last = db.scalar(select(AuditLog).order_by(AuditLog.seq.desc()).limit(1))
     prev = last.hash if last else audit.GENESIS
-    h = audit._digest(prev, payload)
-    row = AuditLog(payload=_canon(payload), prev_hash=prev, hash=h)
+    signat = {**payload, audit.ALG_KEY: audit.ALG_HMAC}  # entrades noves: HMAC (vegeu el docstring d'audit.py)
+    h = audit.digest_h1(prev, signat)
+    row = AuditLog(payload=_canon(signat), prev_hash=prev, hash=h)
     db.add(row)
     db.flush()
     return row
 
 
-def audit_verify(db: Session) -> tuple[bool, int | None]:
-    chain = [
-        audit.Entry(r.seq, json.loads(r.payload), r.prev_hash, r.hash)
-        for r in db.scalars(select(AuditLog).order_by(AuditLog.seq))
-    ]
-    # seq pot tenir forats si s'han esborrat files: la cadena de hash ho detecta igualment
-    prev = audit.GENESIS
-    for e in chain:
-        if e.prev_hash != prev or e.hash != audit._digest(prev, e.payload):
-            return False, e.seq
-        prev = e.hash
-    return True, None
+def audit_anchor(db: Session) -> dict | None:
+    """Últim seq i hash de la cadena: cal guardar-los FORA d'aquest equip (paper, un altre servidor, correu). Després
+    audit_verify(anchor=...) detecta que s'hagi retallat el final o refet la cadena. None si encara és buida."""
+    last = db.scalar(select(AuditLog).order_by(AuditLog.seq.desc()).limit(1))
+    return {"seq": last.seq, "hash": last.hash} if last else None
+
+
+def _hmac_des_de() -> int | None:
+    v = os.environ.get("CLUB_AUDIT_HMAC_DES_DE", "").strip()
+    return int(v) if v.isdigit() else None
+
+
+def audit_verify_detail(db: Session, anchor: dict | None = None, batch: int = 1000) -> dict:
+    """Verifica la cadena per lots (paginació per seq: memòria constant). Retorna un diccionari amb `integra`,
+    `primera_alterada`, `ultim_seq`, `ultim_hash`, `entrades` i `avisos` (p. ex. «sense_ancoratge»).
+    L'ancoratge és {"seq": n, "hash": h}: l'entrada n ha d'existir amb aquest hash i la cadena no pot acabar abans."""
+    key = audit.audit_key()
+    tall = _hmac_des_de()
+    prev, ultim_seq, n, vist_h1, ancora_vista = audit.GENESIS, 0, 0, False, False
+    avisos: list[str] = []
+
+    def res(ok, seq):
+        return {"integra": ok, "primera_alterada": seq, "ultim_seq": ultim_seq, "ultim_hash": prev, "entrades": n, "avisos": avisos}
+
+    cursor = 0
+    while True:
+        files = db.execute(select(AuditLog.seq, AuditLog.payload, AuditLog.prev_hash, AuditLog.hash)
+                           .where(AuditLog.seq > cursor).order_by(AuditLog.seq).limit(batch)).all()
+        if not files:
+            break
+        for seq, payload_txt, prev_hash, h in files:
+            payload = json.loads(payload_txt)
+            h1 = audit.is_h1(payload)
+            # seq pot tenir forats si s'han esborrat files: la cadena de hash ho detecta igualment
+            degradada = (vist_h1 and not h1) or (tall is not None and seq >= tall and not h1)
+            if prev_hash != prev or degradada or h != audit.expected_hash(prev, payload, key):
+                return res(False, seq)
+            vist_h1 = vist_h1 or h1
+            if anchor and seq == anchor["seq"]:
+                if h != anchor["hash"]:
+                    return res(False, seq)
+                ancora_vista = True
+            prev, ultim_seq, n, cursor = h, seq, n + 1, seq
+    if anchor:
+        if not ancora_vista:  # la cadena acaba abans de l'ancoratge (retallada) o l'entrada ancorada ha desaparegut
+            return res(False, ultim_seq + 1 if ultim_seq < anchor["seq"] else anchor["seq"])
+    else:
+        avisos.append("sense_ancoratge")
+    if n and not vist_h1:
+        avisos.append("sense_hmac")
+    return res(True, None)
+
+
+def audit_verify(db: Session, anchor: dict | None = None) -> tuple[bool, int | None]:
+    d = audit_verify_detail(db, anchor)
+    return d["integra"], d["primera_alterada"]
 
 
 def _index_key() -> bytes:

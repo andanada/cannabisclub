@@ -123,7 +123,8 @@ def test_auditoria_registra_i_detecta_manipulacio(ctx):
     enc, admin = token(client, sec, "enc"), token(client, sec, "admin")
     mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
     client.get(f"/socis/{mid}", headers=enc)
-    assert client.get("/auditoria/verificar", headers=admin).json() == {"integra": True, "primera_alterada": None}
+    r0 = client.get("/auditoria/verificar", headers=admin).json()
+    assert r0["integra"] is True and r0["primera_alterada"] is None
     s = factory()
     if s.bind.dialect.name == "postgresql":  # simula un atacant amb permisos de propietari
         s.execute(text("ALTER TABLE audit_log DISABLE TRIGGER USER"))
