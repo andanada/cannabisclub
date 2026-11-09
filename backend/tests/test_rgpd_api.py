@@ -3,6 +3,7 @@ import base64
 
 from app import textos
 from tests.test_api import SOCI, ctx, env, token  # noqa: F401
+from tests.test_rgpd_nucli import _sync_ret
 from tests.test_stock import setup_data
 
 PNG = base64.b64encode(b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 2).decode()
@@ -128,6 +129,7 @@ def test_supressio_endpoint_confirma_i_bloqueja_per_retencio(ctx, monkeypatch):
     assert client.post(f"/socis/{mid}/supressio", json={}, headers=adm).json() == {"aplicat": False, "bloqueig": "retencio", "min_dies": 30}
     assert client.post(f"/socis/{mid}/supressio", json={"confirmar": True}, headers=adm).status_code == 422
     monkeypatch.setenv("CLUB_RETENCIO_MIN_DIES", "0")
+    _sync_ret(factory)
     r = client.post(f"/socis/{mid}/supressio", json={"confirmar": True, "motiu": "art. 17"}, headers=adm)
     assert r.status_code == 200 and r.json()["binaris_buidats"] == 1
     assert client.get(f"/socis/{mid}", headers=adm).json()["nom"] == f"Soci suprimit #{mid}"
@@ -137,6 +139,7 @@ def test_supressio_endpoint_confirma_i_bloqueja_per_retencio(ctx, monkeypatch):
 def test_retencio_endpoint_simula_i_exigeix_confirmacio(ctx, monkeypatch):
     monkeypatch.setenv("CLUB_RETENCIO_MIN_DIES", "0")
     client, factory, sec = ctx
+    _sync_ret(factory)
     enc, adm = token(client, sec, "enc"), token(client, sec, "admin")
     mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
     client.post(f"/socis/{mid}/estat", json={"estat": "baixa"}, headers=enc)
@@ -208,6 +211,7 @@ def test_s6_retencio_per_local_no_toca_altres_locals_ni_dades_globals(ctx, monke
     monkeypatch.setenv("CLUB_RETENCIO_FOTOS_DIES", "0")
     monkeypatch.setenv("CLUB_RETENCIO_INTENTS_DIES", "1")
     client, factory, sec = ctx
+    _sync_ret(factory)
     adm, enc = token(client, sec, "admin"), token(client, sec, "enc")  # els inicis de sessió esborren intents vells: abans de crear-ne
     jpeg = base64.b64encode(b"\xff\xd8\xff\xe0" + bytes(range(256)) * 2).decode()
     m1 = client.post("/socis", json=SOCI, headers=adm).json()["id"]

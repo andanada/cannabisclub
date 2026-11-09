@@ -514,6 +514,8 @@ class AuditAnchor(Base):
     hash: Mapped[str] = mapped_column(String(64))
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     origen: Mapped[str] = mapped_column(String(40), default="manual")
+    # HMAC(clau d'auditoria, "seq|hash"): sense la clau no es pot forjar un ancoratge. NULL = anterior a la signatura: s'ignora.
+    sig: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 @event.listens_for(AuditAnchor, "before_update")

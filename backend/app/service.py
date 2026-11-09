@@ -45,6 +45,10 @@ def audit_anchor(db: Session) -> dict | None:
     return {"seq": last.seq, "hash": last.hash} if last else None
 
 
+def _anchor_sig(seq: int, h: str, key: bytes | None = None) -> str:
+    return hmac.new(key or audit.audit_key(), f"club-anchor|{seq}|{h}".encode(), hashlib.sha256).hexdigest()
+
+
 def audit_anchor_save(db: Session, origen: str = "manual") -> AuditAnchor | None:
     """Desa l'ancoratge actual (últim seq + hash) a la taula audit_anchors (només d'afegir). audit_verify el comprova:
     retallar el final de la cadena o refer-la passa a ser detectable també sense ancoratge extern. No substitueix
@@ -52,7 +56,7 @@ def audit_anchor_save(db: Session, origen: str = "manual") -> AuditAnchor | None
     a = audit_anchor(db)
     if not a:
         return None
-    row = AuditAnchor(seq=a["seq"], hash=a["hash"], origen=origen[:40])
+    row = AuditAnchor(seq=a["seq"], hash=a["hash"], origen=origen[:40], sig=_anchor_sig(a["seq"], a["hash"]))
     db.add(row)
     db.flush()
     return row
@@ -70,7 +74,9 @@ def audit_verify_detail(db: Session, anchor: dict | None = None, batch: int = 10
     key = audit.audit_key()
     tall = _hmac_des_de()
     prev, ultim_seq, n, vist_h1, ancora_vista, vist_alg = audit.GENESIS, 0, 0, False, False, False
-    interns = dict(db.execute(select(AuditAnchor.seq, AuditAnchor.hash)).all())  # ancoratges desats a la BD
+    # ancoratges desats a la BD: només els signats amb HMAC de la clau d'auditoria (els altres es poden haver forjat; s'ignoren)
+    interns = {q: h for q, h, sg in db.execute(select(AuditAnchor.seq, AuditAnchor.hash, AuditAnchor.sig)).all()
+               if sg and hmac.compare_digest(sg, _anchor_sig(q, h, key))}
     avisos: list[str] = []
 
     def res(ok, seq):

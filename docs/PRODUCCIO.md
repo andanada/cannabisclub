@@ -91,6 +91,7 @@ La cadena d'auditoria només detecta retalls del final o reescriptures completes
 
 - `python -m app.audit_cli ancora` imprimeix `seq:hash`. `scripts/club-backup.sh run` l'executa després de cada còpia i el desa a `club-AAAAMMDD-HHMMSS.dump.gpg.anchor` (al costat de la còpia i al remot, amb la mateixa retenció). Si no el pot obtenir, avisa però la còpia es conserva.
 - Verificar contra un ancoratge: `python -m app.cli verificar-auditoria <seq:hash>` (o `python -m app.audit_cli verifica <seq:hash>`); sense argument només comprova la cadena i avisa `sense_ancoratge`. Per fer-ho contra el de la còpia remota més recent: `... verificar-auditoria "$(cat club-....dump.gpg.anchor)"`.
+- Els ancoratges interns (`audit_anchors`, `POST /auditoria/ancoratges`) porten una columna `sig` = HMAC(clau d'auditoria, `club-anchor|seq|hash`); `verificar-auditoria` **ignora** els que no tenen una `sig` vàlida (qui pugui escriure a la BD sense la clau no els pot forjar). **Compatibilitat:** els ancoratges interns existents d'abans d'aquest canvi no tenen `sig` i deixen de comptar: després d'actualitzar, executa `POST /auditoria/ancoratges` (o `actualitzar-bd` i un ancoratge nou) i compara la verificació amb l'ancoratge extern; l'avís `sense_ancoratge` indica que no n'hi ha cap de signat. Canviar la clau d'auditoria també invalida els ancoratges interns signats.
 - Recomanat: un cop activat l'HMAC, fixa `CLUB_AUDIT_HMAC_DES_DE` al `seq` de l'ancoratge i guarda la clau (`CLUB_AUDIT_KEY` o `CLUB_INDEX_KEY`) fora del servidor.
 
 ## 4. Incidències habituals
