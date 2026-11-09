@@ -907,3 +907,7 @@ I18N.pat.en.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Barcode $1"],
 [new RegExp("^(.+) · (\\d{4}-\\d{2}-\\d{2})$"), "$1 · $2"],
 [new RegExp("^(.+) ja és soci \\(núm\\. (\\d+)\\)\\.$"), "$1 is now a member (no. $2)."],
 [new RegExp("^Usuari «(.+)» creat\\. Copia les credencials ara: no es tornaran a mostrar\\.$"), "User «$1» created. Copy the credentials now: they will not be shown again."]);
+
+Object.assign(I18N.en, {
+ "Un traspàs no es pot corregir: fes un traspàs en sentit contrari": "A transfer cannot be corrected: make a transfer in the opposite direction",
+});
