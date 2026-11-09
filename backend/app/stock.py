@@ -180,8 +180,11 @@ def update_product(db: Session, actor: User, product_id: int, nom: str | None = 
     return p
 
 
-def receive(db: Session, actor: User, product_id: int, grams: Decimal, nota: str | None, warehouse_id: int | None = None) -> StockMovement:
+def receive(db: Session, actor: User, product_id: int, grams: Decimal, nota: str | None, warehouse_id: int | None = None,
+            batch_id: int | None = None) -> StockMovement:
     p = _lock_product(db, product_id)
+    from . import lots
+    lot = lots.check_receive(db, p, batch_id)
     from . import magatzems
     magatzems.check_active(db, p.local_id, warehouse_id)
     m = StockMovement(local_id=p.local_id, product_id=p.id, tipus="entrada",
@@ -190,20 +193,24 @@ def receive(db: Session, actor: User, product_id: int, grams: Decimal, nota: str
     db.flush()
     if warehouse_id is not None:
         db.add(MovementWarehouse(movement_id=m.id, warehouse_id=warehouse_id))
-    service.audit_append(db, {"accio": "entrada_estoc", "moviment": m.id, "producte": p.id, "mg": m.delta_mg, "per": actor.id})
+    lots.attach_entry(db, m, lot)
+    service.audit_append(db, {"accio": "entrada_estoc", "moviment": m.id, "producte": p.id, "mg": m.delta_mg,
+                              **({"lot": lot.id} if lot else {}), "per": actor.id})
     db.commit()
     return m
 
 
 def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: Decimal,
              pes_bascula_g: Decimal | None, now: datetime | None = None, discount_id: int | None = None,
-             metode: str | None = None) -> StockMovement:
+             metode: str | None = None, batch_id: int | None = None) -> StockMovement:
     """Dispensa. Amb `metode` (efectiu/targeta) també cobra en la mateixa transacció: o es fa tot o res."""
     now = now or datetime.now(timezone.utc)
     member = _lock_member(db, member_id)  # primer el soci, després el producte (ordre fix, evita interbloqueigs)
     p = _lock_product(db, product_id)
     if not member or member.local_id != p.local_id:
         raise ValueError("Soci inexistent o d'un altre local")
+    from . import controls
+    controls.check_dispense(db, member, p, now)  # espera, aval, pendent d'aprovació (vegeu controls.py)
     if member.estat != "actiu":
         raise ValueError("El soci no està actiu")
     from . import ajustos, quotes  # import local: quotes depèn d'aquest mòdul
@@ -218,10 +225,13 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
             raise ValueError("El pes de la bàscula no coincideix amb la quantitat dispensada")
     if p.es_genetic:  # els límits només afecten productes genètics (flor, clons…)
         for period, limit in (("dia", local.limit_diari_mg), ("mes", local.limit_mensual_mg)):
+            limit = controls.limit_for(db, member_id, period, limit)  # excepció per soci
             if limit is not None and dispensed_mg(db, member_id, period, now) + mg > limit:
                 raise ValueError(f"Supera el límit {'diari' if period == 'dia' else 'mensual'} del soci")
     from . import linies_preu, regles
     regles.check(db, member_id, p, mg, now)
+    from . import lots
+    pla_lots = lots.plan_dispense(db, p, mg, batch_id)  # lot manual o FIFO (buit si el producte no té lots)
     original = int((Decimal(mg) * linies_preu.price_for(db, member_id, p) / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     descompte, rebaixa = None, 0
     if discount_id is not None:
@@ -237,8 +247,10 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
         from .models import MovementDiscount
         db.add(MovementDiscount(movement_id=m.id, discount_id=descompte.id, nom=descompte.nom, original_cent=original, descompte_cent=rebaixa))
     m.descompte_cent = rebaixa  # només per a la resposta (no és una columna)
+    lots.attach_dispense(db, m, pla_lots)
     service.audit_append(db, {"accio": "dispensacio", "moviment": m.id, "soci": member_id, "producte": p.id,
-                              "mg": mg, "import_cent": m.import_cent, "descompte": descompte.id if descompte else None, "per": actor.id})
+                              "mg": mg, "import_cent": m.import_cent, "descompte": descompte.id if descompte else None,
+                              **({"lots": [[b, x] for b, x in pla_lots]} if pla_lots else {}), "per": actor.id})
     if metode is not None:
         from . import cash
         cash.charge_in_tx(db, actor, m, metode)
@@ -275,6 +287,8 @@ def correct(db: Session, actor: User, movement_id: int, nota: str) -> StockMovem
         raise ValueError("Aquest moviment ja està corregit")
     if wid is not None:
         db.add(MovementWarehouse(movement_id=m.id, warehouse_id=wid))
+    from . import lots
+    lots.mirror_correction(db, orig, m)
     service.audit_append(db, {"accio": "correccio", "moviment": m.id, "corregeix": orig.id, "per": actor.id})
     db.commit()
     return m

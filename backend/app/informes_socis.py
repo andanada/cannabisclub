@@ -1,6 +1,7 @@
 """Informes de socis: evolució del club (altes, baixes, renovacions), demografia i historial de consum.
 Només sortida agregada o de moviments: cap nom ni document de cap soci."""
 import json
+import os
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -65,6 +66,32 @@ def _edat(naixement: date, avui: date) -> int:
     return avui.year - naixement.year - ((avui.month, avui.day) < (naixement.month, naixement.day))
 
 
+def k_minim() -> int:
+    """Umbral d'agregació: cap grup més petit que k es publica (mai per sota de 5; CLUB_K_ANONIMAT pot apujar-lo)."""
+    v = os.environ.get("CLUB_K_ANONIMAT", "").strip()
+    return max(5, int(v)) if v.isdigit() else 5
+
+
+def anonimitza(r: dict) -> dict:
+    """Supressió de cel·les petites (0 < n < k) amb supressió complementària: si només en queda una de suprimida i el
+    total es publica, es suprimeix també la següent més petita perquè no es pugui deduir per resta. Si el total és < k,
+    tampoc es publica ni l'edat mitjana."""
+    k = k_minim()
+    franges = [dict(f) for f in r["franges"]]
+    petites = [f for f in franges if 0 < f["socis"] < k]
+    if r["total"] < k:
+        petites = [f for f in franges if f["socis"] > 0]
+    elif len(petites) == 1:
+        resta = sorted((f for f in franges if f["socis"] >= k), key=lambda f: f["socis"])
+        if resta:
+            petites.append(resta[0])
+    for f in petites:
+        f["socis"], f["suprimit"] = None, True
+    amagat = r["total"] < k
+    return {"total": None if amagat else r["total"], "edat_mitjana": None if amagat else r["edat_mitjana"], "franges": franges,
+            "k_minim": k, "nota": f"Els grups de menys de {k} socis no es mostren (protecció contra la reidentificació)."}
+
+
 def demographics(db: Session, local_id: int) -> dict:
     """Franges d'edat dels socis que no són de baixa. Es desxifra la data de naixement en memòria i només se'n torna el recompte."""
     avui = datetime.now(TZ).date()
@@ -75,11 +102,11 @@ def demographics(db: Session, local_id: int) -> dict:
         except ValueError:
             continue
     franges = [{"franja": f"{a}-{b}" if b < 100 else f"{a}+", "socis": sum(1 for e in edats if a <= e <= b)} for a, b in FRANGES]
-    return {"total": len(edats), "edat_mitjana": round(sum(edats) / len(edats), 1) if edats else 0, "franges": franges}
+    return anonimitza({"total": len(edats), "edat_mitjana": round(sum(edats) / len(edats), 1) if edats else 0, "franges": franges})
 
 
 def demographics_csv(r: dict) -> str:
-    return to_csv(["franja", "socis"], [[f["franja"], f["socis"]] for f in r["franges"]])
+    return to_csv(["franja", "socis"], [[f["franja"], f["socis"] if f["socis"] is not None else f"<{r['k_minim']}"] for f in r["franges"]])
 
 
 def consumption(db: Session, member: Member, des: date, fins: date, actor=None) -> dict:

@@ -266,6 +266,9 @@ def create_member(db: Session, actor: User, local_id: int, nom: str, document: s
         document_idx=idx, naixement_enc=crypto.encrypt(naixement.isoformat()),
         telefon_enc=crypto.encrypt(telefon), email_enc=crypto.encrypt(email), creat_per=actor.id,
     )
+    from . import ajustos
+    if ajustos.get(db, local_id)["alta_pendent"]:
+        m.estat = "pendent"  # un gestor l'ha d'aprovar (controls.approve)
     db.add(m)
     db.flush()
     audit_append(db, {"accio": "alta_soci", "soci": m.id, "local": local_id, "per": actor.id})
@@ -288,7 +291,7 @@ def member_view(m: Member) -> dict:
 ESTATS = {"pendent", "actiu", "suspes", "baixa"}
 
 
-def set_member_status(db: Session, actor: User, member: Member, estat: str) -> None:
+def set_member_status(db: Session, actor: User, member: Member, estat: str, motiu: str | None = None) -> None:
     if estat not in ESTATS:
         raise ValueError("Estat no vàlid")
     if member.estat == estat:
@@ -299,7 +302,8 @@ def set_member_status(db: Session, actor: User, member: Member, estat: str) -> N
         raise ValueError("El soci està suprimit (seudonimitzat): no es pot reactivar")
     anterior, member.estat = member.estat, estat
     member.baixa_en = datetime.now(timezone.utc) if estat == "baixa" else None
-    audit_append(db, {"accio": "canvi_estat_soci", "soci": member.id, "de": anterior, "a": estat, "per": actor.id})
+    audit_append(db, {"accio": "canvi_estat_soci", "soci": member.id, "de": anterior, "a": estat,
+                              **({"motiu": motiu.strip()[:200]} if motiu and motiu.strip() else {}), "per": actor.id})
     db.commit()
 
 

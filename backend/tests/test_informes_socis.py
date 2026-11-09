@@ -42,6 +42,7 @@ def test_evolucio_csv_i_permisos(ctx):
 
 
 def test_demografia_per_franges_dedat_sense_dades_personals(ctx):
+    """Amb menys de k=5 socis res no es publica: ni franges, ni total, ni edat mitjana."""
     client, factory, sec = ctx
     enc = token(client, sec, "enc")
     avui = date.today()
@@ -49,12 +50,37 @@ def test_demografia_per_franges_dedat_sense_dades_personals(ctx):
     nou_soci(client, enc, "87654321X", date(avui.year - 30, 1, 1).isoformat(), "Berta")       # 30
     nou_soci(client, enc, "11111111H", date(avui.year - 31, 1, 1).isoformat(), "Carla")       # 31
     r = client.get("/locals/1/informe/demografia", headers=enc).json()
-    franges = {f["franja"]: f["socis"] for f in r["franges"]}
-    assert franges["18-24"] == 1 and franges["25-34"] == 2 and franges["35-44"] == 0
-    assert r["total"] == 3 and 26 <= r["edat_mitjana"] <= 27
+    assert r["total"] is None and r["edat_mitjana"] is None and r["k_minim"] == 5
+    assert all(f["socis"] in (None, 0) for f in r["franges"]) and r["franges"][0]["suprimit"] is True
     assert "nom" not in str(r) and "Soci" not in str(r)
-    csv = client.get("/locals/1/informe/demografia.csv", headers=enc).text.replace("\r", "")
-    assert csv.splitlines()[0] == "franja,socis" and "25-34,2" in csv
+    csv = client.get("/locals/1/informe/demografia.csv", headers=enc).text
+    assert csv.splitlines()[0] == "franja,socis" and "18-24,<5" in csv and "35-44,0" in csv
+
+
+def test_anonimitzacio_k5_i_supressio_complementaria(monkeypatch):
+    from app.informes_socis import anonimitza
+    def r(*n):
+        fr = [{"franja": str(i), "socis": x} for i, x in enumerate(n)]
+        return {"total": sum(n), "edat_mitjana": 30.0, "franges": fr}
+    a = anonimitza(r(2, 10, 7, 20, 0, 0))   # una cel·la petita: se'n suprimeix també la més petita restant
+    assert [f["socis"] for f in a["franges"]] == [None, 10, None, 20, 0, 0] and a["total"] == 39
+    b = anonimitza(r(6, 10, 7, 20, 0, 0))   # cap cel·la petita: es publica tot
+    assert [f["socis"] for f in b["franges"]] == [6, 10, 7, 20, 0, 0]
+    monkeypatch.setenv("CLUB_K_ANONIMAT", "3")  # no es pot baixar de 5
+    assert anonimitza(r(4, 10, 7, 20, 0, 0))["franges"][0]["socis"] is None
+    monkeypatch.setenv("CLUB_K_ANONIMAT", "8")
+    assert anonimitza(r(6, 10, 7, 20, 0, 0))["k_minim"] == 8
+
+
+def test_demografia_amb_prous_socis_publica_les_franges(ctx):
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    avui = date.today()
+    docs = ["12345678Z", "87654321X", "11111111H", "22222222J", "33333333P", "44444444A"]
+    for i, d in enumerate(docs):
+        nou_soci(client, enc, d, date(avui.year - 30, 1, 1).isoformat(), f"Soci {i} Prova")
+    r = client.get("/locals/1/informe/demografia", headers=enc).json()
+    assert r["total"] == 6 and {f["franja"]: f["socis"] for f in r["franges"]}["25-34"] == 6
 
 
 def test_historial_de_consum_del_soci(ctx):
