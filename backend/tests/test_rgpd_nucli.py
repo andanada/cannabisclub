@@ -233,3 +233,66 @@ def test_pg_el_rol_de_l_aplicacio_no_pot_buidar_amb_sql_directe(app_pg, monkeypa
         with pytest.raises(DBAPIError):
             s.execute(text("DELETE FROM signatures"))
         s.rollback()
+
+
+@pg_only
+def test_pg_rol_de_l_aplicacio_fa_servir_les_funcions_rgpd_i_de_club(app_pg, monkeypatch):
+    """Consentiments, lots, excepcions, ancoratges, TOTP persistent i exportació amb el rol sense privilegis."""
+    import pyotp
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+    eng, owner_client, sec, owner_factory = app_pg
+    client = TestClient(create_app(make_session_factory(eng)))
+    monkeypatch.setenv("CLUB_TOTP_REPLAY", "1")
+    codi = pyotp.TOTP(sec["enc"]).now()
+    login = {"username": "enc", "password": "contrasenya-molt-llarga", "totp": codi}
+    r = client.post("/auth/login", json=login)
+    assert r.status_code == 200
+    assert client.post("/auth/login", json=login).status_code == 401  # reutilitzar el codi: UPDATE de users.last_totp_step
+    enc = {"Authorization": "Bearer " + r.json()["token"]}
+    adm = token(client, sec, "admin")
+    mid = _soci(client, enc)
+    h = textos.sha256("v1", "ca")
+    assert client.post(f"/socis/{mid}/signatura", json={"png_base64": PNG}, headers=enc).status_code == 201
+    assert client.post(f"/socis/{mid}/alta-rgpd", json={"versio": "v1", "text_sha256": h, "finalitats": ["basic", "foto"], "sig_ultima": True, "doc_verificat": True}, headers=enc).status_code == 201
+    assert client.post(f"/socis/{mid}/consentiments/retirada", json={"finalitat": "foto"}, headers=enc).status_code == 200
+    pid = client.post("/productes", json={"local_id": 1, "nom": "P", "preu_cent_per_g": 100, "es_genetic": True}, headers=enc).json()["id"]
+    lot = client.post(f"/productes/{pid}/lots", json={"codi": "L1"}, headers=enc).json()["id"]
+    assert client.post(f"/lots/{lot}/entrada", json={"grams": "5"}, headers=enc).status_code == 201
+    assert client.put(f"/socis/{mid}/limits", json={"periode": "dia", "max_g": "4", "motiu": "recepta"}, headers=enc).status_code == 200
+    assert client.post("/dispensacions", json={"member_id": mid, "product_id": pid, "grams": "2"}, headers=enc).status_code == 201
+    assert client.get(f"/lots/{lot}/tracabilitat", headers=enc).json()["dispensat_mg"] == 2000
+    assert client.put("/locals/1/club-config", json={"espera_dies": 1, "aval": "opcional", "alta_pendent": True}, headers=adm).status_code == 200
+    assert client.get(f"/socis/{mid}/exportacio", headers=enc).status_code == 200
+    assert client.get("/locals/1/llibres/estoc.csv", params={"des": "2020-01-01", "fins": "2099-01-01"}, headers=enc).status_code == 200
+    assert client.post("/auditoria/ancoratges", headers=adm).status_code == 201
+    assert client.get("/auditoria/verificar", headers=adm).json()["integra"] is True
+
+
+def test_script_club_retencio_simula_i_nomes_aplica_amb_flag(tmp_path, monkeypatch, env, capsys):
+    import importlib.util
+    from pathlib import Path
+    url = f"sqlite:///{tmp_path / 'r.db'}"
+    monkeypatch.setenv("CLUB_DATABASE_URL", url)
+    monkeypatch.setenv("CLUB_RETENCIO_MIN_DIES", "0")
+    eng = create_engine(url)
+    schema.install(eng)
+    f = make_session_factory(eng)
+    with f() as s:
+        from app.models import Local
+        s.add(Local(id=1, nom="L"))
+        s.commit()
+        u, _ = service.create_user(s, None, "adm", "contrasenya-molt-llarga", "admin", [])
+        m = service.create_member(s, u, 1, "Anna Prova", "12345678Z", __import__("datetime").date(1990, 1, 1), None, None)
+        service.set_member_status(s, u, m, "baixa")
+        mid = m.id
+    spec = importlib.util.spec_from_file_location("club_retencio", Path(__file__).resolve().parents[2] / "scripts" / "club-retencio.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.main([]) == 0
+    assert '"aplicat": false' in capsys.readouterr().out
+    with f() as s:
+        assert s.get(Member, mid).suprimit_en is None
+    assert mod.main(["--aplicar"]) == 0
+    with f() as s:
+        assert s.get(Member, mid).suprimit_en is not None
