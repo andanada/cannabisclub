@@ -71,6 +71,22 @@ def approve(db: Session, actor: User, member: Member) -> None:
     db.commit()
 
 
+def reject(db: Session, actor: User, member: Member, motiu: str) -> None:
+    """Rebutja una alta pendent (passa a «baixa»). Mateixa regla de dues persones que `approve`."""
+    from datetime import datetime, timezone
+    if member.estat != "pendent":
+        raise ValueError("El soci no està pendent d'aprovació")
+    if actor.role != "admin" and actor.id == member.creat_per:
+        raise ValueError("L'alta l'ha de rebutjar un altre gestor (o un administrador)")
+    motiu = (motiu or "").strip()
+    if len(motiu) < 3:
+        raise ValueError("Cal indicar el motiu del rebuig")
+    member.estat = "baixa"
+    member.baixa_en = datetime.now(timezone.utc)
+    service.audit_append(db, {"accio": "rebutja_soci", "soci": member.id, "motiu": motiu[:200], "per": actor.id})
+    db.commit()
+
+
 # ---------- excepcions de límit per soci ----------
 
 def set_member_limit(db: Session, actor: User, member: Member, periode: str, max_mg: int | None, motiu: str) -> None:

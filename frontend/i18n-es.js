@@ -1047,6 +1047,8 @@ Object.assign(I18N.es, {
  "Cal indicar l'avalador": "Hay que indicar el avalista",
  "El soci no està pendent d'aprovació": "El socio no está pendiente de aprobación",
  "L'alta l'ha d'aprovar un altre gestor (o un administrador)": "El alta debe aprobarla otro gestor (o un administrador)",
+ "L'alta l'ha de rebutjar un altre gestor (o un administrador)": "El alta debe rechazarla otro gestor (o un administrador)",
+ "Cal indicar el motiu del rebuig": "Hay que indicar el motivo del rechazo",
  "Cal indicar el motiu de l'excepció": "Hay que indicar el motivo de la excepción",
  "Període no vàlid (dia o mes)": "Periodo no válido (día o mes)",
  "El soci no té aquesta excepció": "El socio no tiene esta excepción",

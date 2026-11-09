@@ -81,6 +81,12 @@ def router(db, current_user) -> APIRouter:
         run(controls.approve, s, user, member_or_404(s, user, member_id))
         return {"ok": True}
 
+    @r.post("/socis/{member_id}/rebutjar")
+    def rebutja(member_id: int, body: BaixaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        run(controls.reject, s, user, member_or_404(s, user, member_id), body.motiu)
+        return {"ok": True}
+
     @r.post("/socis/{member_id}/baixa")
     def baixa_amb_motiu(member_id: int, body: BaixaIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_manager(user)

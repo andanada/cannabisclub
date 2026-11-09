@@ -227,3 +227,16 @@ def test_s5_verificar_llibre_nomes_mostra_exportacions_dels_locals_de_l_usuari(c
     assert client.post("/llibres/verificar", json={"sha256": h}, headers=enc).json()["coincidencies"] == []  # enc no és del local 2
     trobades = client.post("/llibres/verificar", json={"sha256": h}, headers=adm).json()["coincidencies"]
     assert [c["local"] for c in trobades] == [2]
+
+
+def test_rebuig_d_alta_pendent_amb_dues_persones(ctx):
+    client, _, sec = ctx
+    enc, adm = token(client, sec, "enc"), token(client, sec, "admin")
+    cfg(client, adm, alta_pendent=True)
+    mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
+    r = client.post(f"/socis/{mid}/rebutjar", json={"motiu": "documentació dubtosa"}, headers=enc)   # el mateix gestor
+    assert r.status_code == 422 and "altre gestor" in r.json()["detail"]
+    assert client.post(f"/socis/{mid}/rebutjar", json={"motiu": "ab"}, headers=adm).status_code == 422  # motiu curt
+    assert client.post(f"/socis/{mid}/rebutjar", json={"motiu": "documentació dubtosa"}, headers=adm).status_code == 200
+    assert client.get(f"/socis/{mid}", headers=adm).json()["estat"] == "baixa"
+    assert client.post(f"/socis/{mid}/rebutjar", json={"motiu": "documentació dubtosa"}, headers=adm).status_code == 422

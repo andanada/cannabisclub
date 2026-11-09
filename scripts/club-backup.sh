@@ -126,6 +126,7 @@ cmd_keys() { mkdir -p "$DEST"; make_keys_package; }
 # el final de la cadena. Si no es pot obtenir NO s'atura la còpia (ja és feta i verificada), però es avisa.
 save_anchor() {
   local out="$1" anchor
+  # shellcheck source=/dev/null
   anchor="$(set -a; [ -r "$ENV_FILE" ] && . "$ENV_FILE"; set +a; cd "$REPO/backend" && "$PY" -m app.audit_cli ancora 2>/dev/null)" || anchor=""
   if ! [[ "$anchor" =~ ^[0-9]+:[0-9a-f]{64}$ ]]; then
     echo "AVÍS: no s'ha pogut obtenir l'ancoratge de l'auditoria (${anchor:-buit}); la còpia és vàlida igualment." >&2

@@ -1047,6 +1047,8 @@ Object.assign(I18N.en, {
  "Cal indicar l'avalador": "A sponsor is required",
  "El soci no està pendent d'aprovació": "The member is not awaiting approval",
  "L'alta l'ha d'aprovar un altre gestor (o un administrador)": "The sign-up must be approved by another manager (or an administrator)",
+ "L'alta l'ha de rebutjar un altre gestor (o un administrador)": "The sign-up must be rejected by another manager (or an administrator)",
+ "Cal indicar el motiu del rebuig": "A reason for the rejection is required",
  "Cal indicar el motiu de l'excepció": "The reason for the exception is required",
  "Període no vàlid (dia o mes)": "Invalid period (day or month)",
  "El soci no té aquesta excepció": "The member has no such exception",
