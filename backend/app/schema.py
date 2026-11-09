@@ -17,6 +17,25 @@ $$ LANGUAGE plpgsql
 """
 
 
+SESSION_FUNCTION = """
+CREATE OR REPLACE FUNCTION club_cash_session_guard() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'Les sessions de caixa no es poden esborrar' USING ERRCODE = '42501';
+  END IF;
+  IF OLD.closed_at IS NOT NULL THEN
+    RAISE EXCEPTION 'Una sessió de caixa tancada no es pot modificar' USING ERRCODE = '42501';
+  END IF;
+  IF NEW.id <> OLD.id OR NEW.local_id <> OLD.local_id OR NEW.opened_at <> OLD.opened_at
+     OR NEW.opened_by <> OLD.opened_by OR NEW.opening_cent <> OLD.opening_cent THEN
+    RAISE EXCEPTION 'Les dades d''obertura de la caixa no es poden canviar' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql
+"""
+
+
 def missing_indexes(engine) -> list[str]:
     """Índexs del model que falten en taules que ja existien (create_all no els crea en taules existents)."""
     from sqlalchemy import inspect
@@ -69,6 +88,13 @@ def install(engine) -> None:
             c.execute(text(f"DROP TRIGGER IF EXISTS {t}_no_truncate ON {t}"))
             c.execute(text(f"CREATE TRIGGER {t}_no_truncate BEFORE TRUNCATE ON {t} "
                            f"FOR EACH STATEMENT EXECUTE FUNCTION club_forbid_change()"))
+        # sessions de caixa: només passen d'oberta a tancada una vegada, i no s'esborren
+        c.execute(text(SESSION_FUNCTION))
+        c.execute(text("DROP TRIGGER IF EXISTS cash_sessions_guard ON cash_sessions"))
+        c.execute(text("CREATE TRIGGER cash_sessions_guard BEFORE UPDATE OR DELETE ON cash_sessions "
+                       "FOR EACH ROW EXECUTE FUNCTION club_cash_session_guard()"))
+        # bases de dades antigues: movement_id era únic; ara es pot tornar a cobrar si es corregeix el cobrament
+        c.execute(text("ALTER TABLE cash_entries DROP CONSTRAINT IF EXISTS cash_entries_movement_id_key"))
 
 
 def missing_tables(engine) -> list[str]:

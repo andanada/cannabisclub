@@ -9,9 +9,9 @@ from app.models import ImmutableError, Local, Member, StockMovement, User
 from tests.test_api import SOCI, ctx, env, token  # noqa: F401  (fixtures)
 
 
-def setup_data(client, h, factory, gprod="10"):
+def setup_data(client, h, factory, gprod="10", genetic=True):
     mid = client.post("/socis", json=SOCI, headers=h).json()["id"]
-    pid = client.post("/productes", json={"local_id": 1, "nom": "Producte A", "preu_cent_per_g": 800}, headers=h).json()["id"]
+    pid = client.post("/productes", json={"local_id": 1, "nom": "Producte A", "preu_cent_per_g": 800, "es_genetic": genetic}, headers=h).json()["id"]
     assert client.post("/moviments/entrada", json={"product_id": pid, "grams": gprod}, headers=h).status_code == 201
     return mid, pid
 

@@ -31,12 +31,9 @@ def list_rules(db: Session, local_id: int) -> list[dict]:
 
 
 def _consumit_mg(db: Session, r: Regla, member_id: int, now: datetime) -> int:
-    """Gramatge net dispensat al soci dins la finestra de la regla (les correccions hi resten)."""
-    q = (select(func.coalesce(func.sum(-StockMovement.delta_mg), 0))
-         .join(Product, Product.id == StockMovement.product_id)
-         .where(StockMovement.member_id == member_id, StockMovement.local_id == r.local_id,
-                StockMovement.ts >= stock._window_start(r.periode, now),
-                StockMovement.tipus.in_(["dispensacio", "correccio"])))
+    """Gramatge net dispensat al soci dins la finestra de la regla, només productes genètics. Les correccions hi
+    resten al període de la dispensació original. Es crida amb el soci i el producte bloquejats (stock.dispense)."""
+    q = stock.net_consumed_query(member_id, stock._window_start(r.periode, now)).where(StockMovement.local_id == r.local_id)
     if r.ambit == "categoria":
         q = q.where(func.coalesce(Product.categoria, "") == r.categoria)
     elif r.ambit == "producte":
@@ -45,7 +42,10 @@ def _consumit_mg(db: Session, r: Regla, member_id: int, now: datetime) -> int:
 
 
 def check(db: Session, member_id: int, product: Product, mg: int, now: datetime) -> None:
-    """Llança ValueError si dispensar `mg` supera alguna regla activa que afecti el producte."""
+    """Llança ValueError si dispensar `mg` supera alguna regla activa que afecti el producte.
+    Les regles només afecten productes genètics: els altres (accessoris, begudes) no compten ni es bloquegen."""
+    if not product.es_genetic:
+        return
     for r in db.scalars(select(Regla).where(Regla.local_id == product.local_id, Regla.actiu.is_(True)).order_by(Regla.id)):
         if _aplica(r, product) and _consumit_mg(db, r, member_id, now) + mg > r.max_mg:
             raise ValueError(f"Supera la regla «{r.nom}»: màxim {Decimal(r.max_mg) / 1000} g per soci {PERIODES[r.periode]}")

@@ -43,8 +43,8 @@ def test_regla_per_categoria_i_per_producte(ctx):
     client, factory, sec = ctx
     enc, admin = token(client, sec, "enc"), token(client, sec, "admin")
     mid, pa = setup_data(client, enc, factory)  # «Producte A», sense categoria
-    flor = client.post("/productes", json={"local_id": 1, "nom": "B", "categoria": "flor", "preu_cent_per_g": 500}, headers=enc).json()["id"]
-    hash_ = client.post("/productes", json={"local_id": 1, "nom": "C", "categoria": "resina", "preu_cent_per_g": 900}, headers=enc).json()["id"]
+    flor = client.post("/productes", json={"local_id": 1, "nom": "B", "categoria": "flor", "preu_cent_per_g": 500, "es_genetic": True}, headers=enc).json()["id"]
+    hash_ = client.post("/productes", json={"local_id": 1, "nom": "C", "categoria": "resina", "preu_cent_per_g": 900, "es_genetic": True}, headers=enc).json()["id"]
     for p in (flor, hash_):
         client.post("/moviments/entrada", json={"product_id": p, "grams": "20"}, headers=enc)
     regla(client, admin, nom="Flor 2 g", ambit="categoria", categoria="flor", periode="dia", max_g="2")

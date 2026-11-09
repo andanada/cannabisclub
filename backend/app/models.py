@@ -134,7 +134,9 @@ class CashEntry(Base):
     import_cent: Mapped[int] = mapped_column(Integer)
     categoria: Mapped[str | None] = mapped_column(String(60), nullable=True)
     concepte: Mapped[str | None] = mapped_column(String(300), nullable=True)
-    movement_id: Mapped[int | None] = mapped_column(ForeignKey("stock_movements.id"), nullable=True, unique=True)
+    # No és únic: si es corregeix el cobrament, la dispensació es pot tornar a cobrar (un cobrament viu per dispensació,
+    # garantit pel bloqueig de la dispensació a cash.charge)
+    movement_id: Mapped[int | None] = mapped_column(ForeignKey("stock_movements.id"), nullable=True)
     corregeix_id: Mapped[int | None] = mapped_column(ForeignKey("cash_entries.id"), nullable=True, unique=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
@@ -269,6 +271,10 @@ Index("ix_stock_mov_local_ts", StockMovement.local_id, StockMovement.ts)
 Index("ix_stock_mov_member_ts", StockMovement.member_id, StockMovement.ts)
 Index("ix_cash_entries_local_ts", CashEntry.local_id, CashEntry.ts)
 Index("ix_cash_entries_session", CashEntry.session_id)
+Index("ix_cash_entries_movement", CashEntry.movement_id)
+# Una sola caixa oberta per local, garantit per la base de dades (dos «obrir caixa» simultanis no poden passar tots dos)
+Index("uq_cash_sessions_oberta", CashSession.local_id, unique=True,
+      postgresql_where=CashSession.closed_at.is_(None), sqlite_where=CashSession.closed_at.is_(None))
 Index("ix_checkins_local_ts", CheckIn.local_id, CheckIn.ts)
 Index("ix_time_events_user", TimeEvent.user_id, TimeEvent.id)
 Index("ix_members_local", Member.local_id)

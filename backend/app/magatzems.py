@@ -4,14 +4,13 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import service, stock
+from . import service, stock, unitats
 from .models import MovementWarehouse, Product, StockMovement, User, Warehouse
 
 RESERVAT = "principal"
 
 
-def _g(mg: int) -> str:
-    return str(Decimal(mg) / 1000)
+_g = unitats.mg_to_g
 
 
 def llista(db: Session, local_id: int) -> list[dict]:
@@ -91,6 +90,7 @@ def transfer(db: Session, actor: User, product: Product, de: int | None, a: int 
     if de == a:
         raise ValueError("L'origen i el destí han de ser diferents")
     mg = stock.grams_to_mg(grams)
+    product = stock._lock_product(db, product.id)  # el mateix bloqueig que dispensar: no es pot creuar amb una dispensació
     check_active(db, product.local_id, a)
     if de is not None:
         w = db.get(Warehouse, de)

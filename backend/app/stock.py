@@ -3,19 +3,20 @@ from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import exists, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, aliased
 
-from . import service
+from . import service, unitats
 from .models import CashEntry, Local, Member, MovementWarehouse, Product, StockMovement, User
 
 TZ = ZoneInfo("Europe/Madrid")
 
 
 def grams_to_mg(g: Decimal) -> int:
-    mg = (Decimal(g) * 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    mg = unitats.g_to_mg(g)
     if mg <= 0:
         raise ValueError("La quantitat ha de ser positiva")
-    return int(mg)
+    return mg
 
 
 def _del_principal():
@@ -56,11 +57,23 @@ def stock_by_product(db: Session, product_ids, total: bool = False) -> dict[int,
     return out
 
 
+def _lock_product_row(db: Session, product_id: int) -> Product | None:
+    return db.scalar(select(Product).where(Product.id == product_id).with_for_update().execution_options(populate_existing=True))
+
+
 def _lock_product(db: Session, product_id: int) -> Product:
-    p = db.scalar(select(Product).where(Product.id == product_id).with_for_update())
+    p = _lock_product_row(db, product_id)
     if not p or not p.actiu:
         raise ValueError("Producte inexistent o inactiu")
     return p
+
+
+def _lock_member(db: Session, member_id: int | None) -> Member | None:
+    """Bloqueja la fila del soci. ORDRE FIX DE BLOQUEIGS: soci -> producte -> (sessió de caixa). Qui bloquegi
+    el producte i després el soci pot interbloquejar-se; qui vulgui els dos, sempre en aquest ordre."""
+    if member_id is None:
+        return None
+    return db.scalar(select(Member).where(Member.id == member_id).with_for_update().execution_options(populate_existing=True))
 
 
 def _window_start(period: str, now: datetime) -> datetime:
@@ -74,13 +87,24 @@ def _window_start(period: str, now: datetime) -> datetime:
     return datetime.combine(d, time.min, tzinfo=TZ).astimezone(timezone.utc)
 
 
+def net_consumed_query(member_id: int, since: datetime):
+    """Consulta del gramatge net (mg) dispensat a un soci des de `since`, només de productes genètics.
+    Una correcció compta en el període de la dispensació que corregeix (no en el dia en què es fa)."""
+    orig = aliased(StockMovement)
+    ts_efectiu = func.coalesce(orig.ts, StockMovement.ts)
+    q = (select(func.coalesce(func.sum(-StockMovement.delta_mg), 0))
+         .select_from(StockMovement)
+         .join(Product, Product.id == StockMovement.product_id)
+         .outerjoin(orig, orig.id == StockMovement.corregeix_id)
+         .where(StockMovement.member_id == member_id, ts_efectiu >= since,
+                StockMovement.tipus.in_(["dispensacio", "correccio"]), Product.es_genetic.is_(True)))
+    return q
+
+
 def dispensed_mg(db: Session, member_id: int, period: str, now: datetime) -> int:
-    """Total net dispensat al soci en el període (les correccions hi resten)."""
-    start = _window_start(period, now)
-    total = db.scalar(select(func.coalesce(func.sum(-StockMovement.delta_mg), 0)).where(
-        StockMovement.member_id == member_id, StockMovement.ts >= start,
-        StockMovement.tipus.in_(["dispensacio", "correccio"])))
-    return total
+    """Total net dispensat al soci en el període, només productes genètics (les correccions hi resten,
+    al període de la dispensació original)."""
+    return db.scalar(net_consumed_query(member_id, _window_start(period, now)))
 
 
 def _nom_lliure(db: Session, local_id: int, nom: str, excepte_id: int | None = None) -> bool:
@@ -100,7 +124,7 @@ def movements_list(db: Session, local_id: int, des: date, fins: date, limit: int
          .where(StockMovement.local_id == local_id, StockMovement.ts >= a, StockMovement.ts < b)
          .order_by(StockMovement.id.desc()).limit(limit))
     return [{"id": m.id, "ts": m.ts.replace(tzinfo=m.ts.tzinfo or timezone.utc).isoformat(), "tipus": m.tipus, "producte": nom,
-             "grams": str(Decimal(m.delta_mg) / 1000), "import_cent": m.import_cent, "soci_id": m.member_id,
+             "grams": unitats.mg_to_g(m.delta_mg), "import_cent": m.import_cent, "soci_id": m.member_id,
              "usuari": noms.get(m.user_id), "nota": m.nota, "corregeix_id": m.corregeix_id, "corregit": m.id in corregits}
             for m, nom in db.execute(q)]
 
@@ -171,10 +195,12 @@ def receive(db: Session, actor: User, product_id: int, grams: Decimal, nota: str
 
 
 def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: Decimal,
-             pes_bascula_g: Decimal | None, now: datetime | None = None, discount_id: int | None = None) -> StockMovement:
+             pes_bascula_g: Decimal | None, now: datetime | None = None, discount_id: int | None = None,
+             metode: str | None = None) -> StockMovement:
+    """Dispensa. Amb `metode` (efectiu/targeta) també cobra en la mateixa transacció: o es fa tot o res."""
     now = now or datetime.now(timezone.utc)
+    member = _lock_member(db, member_id)  # primer el soci, després el producte (ordre fix, evita interbloqueigs)
     p = _lock_product(db, product_id)
-    member = db.get(Member, member_id)
     if not member or member.local_id != p.local_id:
         raise ValueError("Soci inexistent o d'un altre local")
     if member.estat != "actiu":
@@ -189,9 +215,10 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     if pes_bascula_g is not None and local.tolerancia_bascula_mg is not None:
         if abs(grams_to_mg(pes_bascula_g) - mg) > local.tolerancia_bascula_mg:
             raise ValueError("El pes de la bàscula no coincideix amb la quantitat dispensada")
-    for period, limit in (("dia", local.limit_diari_mg), ("mes", local.limit_mensual_mg)):
-        if limit is not None and dispensed_mg(db, member_id, period, now) + mg > limit:
-            raise ValueError(f"Supera el límit {'diari' if period == 'dia' else 'mensual'} del soci")
+    if p.es_genetic:  # els límits només afecten productes genètics (flor, clons…)
+        for period, limit in (("dia", local.limit_diari_mg), ("mes", local.limit_mensual_mg)):
+            if limit is not None and dispensed_mg(db, member_id, period, now) + mg > limit:
+                raise ValueError(f"Supera el límit {'diari' if period == 'dia' else 'mensual'} del soci")
     from . import linies_preu, regles
     regles.check(db, member_id, p, mg, now)
     original = int((Decimal(mg) * linies_preu.price_for(db, member_id, p) / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
@@ -211,6 +238,9 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     m.descompte_cent = rebaixa  # només per a la resposta (no és una columna)
     service.audit_append(db, {"accio": "dispensacio", "moviment": m.id, "soci": member_id, "producte": p.id,
                               "mg": mg, "import_cent": m.import_cent, "descompte": descompte.id if descompte else None, "per": actor.id})
+    if metode is not None:
+        from . import cash
+        cash.charge_in_tx(db, actor, m, metode)
     db.commit()
     return m
 
@@ -221,19 +251,29 @@ def correct(db: Session, actor: User, movement_id: int, nota: str) -> StockMovem
         raise ValueError("Moviment inexistent")
     if orig.tipus == "correccio":
         raise ValueError("Una correcció no es pot corregir")
+    if orig.tipus == "traspas":
+        raise ValueError("Un traspàs no es pot corregir: fes un traspàs en sentit contrari")
+    _lock_member(db, orig.member_id)  # ordre fix: soci -> producte
+    _lock_product(db, orig.product_id)
     if db.scalar(select(StockMovement.id).where(StockMovement.corregeix_id == orig.id)):
         raise ValueError("Aquest moviment ja està corregit")
-    pagat = db.scalar(select(CashEntry).where(CashEntry.movement_id == orig.id))
-    if pagat and not db.scalar(select(CashEntry.id).where(CashEntry.corregeix_id == pagat.id)):
+    from . import cash
+    if cash._live_charge(db, orig.id):
         raise ValueError("La dispensació està cobrada: corregeix primer el cobrament")
-    _lock_product(db, orig.product_id)
-    if stock_mg(db, orig.product_id) - orig.delta_mg < 0:
+    wid = db.scalar(select(MovementWarehouse.warehouse_id).where(MovementWarehouse.movement_id == orig.id))
+    if stock_in_mg(db, orig.product_id, wid) - orig.delta_mg < 0:
         raise ValueError("La correcció deixaria l'estoc negatiu")
     m = StockMovement(local_id=orig.local_id, product_id=orig.product_id, tipus="correccio",
                       delta_mg=-orig.delta_mg, member_id=orig.member_id, import_cent=-orig.import_cent if orig.import_cent else None,
                       corregeix_id=orig.id, user_id=actor.id, nota=nota)
     db.add(m)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise ValueError("Aquest moviment ja està corregit")
+    if wid is not None:
+        db.add(MovementWarehouse(movement_id=m.id, warehouse_id=wid))
     service.audit_append(db, {"accio": "correccio", "moviment": m.id, "corregeix": orig.id, "per": actor.id})
     db.commit()
     return m
@@ -255,7 +295,7 @@ def shrink(db: Session, actor: User, product_id: int, grams: Decimal, nota: str)
 def adjust(db: Session, actor: User, product_id: int, grams_reals: Decimal, nota: str) -> StockMovement:
     """Ajust d'inventari: deixa l'estoc exactament en `grams_reals` (>= 0)."""
     p = _lock_product(db, product_id)
-    real = int((Decimal(grams_reals) * 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    real = unitats.g_to_mg(grams_reals)
     if real < 0:
         raise ValueError("L'inventari real no pot ser negatiu")
     delta = real - stock_mg(db, p.id)

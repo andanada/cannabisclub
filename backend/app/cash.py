@@ -2,6 +2,7 @@ from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import service
@@ -19,18 +20,26 @@ def open_session(db: Session, actor: User, local_id: int, opening_cent: int) -> 
         raise ValueError("Ja hi ha una caixa oberta en aquest local")
     cs = CashSession(local_id=local_id, opened_by=actor.id, opening_cent=opening_cent)
     db.add(cs)
-    db.flush()
+    try:
+        db.flush()  # l'índex únic parcial atura la segona obertura simultània
+    except IntegrityError:
+        db.rollback()
+        raise ValueError("Ja hi ha una caixa oberta en aquest local")
     service.audit_append(db, {"accio": "obrir_caixa", "sessio": cs.id, "local": local_id, "cent": opening_cent, "per": actor.id})
     db.commit()
     return cs
 
 
-def current_session(db: Session, local_id: int) -> CashSession | None:
-    return db.scalar(select(CashSession).where(CashSession.local_id == local_id, CashSession.closed_at.is_(None)))
+def current_session(db: Session, local_id: int, lock: bool = False) -> CashSession | None:
+    q = select(CashSession).where(CashSession.local_id == local_id, CashSession.closed_at.is_(None))
+    if lock:
+        q = q.with_for_update().execution_options(populate_existing=True)
+    return db.scalar(q)
 
 
 def _require_open(db: Session, local_id: int) -> CashSession:
-    cs = current_session(db, local_id)
+    """Sessió oberta, bloquejada fins al commit: tancar la caixa no pot creuar-se amb un cobrament o una despesa."""
+    cs = current_session(db, local_id, lock=True)
     if not cs:
         raise ValueError("No hi ha cap caixa oberta en aquest local")
     return cs
@@ -41,7 +50,22 @@ def expected_cash(db: Session, cs: CashSession) -> int:
         CashEntry.session_id == cs.id, CashEntry.metode == "efectiu"))
 
 
+def unpaid_dispensations(db: Session, local_id: int, since: datetime) -> list[dict]:
+    """Dispensacions des de `since` sense cobrar (ni cobrades i després corregides sense recobrar)
+    i que no estan corregides. Serveix d'avís en tancar la caixa."""
+    corregides = select(StockMovement.corregeix_id).where(StockMovement.corregeix_id.is_not(None))
+    rows = db.scalars(select(StockMovement).where(
+        StockMovement.local_id == local_id, StockMovement.tipus == "dispensacio", StockMovement.ts >= since,
+        StockMovement.import_cent > 0, StockMovement.id.not_in(corregides)).order_by(StockMovement.id))
+    out = []
+    for m in rows:
+        if _live_charge(db, m.id) is None:
+            out.append({"moviment": m.id, "import_cent": m.import_cent, "soci_id": m.member_id, "producte_id": m.product_id})
+    return out
+
+
 def close_session(db: Session, actor: User, local_id: int, counted_cent: int) -> CashSession:
+    """Tanca la caixa. El resultat porta `sense_cobrar` (llista de dispensacions sense cobrar) i `sense_cobrar_cent`."""
     cs = _require_open(db, local_id)
     if counted_cent < 0:
         raise ValueError("L'import comptat no pot ser negatiu")
@@ -50,10 +74,44 @@ def close_session(db: Session, actor: User, local_id: int, counted_cent: int) ->
     cs.diff_cent = counted_cent - cs.expected_cent
     cs.closed_at = datetime.now(timezone.utc)
     cs.closed_by = actor.id
+    pendents = unpaid_dispensations(db, local_id, cs.opened_at)
     service.audit_append(db, {"accio": "tancar_caixa", "sessio": cs.id, "esperat": cs.expected_cent,
-                              "comptat": counted_cent, "diferencia": cs.diff_cent, "per": actor.id})
+                              "comptat": counted_cent, "diferencia": cs.diff_cent, "sense_cobrar": len(pendents), "per": actor.id})
     db.commit()
+    cs.sense_cobrar = pendents  # només per a la resposta (no és una columna)
+    cs.sense_cobrar_cent = sum(p["import_cent"] for p in pendents)
     return cs
+
+
+def _live_charge(db: Session, movement_id: int) -> CashEntry | None:
+    """El cobrament vigent d'una dispensació: el més recent que no té correcció."""
+    for e in db.scalars(select(CashEntry).where(CashEntry.movement_id == movement_id, CashEntry.tipus == "cobrament")
+                        .order_by(CashEntry.id.desc())):
+        if not db.scalar(select(CashEntry.id).where(CashEntry.corregeix_id == e.id)):
+            return e
+    return None
+
+
+def charge_in_tx(db: Session, actor: User, mv: StockMovement, metode: str) -> CashEntry:
+    """Cobra una dispensació SENSE fer commit (el cridador tanca la transacció)."""
+    if metode not in METODES:
+        raise ValueError("Mètode de pagament no vàlid")
+    if mv.tipus != "dispensacio":
+        raise ValueError("Només es poden cobrar dispensacions")
+    from . import stock  # import local: stock importa cash
+    stock._lock_member(db, mv.member_id)  # mateix ordre que stock.dispense/correct: soci -> producte -> sessió
+    stock._lock_product_row(db, mv.product_id)
+    cs = _require_open(db, mv.local_id)
+    if db.scalar(select(StockMovement.id).where(StockMovement.corregeix_id == mv.id)):
+        raise ValueError("La dispensació està corregida")
+    if _live_charge(db, mv.id):
+        raise ValueError("Aquesta dispensació ja està cobrada")
+    e = CashEntry(local_id=mv.local_id, session_id=cs.id, tipus="cobrament", metode=metode,
+                  import_cent=mv.import_cent or 0, movement_id=mv.id, user_id=actor.id)
+    db.add(e)
+    db.flush()
+    service.audit_append(db, {"accio": "cobrament", "apunt": e.id, "moviment": mv.id, "cent": e.import_cent, "metode": metode, "per": actor.id})
+    return e
 
 
 def charge(db: Session, actor: User, movement_id: int, metode: str) -> CashEntry:
@@ -62,16 +120,7 @@ def charge(db: Session, actor: User, movement_id: int, metode: str) -> CashEntry
     mv = db.get(StockMovement, movement_id)
     if not mv or mv.tipus != "dispensacio":
         raise ValueError("Només es poden cobrar dispensacions")
-    if db.scalar(select(StockMovement.id).where(StockMovement.corregeix_id == mv.id)):
-        raise ValueError("La dispensació està corregida")
-    cs = _require_open(db, mv.local_id)
-    if db.scalar(select(CashEntry.id).where(CashEntry.movement_id == mv.id)):
-        raise ValueError("Aquesta dispensació ja està cobrada")
-    e = CashEntry(local_id=mv.local_id, session_id=cs.id, tipus="cobrament", metode=metode,
-                  import_cent=mv.import_cent or 0, movement_id=mv.id, user_id=actor.id)
-    db.add(e)
-    db.flush()
-    service.audit_append(db, {"accio": "cobrament", "apunt": e.id, "moviment": mv.id, "cent": e.import_cent, "metode": metode, "per": actor.id})
+    e = charge_in_tx(db, actor, mv, metode)
     db.commit()
     return e
 
@@ -99,12 +148,18 @@ def correct_entry(db: Session, actor: User, entry_id: int, concepte: str) -> Cas
         raise ValueError("Una correcció no es pot corregir")
     if db.scalar(select(CashEntry.id).where(CashEntry.corregeix_id == orig.id)):
         raise ValueError("Aquest apunt ja està corregit")
-    cs = _require_open(db, orig.local_id)
+    cs = _require_open(db, orig.local_id)  # sessió bloquejada
+    if db.scalar(select(CashEntry.id).where(CashEntry.corregeix_id == orig.id)):
+        raise ValueError("Aquest apunt ja està corregit")
     e = CashEntry(local_id=orig.local_id, session_id=cs.id, tipus="correccio", metode=orig.metode,
                   import_cent=-orig.import_cent, categoria=orig.categoria, concepte=concepte,
                   corregeix_id=orig.id, user_id=actor.id)
     db.add(e)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise ValueError("Aquest apunt ja està corregit")
     service.audit_append(db, {"accio": "correccio_caixa", "apunt": e.id, "corregeix": orig.id, "per": actor.id})
     db.commit()
     return e

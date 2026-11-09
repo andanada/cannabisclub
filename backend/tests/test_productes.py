@@ -103,7 +103,7 @@ def test_producte_genetic_es_pot_crear_i_canviar_i_surt_a_les_vendes(ctx):
     from tests.test_stock import setup_data
     client, factory, sec = ctx
     enc = token(client, sec, "enc")
-    mid, pid = setup_data(client, enc, factory)
+    mid, pid = setup_data(client, enc, factory, genetic=False)
     assert client.get("/locals/1/productes", headers=enc).json()[0]["es_genetic"] is False
     nou = client.post("/productes", json={"local_id": 1, "nom": "Clon", "categoria": "clons", "preu_cent_per_g": 100, "es_genetic": True}, headers=enc).json()["id"]
     assert next(p for p in client.get("/locals/1/productes", headers=enc).json() if p["id"] == nou)["es_genetic"] is True
