@@ -105,14 +105,19 @@ make_keys_package() {
   if [ -n "${CLUB_BACKUP_KEYS_REMOTE:-${CLUB_BACKUP_REMOTE:-}}" ]; then
     rsync -a --chmod=F600 -e "ssh -o BatchMode=yes" "$out" "$out.sha256" "${CLUB_BACKUP_KEYS_REMOTE:-$CLUB_BACKUP_REMOTE}/"
   fi
+  # L'empremta es desa NOMÉS aquí, quan el paquet ja és xifrat, mogut al seu lloc i (si cal) copiat: si make_keys_package
+  # falla abans, la propera execució ho torna a intentar en lloc de creure que les claus ja estan guardades.
+  keys_fingerprint > "$DEST/.keys.fingerprint"
   echo "Paquet de claus: $out"
 }
 
-keys_changed() {  # cert si les claus actuals no coincideixen amb l'última empremta registrada
+keys_fingerprint() { grep -E '^(CLUB_FIELD_KEY|CLUB_INDEX_KEY)=' "$KEYS_FILE" | sha256sum | cut -d' ' -f1; }
+
+keys_changed() {  # cert si les claus actuals no coincideixen amb l'última empremta registrada (no escriu res)
   local cur last="$DEST/.keys.fingerprint"
-  cur="$(grep -E '^(CLUB_FIELD_KEY|CLUB_INDEX_KEY)=' "$KEYS_FILE" | sha256sum | cut -d' ' -f1)"
+  cur="$(keys_fingerprint)"
   if [ -f "$last" ] && [ "$(cat "$last")" = "$cur" ] && ls "$DEST"/club-keys-*.keys.gpg >/dev/null 2>&1; then return 1; fi
-  echo "$cur" > "$last"; return 0
+  return 0
 }
 
 cmd_keys() { mkdir -p "$DEST"; make_keys_package; }
@@ -184,15 +189,19 @@ cmd_restore_test() {
   trap 'docker rm -f "'"$name"'" >/dev/null 2>&1 || true; rm -rf -- "'"$work"'"' EXIT
   docker run -d --rm --name "$name" -e POSTGRES_PASSWORD="$pw" -e POSTGRES_DB=restore -p 127.0.0.1::5432 "$RESTORE_IMAGE" >/dev/null
   for _ in $(seq 1 40); do docker exec "$name" pg_isready -U postgres -d restore >/dev/null 2>&1 && break; sleep 1; done
-  # desxifrat -> pg_restore per tubería: cap fitxer en clar
-  gpg --batch --status-fd 3 --decrypt "$file" 3>"$status" 2>/dev/null \
-    | docker exec -i "$name" pg_restore -U postgres -d restore --no-owner --no-privileges --exit-on-error \
-    || die "No s'ha pogut desxifrar o restaurar (falta la clau privada? signatura incorrecta?)"
+  # 1) La signatura es comprova ABANS de passar res a pg_restore: una primera passada desxifra i descarta el contingut
+  #    (cap fitxer en clar) només per obtenir l'estat de GPG; una còpia no signada per la clau esperada no arriba mai a la BD.
+  gpg --batch --status-fd 3 --decrypt "$file" 3>"$status" >/dev/null 2>&1 \
+    || die "No s'ha pogut desxifrar (falta la clau privada? signatura incorrecta?)"
   grep -q '^\[GNUPG:\] GOODSIG ' "$status" || die "La còpia no porta una signatura vàlida"
   # VALIDSIG: camp 3 = empremta del (sub)clau; camp 12 = empremta de la clau primària
   awk '$2=="VALIDSIG"{print toupper($3); print toupper($12)}' "$status" | grep -qx "$fpr_expected" \
     || die "La signatura NO és de la clau esperada ($fpr_expected): còpia substituïda o clau equivocada"
   echo "Signatura i hash verificats."
+  # 2) Només ara es restaura: desxifrat -> pg_restore per tubería, cap fitxer en clar
+  gpg --batch --decrypt "$file" 2>/dev/null \
+    | docker exec -i "$name" pg_restore -U postgres -d restore --no-owner --no-privileges --exit-on-error \
+    || die "No s'ha pogut restaurar la còpia"
   port="$(docker port "$name" 5432/tcp | head -1 | sed 's/.*://')"
   "$PY" -I - "postgresql+psycopg://postgres:$pw@127.0.0.1:$port/restore" "$REPO/backend" <<'PYEOF'
 import sys
