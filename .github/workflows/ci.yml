@@ -65,6 +65,9 @@ jobs:
         run: |
           python -m pip install pip-audit
           pip-audit -r requirements.txt --strict
+          pip-audit -r requirements.lock --require-hashes --strict
+      - name: El lock s'instal·la amb hashes obligatoris
+        run: python -m pip install --dry-run --require-hashes -r requirements.lock
 
   shell:
     runs-on: ubuntu-latest
