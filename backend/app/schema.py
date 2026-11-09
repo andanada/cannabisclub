@@ -5,7 +5,7 @@ from sqlalchemy import text
 from .db import Base
 from . import models  # noqa: F401  (registra les taules)
 
-APPEND_ONLY = ["stock_movements", "cash_entries", "time_events", "checkins", "audit_log", "signatures", "quotes", "member_photos", "movement_discounts", "movement_warehouses"]
+APPEND_ONLY = ["stock_movements", "cash_entries", "time_events", "checkins", "audit_log", "signatures", "quotes", "member_photos", "movement_discounts", "movement_warehouses", "consents", "audit_anchors", "movement_batches"]
 
 FUNCTION = """
 CREATE OR REPLACE FUNCTION club_forbid_change() RETURNS trigger AS $$
@@ -48,7 +48,14 @@ def missing_indexes(engine) -> list[str]:
 # s'afegeixen amb ALTER TABLE (sempre amb valor per defecte: les files existents continuen valent).
 COLUMNES_NOVES = {"products": [("es_genetic", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"})],
                   "inventory_counts": [("expected_mg", {"default": "INTEGER"})],
-                  "user_cards": [("pin_hash", {"default": "TEXT"})]}
+                  "user_cards": [("pin_hash", {"default": "TEXT"})],
+                  "users": [("last_totp_step", {"default": "BIGINT"})],
+                  "members": [("baixa_en", {"postgresql": "TIMESTAMPTZ", "default": "TIMESTAMP"}),
+                              ("suprimit_en", {"postgresql": "TIMESTAMPTZ", "default": "TIMESTAMP"}),
+                              ("doc_verificat", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"}),
+                              ("avalador_id", {"default": "INTEGER REFERENCES members(id)"})],
+                  "audit_log": [("alg", {"default": "VARCHAR(8)"})],
+                  "signatures": [("text_sha256", {"default": "VARCHAR(64)"})]}
 
 
 def missing_columns(engine) -> list[str]:

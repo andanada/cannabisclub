@@ -1,5 +1,5 @@
 from datetime import date, datetime, timezone
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, false
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, false
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -25,6 +25,7 @@ class User(Base):
     totp_secret_enc: Mapped[str] = mapped_column(Text)
     role: Mapped[str] = mapped_column(String(20))  # admin | encarregat | dispensador
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_totp_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)  # darrer pas TOTP consumit (antireutilització persistent)
 
 
 class UserLocal(Base):
@@ -51,9 +52,13 @@ class Member(Base):
     naixement_enc: Mapped[str] = mapped_column(Text)
     telefon_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     email_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
-    estat: Mapped[str] = mapped_column(String(20), default="actiu")  # actiu | suspes | baixa
+    estat: Mapped[str] = mapped_column(String(20), default="actiu")  # pendent | actiu | suspes | baixa
     creat: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     creat_per: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    baixa_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # darrera baixa (retenció)
+    suprimit_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # seudonimitzat (RGPD art. 17)
+    doc_verificat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # s'ha exhibit el document
+    avalador_id: Mapped[int | None] = mapped_column(ForeignKey("members.id"), nullable=True)
 
 
 class AuditLog(Base):
@@ -63,6 +68,7 @@ class AuditLog(Base):
     payload: Mapped[str] = mapped_column(Text)  # JSON canònic, sense dades personals en clar
     prev_hash: Mapped[str] = mapped_column(String(64))
     hash: Mapped[str] = mapped_column(String(64))
+    alg: Mapped[str | None] = mapped_column(String(8), nullable=True)  # h1 = HMAC; NULL = SHA-256 antic
 
 
 class Product(Base):
@@ -188,6 +194,7 @@ class Signature(Base):
     kind: Mapped[str] = mapped_column(String(20), default="alta")
     png_enc: Mapped[str] = mapped_column(Text)
     sha256: Mapped[str] = mapped_column(String(64))  # hash(png + id del soci + data), per detectar alteracions
+    text_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)  # hash del text informatiu acceptat
 
 
 @event.listens_for(Signature, "before_update")
@@ -474,3 +481,90 @@ Index("ix_movement_warehouses_wh", MovementWarehouse.warehouse_id)
 Index("ix_containers_local", Container.local_id)
 Index("ix_member_price_lines_line", MemberPriceLine.price_line_id)
 Index("ix_inventory_sessions_local", InventorySession.local_id, InventorySession.estat)
+
+
+# ---------- RGPD, controls de club, traçabilitat, ancoratges ----------
+
+class Consent(Base):
+    """Consentiment per finalitat. Només d'afegir: la retirada és un registre nou (accio = retirat)."""
+    __tablename__ = "consents"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    finalitat: Mapped[str] = mapped_column(String(20))  # basic | foto | contacte
+    accio: Mapped[str] = mapped_column(String(10))  # atorgat | retirat
+    versio: Mapped[str] = mapped_column(String(20))
+    text_sha256: Mapped[str] = mapped_column(String(64))
+    canal: Mapped[str] = mapped_column(String(20), default="presencial")
+    signature_id: Mapped[int | None] = mapped_column(ForeignKey("signatures.id"), nullable=True)
+
+
+@event.listens_for(Consent, "before_update")
+@event.listens_for(Consent, "before_delete")
+def _immutable_consent(mapper, connection, target):
+    raise ImmutableError("Els consentiments no es poden modificar: registra'n la retirada")
+
+
+class AuditAnchor(Base):
+    """Ancoratges de l'auditoria (seq + hash) desats a la mateixa BD; l'original ha d'anar també fora de l'equip."""
+    __tablename__ = "audit_anchors"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seq: Mapped[int] = mapped_column(Integer)
+    hash: Mapped[str] = mapped_column(String(64))
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    origen: Mapped[str] = mapped_column(String(40), default="manual")
+
+
+@event.listens_for(AuditAnchor, "before_update")
+@event.listens_for(AuditAnchor, "before_delete")
+def _immutable_anchor(mapper, connection, target):
+    raise ImmutableError("Els ancoratges no es poden modificar")
+
+
+class MemberLimit(Base):
+    """Excepció de límit per soci (substitueix el del local per al període), amb motiu."""
+    __tablename__ = "member_limits"
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"), primary_key=True)
+    periode: Mapped[str] = mapped_column(String(10), primary_key=True)  # dia | mes
+    max_mg: Mapped[int] = mapped_column(Integer)
+    motiu: Mapped[str] = mapped_column(String(200))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Batch(Base):
+    """Lot/partida d'un producte (traçabilitat)."""
+    __tablename__ = "batches"
+    __table_args__ = (UniqueConstraint("product_id", "codi"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    codi: Mapped[str] = mapped_column(String(40))
+    origen: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    proveidor: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    collita: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    data_entrada: Mapped[date] = mapped_column(Date)
+    analisi: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+    creat_per: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
+class MovementBatch(Base):
+    """Lot(s) d'un moviment d'estoc, amb els mg que hi corresponen (una dispensació pot repartir-se entre lots).
+    Només d'afegir, com movement_warehouses: stock_movements no canvia."""
+    __tablename__ = "movement_batches"
+    movement_id: Mapped[int] = mapped_column(ForeignKey("stock_movements.id"), primary_key=True)
+    batch_id: Mapped[int] = mapped_column(ForeignKey("batches.id"), primary_key=True)
+    mg: Mapped[int] = mapped_column(Integer)  # amb el signe del moviment (+ entrada, - sortida)
+
+
+@event.listens_for(MovementBatch, "before_update")
+@event.listens_for(MovementBatch, "before_delete")
+def _immutable_movement_batch(mapper, connection, target):
+    raise ImmutableError("El lot d'un moviment no es pot modificar: corregeix el moviment")
+
+
+Index("ix_consents_member", Consent.member_id, Consent.finalitat)
+Index("ix_batches_product", Batch.product_id)
+Index("ix_movement_batches_batch", MovementBatch.batch_id)
