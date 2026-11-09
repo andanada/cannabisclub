@@ -101,20 +101,24 @@ Les còpies de seguretat estan descrites a `docs/COPIES.md`.
 
 ## Proves
 
-    cd backend && ../.venv/bin/python -m pytest -q            # SQLite: algunes proves es salten
-    cd frontend && node --test test/bascula.test.js           # protocol de la bàscula amb una bàscula simulada
+Suite completa amb PostgreSQL real, **una sola ordre** (usa `pgserver` incrustat si hi és, o Docker; no cal tocar `requirements.txt`):
 
-Les proves de PostgreSQL (triggers d'«només d'afegir», permisos del rol sense privilegis, actualització de la base de dades) necessiten un PostgreSQL i la variable `CLUB_TEST_PG_URL`:
+    .venv/bin/python -m pip install pgserver       # un cop (alternativa: tenir Docker)
+    .venv/bin/python scripts/test-pg.py            # accepta arguments de pytest: ... scripts/test-pg.py -k carnet
 
-    CLUB_TEST_PG_URL=postgresql+psycopg://club:...@127.0.0.1:5433/club pytest
+Alternatives manuals:
 
-Sense Docker, a la màquina de desenvolupament es pot fer servir un PostgreSQL incrustat (paquet `pgserver`, no cal afegir-lo a `requirements.txt`):
+    docker compose --profile test up -d db-test    # PostgreSQL temporal a 127.0.0.1:5434
+    export CLUB_TEST_PG_URL=postgresql+psycopg://club:club-test@127.0.0.1:5434/club
+    cd backend && ../.venv/bin/python -m pytest -q -rs
 
-    .venv/bin/python -m pip install pgserver
-    .venv/bin/python -c "import pgserver; s = pgserver.get_server('/tmp/pgdata', cleanup_mode=None); print(s.get_uri())"
-    # la URI que mostra (postgresql://postgres:@127.0.0.1:PORT/postgres) serveix canviant el prefix per postgresql+psycopg://
+Sense `CLUB_TEST_PG_URL` es fa servir SQLite i les proves específiques de PostgreSQL (triggers d'«només d'afegir», permisos del rol sense privilegis, actualització de la base de dades) es salten. El rol de la URL ha de poder crear esquemes i rols (superusuari de proves).
+Front: `cd frontend && node --test test/`. El nombre de proves no es fixa aquí: **vegeu l'última execució de la CI** (`.github/workflows/ci.yml`, que corre amb PostgreSQL i no admet proves saltades sense avís: `-rs`).
 
-Amb PostgreSQL les proves es passen totes (228 de 228, cap saltada).
+## Instal·lació reproduïble i CI
+
+`pip install --require-hashes -r requirements.lock` instal·la exactament les versions i hashes provats (Linux, macOS i Windows). Es regenera amb `scripts/update-lock.sh`.
+La CI executa les proves, `pip-audit`, `node --test` i `shellcheck`.
 
 ## Bàscula OHAUS
 
