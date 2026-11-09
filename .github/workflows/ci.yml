@@ -50,6 +50,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      - name: Sintaxi de tots els .js del front
+        working-directory: frontend
+        run: for f in *.js; do node --check "$f"; done
       - name: Proves del front (sense dependències)
         working-directory: frontend
         run: node --test test/

@@ -116,7 +116,7 @@ async function productsSection() {
   const lloc = (S.me.locals || []).find((l) => l.id === S.local) || {};
   const amLimits = lloc.limit_diari_mg != null || lloc.limit_mensual_mg != null;
   const avisGenetic = amLimits && tots.length && !tots.some((p) => p.es_genetic)
-    ? msg('err', 'Aquest local té límits de dispensació, però cap producte està marcat com a genètic: els límits no s'estan aplicant. Revisa els productes (flor, hash, extractes, clons, llavors) i marca'ls com a genètics.') : null;
+    ? msg('err', 'Aquest local té límits de dispensació, però cap producte està marcat com a genètic: els límits no s’estan aplicant. Revisa els productes (flor, hash, extractes, clons, llavors) i marca’ls com a genètics.') : null;
   return h('div', null, avisGenetic, nou, h('h3', null, 'Productes existents'),
     h('p', { class: 'muted' }, "El canvi de preu només afecta les dispensacions noves. Per desactivar un producte, l'estoc ha de ser zero."),
     ...(tots.length ? tots.map(productCard) : [h('div', { class: 'card empty' }, 'Encara no hi ha productes.')]));
@@ -169,7 +169,7 @@ async function expenseForm() {
 // Avís de dispensacions sense cobrar (abans i després de tancar la caixa).
 function senseCobrar(llista, centTotal, tancada) {
   if (!llista || !llista.length) return null;
-  return h('div', { class: 'card' }, msg('err', tancada ? 'Atenció: la caixa s'ha tancat amb dispensacions sense cobrar.' : 'Hi ha dispensacions sense cobrar. Cobra-les abans de tancar la caixa.'),
+  return h('div', { class: 'card' }, msg('err', tancada ? 'Atenció: la caixa s’ha tancat amb dispensacions sense cobrar.' : 'Hi ha dispensacions sense cobrar. Cobra-les abans de tancar la caixa.'),
     h('p', { class: 'muted' }, 'Total sense cobrar'), h('div', { class: 'big' }, eur(centTotal)),
     h('ul', null, llista.map((d) => h('li', null, 'Dispensació', ' #' + d.moviment + ' · ' + eur(d.import_cent) + ' · ', 'Soci', ' #' + d.soci_id))));
 }
