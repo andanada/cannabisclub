@@ -62,8 +62,8 @@ def test_editar_document_comprova_duplicats_i_actualitza_la_cerca(ctx):
     b = soci(client, enc, document="87654321X")
     assert client.patch(f"/socis/{b}", json={"document": "12345678Z"}, headers=enc).status_code == 422  # ja existeix
     assert client.patch(f"/socis/{b}", json={"document": " 11111111h "}, headers=enc).status_code == 200
-    assert client.get("/locals/1/socis/cerca?document=11111111H", headers=enc).json()["id"] == b
-    assert client.get("/locals/1/socis/cerca?document=87654321X", headers=enc).status_code == 404
+    assert client.post("/locals/1/socis/cerca", json={"document": "11111111H"}, headers=enc).json()["id"] == b
+    assert client.post("/locals/1/socis/cerca", json={"document": "87654321X"}, headers=enc).status_code == 404
     assert a != b
 
 
@@ -170,9 +170,9 @@ def test_assignar_carnet_i_trobar_el_soci_amb_el_lector(ctx):
     assert client.get(f"/socis/{mid}", headers=enc).json()["te_carnet"] is False
     assert client.post(f"/socis/{mid}/carnet", json={"codi": "04A1B2C3"}, headers=enc).status_code == 201
     assert client.get(f"/socis/{mid}", headers=enc).json()["te_carnet"] is True
-    r = client.get("/locals/1/socis/carnet?codi=04a1b2c3", headers=disp)  # el lector pot enviar minúscules
+    r = client.post("/locals/1/socis/carnet", json={"codi": "04a1b2c3"}, headers=disp)  # el lector pot enviar minúscules
     assert r.status_code == 200 and r.json()["id"] == mid and "quota" in r.json()
-    assert client.get("/locals/1/socis/carnet?codi=NOEXISTEIX", headers=disp).status_code == 404
+    assert client.post("/locals/1/socis/carnet", json={"codi": "NOEXISTEIX"}, headers=disp).status_code == 404
     a = ultima_auditoria(factory)
     assert a["accio"] == "cerca_carnet" and "04A1" not in json.dumps(a)
     s = factory()
@@ -190,12 +190,12 @@ def test_carnet_duplicat_canvi_i_retirada(ctx):
     assert client.post(f"/socis/{a}/carnet", json={"codi": "CARNET-A"}, headers=enc).status_code == 422  # ja el té
     # un carnet nou substitueix l'anterior
     assert client.post(f"/socis/{a}/carnet", json={"codi": "CARNET-A2"}, headers=enc).status_code == 201
-    assert client.get("/locals/1/socis/carnet?codi=CARNET-A", headers=enc).status_code == 404
-    assert client.get("/locals/1/socis/carnet?codi=CARNET-A2", headers=enc).json()["id"] == a
+    assert client.post("/locals/1/socis/carnet", json={"codi": "CARNET-A"}, headers=enc).status_code == 404
+    assert client.post("/locals/1/socis/carnet", json={"codi": "CARNET-A2"}, headers=enc).json()["id"] == a
     # el carnet antic queda lliure i es pot reassignar a un altre soci
     assert client.post(f"/socis/{b}/carnet", json={"codi": "CARNET-A"}, headers=enc).status_code == 201
     assert client.delete(f"/socis/{b}/carnet", headers=enc).status_code == 200
-    assert client.get("/locals/1/socis/carnet?codi=CARNET-A", headers=enc).status_code == 404
+    assert client.post("/locals/1/socis/carnet", json={"codi": "CARNET-A"}, headers=enc).status_code == 404
     assert client.delete(f"/socis/{b}/carnet", headers=enc).status_code == 422  # no en té
 
 
@@ -210,4 +210,23 @@ def test_carnet_valida_format_permisos_i_locals(ctx):
     assert client.post(f"/socis/{altre}/carnet", json={"codi": "CARNET2"}, headers=enc).status_code == 403
     # el mateix codi físic en un altre local és un altre carnet
     assert client.post(f"/socis/{altre}/carnet", json={"codi": "CARNET1"}, headers=admin).status_code == 201
-    assert client.get("/locals/1/socis/carnet?codi=CARNET1", headers=enc).status_code == 404
+    assert client.post("/locals/1/socis/carnet", json={"codi": "CARNET1"}, headers=enc).status_code == 404
+
+
+def test_cerca_per_document_i_carnet_nomes_per_post_i_dispensador_veu_vista_reduida(ctx):
+    client, factory, sec = ctx
+    enc, disp = token(client, sec, "enc"), token(client, sec, "disp")
+    mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
+    client.post(f"/socis/{mid}/carnet", json={"codi": "CARNET-Q"}, headers=enc)
+    # el document i el codi ja no viatgen a la URL (logs del proxy, historial del navegador)
+    assert client.get("/locals/1/socis/cerca?document=12345678Z", headers=enc).status_code in (404, 405)
+    assert client.get("/locals/1/socis/carnet?codi=CARNET-Q", headers=enc).status_code in (404, 405)
+    pleno = client.post("/locals/1/socis/cerca", json={"document": "12345678Z"}, headers=enc).json()
+    assert pleno["document"] == "12345678Z" and pleno["telefon"] == "600111222" and pleno["email"] and pleno["naixement"]
+    for r in (client.post("/locals/1/socis/cerca", json={"document": "12345678Z"}, headers=disp),
+              client.post("/locals/1/socis/carnet", json={"codi": "CARNET-Q"}, headers=disp),
+              client.get(f"/socis/{mid}", headers=disp)):
+        v = r.json()
+        assert set(v) == {"id", "local_id", "nom", "estat", "quota", "te_foto", "te_carnet"}, v
+        assert v["nom"] == "Anna Prova"
+    assert "document" in client.get(f"/socis/{mid}", headers=enc).json()

@@ -63,7 +63,7 @@ def test_el_rol_de_l_aplicacio_fa_servir_les_funcions_noves(app_engine):
     assert client.post(f"/socis/{mid}/foto", json={"image_base64": jpeg}, headers=enc).status_code == 201
     assert client.post(f"/socis/{mid}/carnet", json={"codi": "CARNET-1"}, headers=enc).status_code == 201
     assert client.post(f"/socis/{mid}/carnet", json={"codi": "CARNET-2"}, headers=enc).status_code == 201  # actualitza i desactiva
-    assert client.get("/locals/1/socis/carnet?codi=CARNET-2", headers=enc).json()["id"] == mid
+    assert client.post("/locals/1/socis/carnet", json={"codi": "CARNET-2"}, headers=enc).json()["id"] == mid
     assert client.patch(f"/socis/{mid}", json={"nom": "Anna Garcia"}, headers=enc).status_code == 200
     assert client.patch(f"/productes/{pid}", json={"preu_cent_per_g": 900}, headers=enc).status_code == 200
     assert client.put("/locals/1/config", json={"quota_obligatoria": True, "quota_cent": 2500}, headers=admin).status_code == 200

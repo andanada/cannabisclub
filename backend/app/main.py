@@ -143,9 +143,13 @@ def create_app(session_factory=None) -> FastAPI:
             return JSONResponse({"ok": False}, status_code=503)
         return {"ok": True}
 
-    def member_payload(s: Session, m: Member) -> dict:
-        return {**service.member_view(m), "quota": quotes.status(s, m.id),
-                "te_foto": socis.has_photo(s, m.id), "te_carnet": socis.has_card(s, m.id)}
+    def member_payload(s: Session, m: Member, user: User) -> dict:
+        """Fitxa del soci. Els gestors (admin, encarregat) la veuen sencera; el dispensador només el que necessita al
+        taulell: nom, estat, quota, foto i carnet. Document, naixement, telèfon i correu no li arriben mai."""
+        base = {"quota": quotes.status(s, m.id), "te_foto": socis.has_photo(s, m.id), "te_carnet": socis.has_card(s, m.id)}
+        if user.role in CAN_CREATE_MEMBER:
+            return {**service.member_view(m), **base}
+        return {"id": m.id, "local_id": m.local_id, "nom": service.member_name(m), "estat": m.estat, **base}
 
     @app.post("/auth/login")
     def login(body: LoginIn, request: Request, s: Session = Depends(db)):
@@ -217,7 +221,7 @@ def create_app(session_factory=None) -> FastAPI:
         check_local(s, user, m.local_id)
         service.audit_append(s, {"accio": "consulta_soci", "soci": m.id, "per": user.id})
         s.commit()
-        return member_payload(s, m)
+        return member_payload(s, m, user)
 
     class AncoratgeIn(BaseModel):
         seq: int = Field(ge=1)
@@ -598,25 +602,32 @@ def create_app(session_factory=None) -> FastAPI:
         c = run(service.check_in, s, user, member_or_404(s, user, member_id))
         return {"id": c.id}
 
-    @app.get("/locals/{local_id}/socis/cerca")
-    def cerca_soci(local_id: int, document: str, user: User = Depends(current_user), s: Session = Depends(db)):
+    class CercaDocumentIn(BaseModel):
+        document: str = Field(min_length=1, max_length=30)
+
+    class CercaCarnetIn(BaseModel):
+        codi: str = Field(min_length=1, max_length=100)
+
+    # Cerques per POST amb cos: el document i el codi del carnet no queden a la URL (logs del proxy, historial, Referer).
+    @app.post("/locals/{local_id}/socis/cerca")
+    def cerca_soci(local_id: int, body: CercaDocumentIn, user: User = Depends(current_user), s: Session = Depends(db)):
         check_local(s, user, local_id)
-        m = service.find_member_by_document(s, local_id, document)
+        m = service.find_member_by_document(s, local_id, body.document)
         service.audit_append(s, {"accio": "cerca_soci", "local": local_id, "trobat": bool(m), "per": user.id})
         s.commit()
         if not m:
             raise HTTPException(404, "No existeix")
-        return member_payload(s, m)
+        return member_payload(s, m, user)
 
-    @app.get("/locals/{local_id}/socis/carnet")
-    def cerca_carnet(local_id: int, codi: str, user: User = Depends(current_user), s: Session = Depends(db)):
+    @app.post("/locals/{local_id}/socis/carnet")
+    def cerca_carnet(local_id: int, body: CercaCarnetIn, user: User = Depends(current_user), s: Session = Depends(db)):
         check_local(s, user, local_id)
-        m = socis.find_by_card(s, local_id, codi)
+        m = socis.find_by_card(s, local_id, body.codi)
         service.audit_append(s, {"accio": "cerca_carnet", "local": local_id, "trobat": bool(m), "per": user.id})
         s.commit()
         if not m:
             raise HTTPException(404, "No existeix")
-        return member_payload(s, m)
+        return member_payload(s, m, user)
 
     @app.get("/locals/{local_id}/socis")
     def llista_socis(local_id: int, q: str | None = None, estat: str | None = None, user: User = Depends(current_user), s: Session = Depends(db)):

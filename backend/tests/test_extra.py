@@ -46,10 +46,10 @@ def test_estat_soci_checkin_i_cerca(ctx):
     assert client.post(f"/socis/{mid}/estat", json={"estat": "baixa"}, headers=enc).status_code == 200
     assert client.post(f"/socis/{mid}/estat", json={"estat": "actiu"}, headers=enc).status_code == 422  # reactivar: només admin
     assert client.post(f"/socis/{mid}/estat", json={"estat": "actiu"}, headers=admin).status_code == 200
-    r = client.get("/locals/1/socis/cerca", params={"document": " 12345678z "}, headers=disp)
+    r = client.post("/locals/1/socis/cerca", json={"document": " 12345678z "}, headers=disp)
     assert r.status_code == 200 and r.json()["id"] == mid
-    assert client.get("/locals/1/socis/cerca", params={"document": "00000000T"}, headers=disp).status_code == 404
-    assert client.get("/locals/2/socis/cerca", params={"document": "12345678Z"}, headers=enc).status_code == 403
+    assert client.post("/locals/1/socis/cerca", json={"document": "00000000T"}, headers=disp).status_code == 404
+    assert client.post("/locals/2/socis/cerca", json={"document": "12345678Z"}, headers=enc).status_code == 403
 
 
 def test_fitxatge_maquina_d_estats(ctx):

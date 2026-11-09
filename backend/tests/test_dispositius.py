@@ -117,10 +117,10 @@ def test_generar_carnet_el_dona_una_vegada_i_queda_assignat(ctx):
     assert r.status_code == 201
     codi = r.json()["codi"]
     assert re.fullmatch(r"CLB-[0-9A-Z]{10}", codi)
-    assert client.get(f"/locals/1/socis/carnet?codi={codi}", headers=disp).json()["id"] == mid
+    assert client.post(f"/locals/1/socis/carnet", json={"codi": codi}, headers=disp).json()["id"] == mid
     # un segon carnet substitueix el primer
     codi2 = client.post(f"/socis/{mid}/carnet/generar", json={}, headers=enc).json()["codi"]
     assert codi2 != codi
-    assert client.get(f"/locals/1/socis/carnet?codi={codi}", headers=disp).status_code == 404
+    assert client.post(f"/locals/1/socis/carnet", json={"codi": codi}, headers=disp).status_code == 404
     assert client.post(f"/socis/{mid}/carnet/generar", json={}, headers=disp).status_code == 403
     assert client.post(f"/socis/{mid}/carnet/generar", json={"prefix": "no vàlid"}, headers=enc).status_code == 422

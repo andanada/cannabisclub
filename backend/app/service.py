@@ -252,6 +252,10 @@ def create_member(db: Session, actor: User, local_id: int, nom: str, document: s
     return m
 
 
+def member_name(m: Member) -> str:
+    return crypto.decrypt(m.nom_enc)
+
+
 def member_view(m: Member) -> dict:
     return {
         "id": m.id, "local_id": m.local_id, "nom": crypto.decrypt(m.nom_enc),
