@@ -11,3 +11,18 @@ services:
       - "127.0.0.1:5433:5432"
     volumes:
       - /data/club-gestio/pgdata:/var/lib/postgresql/data
+
+  # Només per a proves: docker compose --profile test up -d db-test
+  # Superusuari temporal (les proves creen esquemes i rols), dades a memòria, sense persistència.
+  db-test:
+    profiles: ["test"]
+    image: postgres:17
+    environment:
+      POSTGRES_DB: club
+      POSTGRES_USER: club
+      POSTGRES_PASSWORD: club-test
+    ports:
+      - "127.0.0.1:5434:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    # URL per a CLUB_TEST_PG_URL: postgresql+psycopg://club:club-test@127.0.0.1:5434/club
