@@ -39,7 +39,17 @@ function altaWizard() {
       naix: h('input', { type: 'date', required: true, max: new Date().toLocaleDateString('sv-SE') }),
       tel: h('input', { inputmode: 'tel', placeholder: '+34 600 000 000' }), mail: h('input', { type: 'email', placeholder: 'nom@correu.cat' }),
       rgpd: h('input', { type: 'checkbox', required: true }),
+      foto: h('input', { type: 'checkbox' }), contacte: h('input', { type: 'checkbox' }),
+      docv: h('input', { type: 'checkbox', required: true }), aval: h('select', null, h('option', { value: '' }, '—')),
     };
+    const lc = S.me.locals.find((l) => l.id === S.local) || {};
+    const avalBox = lc.aval && lc.aval !== 'no' ? field(lc.aval === 'obligatori' ? 'Avalador (obligatori)' : 'Avalador (opcional)', f.aval) : null;
+    if (avalBox) api(`/locals/${S.local}/socis?estat=actiu`).then((l) => f.aval.append(...l.map((m) => h('option', { value: m.id }, `${m.nom} (núm. ${m.id})`)))).catch(() => {});
+    const textInfo = h('div');
+    const veureText = h('button', { type: 'button', class: 'small' }, 'Veure el text informatiu');
+    veureText.addEventListener('click', async () => {
+      try { const t = await api('/textos/informatiu?idioma=' + LANG); textInfo.replaceChildren(h('pre', { class: 'text-informatiu' }, t.text)); } catch (e) { textInfo.replaceChildren(msg('err', e.message)); }
+    });
     const doc = campAmbAjuda('Document', f.doc, validaDocument);
     const naix = campAmbAjuda('Data de naixement', f.naix, validaNaixement);
     const tel = campAmbAjuda('Telèfon (opcional)', f.tel, validaTelefon);
@@ -54,9 +64,13 @@ function altaWizard() {
         if (!naix.pinta().ok) throw new Error('Revisa la data de naixement');
         if (!tel.pinta().ok || !mail.pinta().ok) throw new Error('Revisa el telèfon i el correu');
         if (!f.rgpd.checked) throw new Error("Cal confirmar que el soci ha estat informat del tractament de dades");
+        if (lc.aval === 'obligatori' && !f.aval.value) throw new Error("Cal triar l'avalador");
+        const text = await api('/textos/informatiu?idioma=' + LANG);
         const r = await api('/socis', { method: 'POST', body: { local_id: S.local, nom, document: f.doc.value.trim(), naixement: f.naix.value,
           telefon: f.tel.value.trim() || null, email: f.mail.value.trim() || null } });
         st.id = r.id;
+        st.rgpd = { versio: text.versio, text_sha256: text.sha256, doc_verificat: f.docv.checked, avalador_id: f.aval.value ? Number(f.aval.value) : null,
+          finalitats: ['basic', ...(f.foto.checked ? ['foto'] : []), ...(f.contacte.checked ? ['contacte'] : [])] };
         st.fets.add(0);
         await refresca();
         nav(1);
@@ -66,7 +80,12 @@ function altaWizard() {
     h('div', { class: 'row' }, field('Nom', f.nom), field('Cognoms', f.cognoms)),
     h('div', { class: 'row' }, doc.node, naix.node),
     h('h3', null, 'Contacte'), h('div', { class: 'row' }, tel.node, mail.node),
-    h('label', { class: 'check' }, f.rgpd, ' El soci ha estat informat del tractament de les seves dades i hi dona el consentiment.'),
+    h('h3', null, 'Protecció de dades'),
+    h('label', { class: 'check' }, f.docv, " S'ha exhibit el document d'identitat original i coincideix amb les dades."), avalBox,
+    h('label', { class: 'check' }, f.rgpd, ' El soci ha estat informat del tractament de les seves dades (tractament bàsic, necessari per ser soci) i ho accepta.'),
+    h('label', { class: 'check' }, f.foto, ' Consentiment opcional: fotografia per identificar el soci al taulell.'),
+    h('label', { class: 'check' }, f.contacte, ' Consentiment opcional: contacte per telèfon o correu.'),
+    h('div', null, veureText, textInfo),
     h('div', { class: 'actions' }, btn), out);
   }
 
@@ -74,6 +93,10 @@ function altaWizard() {
     const out = h('div');
     return h('div', null, h('div', { class: 'card' }, h('h3', null, 'Signatura'),
       h('p', { class: 'muted' }, `${st.m.nom} ha de signar dins del quadre per acabar l'alta.`)), signaturePad(st.id, out, async () => {
+      try {
+        // Consentiments separats, lligats a la signatura i al hash del text informatiu que el soci ha acceptat
+        await api(`/socis/${st.id}/alta-rgpd`, { method: 'POST', body: { ...st.rgpd, sig_ultima: true } });
+      } catch (e) { out.replaceChildren(msg('err', e.message)); return; }
       st.fets.add(1);
       nav(2);
     }), out);

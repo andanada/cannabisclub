@@ -364,3 +364,4 @@ ul.resum li.ok .marca { background: var(--brand-soft); color: var(--brand); }
 .carnet-print img.carnet-logo { position: absolute; top: 3mm; right: 3mm; width: auto; height: 12mm; border-radius: 0; object-fit: contain; }
 .carnet-print > div:nth-child(3) { padding-right: 13mm; }
 @media (max-width: 880px) { .auth-logo { width: 150px; margin: 0; } }
+.text-informatiu { white-space: pre-wrap; background: var(--card-2, #f5f5f5); padding: 10px; border-radius: 8px; max-height: 240px; overflow: auto; font: inherit; font-size: 0.9em; }

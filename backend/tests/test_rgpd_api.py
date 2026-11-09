@@ -157,3 +157,15 @@ def test_ancoratges_endpoint(ctx):
     assert client.get("/auditoria/ancoratges", headers=adm).json()[0]["hash"] == a["hash"]
     v = client.get("/auditoria/verificar", headers=adm).json()
     assert v["integra"] is True and "ancoratge_intern" in v["avisos"]
+
+
+def test_alta_enllaca_la_signatura_ja_desada(ctx):
+    client, _, sec = ctx
+    enc = token(client, sec, "enc")
+    mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
+    cos = {"versio": "v1", "text_sha256": H, "finalitats": ["basic", "contacte"], "sig_ultima": True}
+    assert client.post(f"/socis/{mid}/alta-rgpd", json=cos, headers=enc).status_code == 422  # sense signatura
+    sid = client.post(f"/socis/{mid}/signatura", json={"png_base64": PNG}, headers=enc).json()["id"]
+    assert client.post(f"/socis/{mid}/alta-rgpd", json=cos, headers=enc).status_code == 201
+    h = client.get(f"/socis/{mid}/consentiments", headers=enc).json()["historial"]
+    assert {x["signature_id"] for x in h} == {sid} and {x["text_sha256"] for x in h} == {H}

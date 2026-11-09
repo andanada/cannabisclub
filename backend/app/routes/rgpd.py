@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import auditoria_consulta, consentiments, controls, exportacio, retencio, service, supressio, textos
-from ..models import AuditAnchor, User
+from ..models import AuditAnchor, Signature, User
 from .comu import check_local, member_or_404, need_admin, need_manager, run
 
 
@@ -28,6 +28,7 @@ class AltaRgpdIn(ConsentIn):
     doc_verificat: bool = False
     avalador_id: int | None = None
     png_base64: str | None = Field(default=None, max_length=300_000)
+    sig_ultima: bool = False  # la signatura ja s'ha desat (pantalla d'alta): s'hi enllaça el consentiment
 
 
 class SupressioIn(BaseModel):
@@ -61,6 +62,10 @@ def router(db, current_user) -> APIRouter:
             raise HTTPException(422, "El text informatiu acceptat no coincideix amb cap versió publicada")
         run(controls.complete_alta, s, user, m, body.doc_verificat, body.avalador_id)  # primer el que pot fallar per regles del local
         sig = run(service.save_signature, s, user, m, body.png_base64, body.text_sha256) if body.png_base64 else None
+        if sig is None and body.sig_ultima:  # el consentiment queda lligat a (signatura, hash del text)
+            sig = s.scalar(select(Signature).where(Signature.member_id == m.id).order_by(Signature.id.desc()).limit(1))
+            if sig is None:
+                raise HTTPException(422, "El soci encara no ha signat")
         run(consentiments.grant, s, user, m, body.finalitats, body.versio, body.text_sha256, body.canal, sig.id if sig else None, False)
         s.commit()
         return {"consentiments": consentiments.status(s, m.id), "signatura": sig.id if sig else None}
