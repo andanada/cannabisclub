@@ -296,6 +296,8 @@ def set_member_status(db: Session, actor: User, member: Member, estat: str, moti
         raise ValueError("Estat no vàlid")
     if member.estat == estat:
         raise ValueError("El soci ja té aquest estat")
+    if "pendent" in (member.estat, estat):  # control de dues persones: només controls.approve treu un soci de pendent
+        raise ValueError("L'estat «pendent» només canvia amb l'aprovació d'un altre gestor (aprovar)")
     if member.estat == "baixa" and actor.role != "admin":
         raise ValueError("Només un administrador pot reactivar un soci de baixa")
     if member.suprimit_en is not None:

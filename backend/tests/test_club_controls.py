@@ -199,3 +199,20 @@ def test_producte_sense_lots_funciona_com_abans_i_fifo_no_assigna_el_que_falta(c
     d2 = disp(client, enc, mid, pid, "3").json()["id"]     # 1 g del lot + 2 g sense lot
     with factory() as s:
         assert {mb.batch_id: mb.mg for mb in s.scalars(select(MovementBatch).where(MovementBatch.movement_id == d2))} == {a: -1000}
+
+
+def test_s3_estat_no_es_pot_canviar_des_de_o_cap_a_pendent_fora_de_l_aprovacio(ctx):
+    """Control de dues persones: ni /estat ni set_member_status poden saltar-se controls.approve."""
+    client, factory, sec = ctx
+    enc, adm = token(client, sec, "enc"), token(client, sec, "admin")
+    cfg(client, adm, alta_pendent=True)
+    mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
+    for h in (enc, adm):  # ni el mateix gestor ni l'administrador
+        for estat in ("actiu", "suspes", "baixa"):
+            r = client.post(f"/socis/{mid}/estat", json={"estat": estat}, headers=h)
+            assert r.status_code == 422 and "aprov" in r.json()["detail"].lower(), (estat, r.text)
+    with factory() as s:
+        assert s.get(Member, mid).estat == "pendent"
+    assert client.post(f"/socis/{mid}/aprovar", headers=adm).status_code == 200
+    assert client.post(f"/socis/{mid}/estat", json={"estat": "pendent"}, headers=adm).status_code == 422  # tampoc cap a pendent
+    assert client.post(f"/socis/{mid}/estat", json={"estat": "suspes"}, headers=enc).status_code == 200

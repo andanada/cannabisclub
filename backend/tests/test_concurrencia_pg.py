@@ -180,3 +180,47 @@ def test_una_sessio_de_caixa_tancada_no_es_pot_tornar_a_tocar_ni_esborrar(ctx):
             s.commit()
         s.rollback()
     s.close()
+
+
+@pg_only
+def test_s4_cobrar_quota_bloqueja_el_soci_abans_que_la_sessio_de_caixa(ctx):
+    """Ordre global de bloquejos: soci -> producte -> sessió. Mentre el soci està agafat per un altre, charge() ha d'esperar
+    SENSE retenir la sessió de caixa (si no, pot interbloquejar-se amb una dispensació, que bloqueja soci i després sessió)."""
+    import time
+    from app import quotes
+    from app.models import Member
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid, _ = setup_data(client, enc, factory)
+    assert client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=enc).status_code == 201
+    retingut = factory()
+    retingut.scalar(select(Member.id).where(Member.id == mid).with_for_update())
+    resultat = []
+
+    def cobra():
+        s = factory()
+        try:
+            user = s.scalar(select(User).where(User.username == "enc"))
+            resultat.append(quotes.charge(s, user, s.get(Member, mid), 2500, "efectiu", 1))
+        except Exception as e:  # noqa: BLE001
+            resultat.append(e)
+        finally:
+            s.close()
+
+    fil = threading.Thread(target=cobra)
+    fil.start()
+    time.sleep(1.5)  # charge() ja és bloquejat esperant el soci
+    try:
+        assert not resultat, "charge() no s'hauria d'haver completat"
+        lliure = factory()
+        try:
+            lliure.scalar(select(CashSession.id).where(CashSession.local_id == 1, CashSession.closed_at.is_(None))
+                          .with_for_update(nowait=True))
+        finally:
+            lliure.rollback()
+            lliure.close()
+    finally:
+        retingut.rollback()
+        retingut.close()
+        fil.join(30)
+    assert not fil.is_alive() and not isinstance(resultat[0], Exception), resultat
