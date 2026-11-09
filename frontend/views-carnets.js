@@ -78,7 +78,7 @@ async function cardCreator() {
     h('form', { class: 'card', onsubmit: (e) => {
       e.preventDefault();
       guard(btn, out, async () => {
-        const m = await api(`/locals/${S.local}/socis/cerca?document=${encodeURIComponent(doc.value.trim())}`);
+        const m = await api(`/locals/${S.local}/socis/cerca`, { method: 'POST', body: { document: doc.value.trim() } });
         result.replaceChildren(memberCardStep(m, cfg));
       });
     } }, h('h3', null, 'Soci'), field('Document del soci', doc), h('div', { class: 'actions' }, btn), out), result);

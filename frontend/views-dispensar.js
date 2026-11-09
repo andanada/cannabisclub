@@ -15,18 +15,19 @@ function quotaForm(m, out, onDone) {
   const imp = h('input', { inputmode: 'decimal', placeholder: '0,00', value: loc.quota_cent ? (loc.quota_cent / 100).toFixed(2).replace('.', ',') : '' });
   const mesos = h('input', { type: 'number', min: 1, max: 24, value: loc.quota_mesos || 1 });
   const met = h('select', null, ['efectiu', 'targeta'].map((x) => h('option', { value: x }, x)));
+  const nota = isManager() ? h('input', { maxlength: 200, placeholder: "Només si l'import no és la tarifa del local" }) : null;
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Cobrar quota');
   const res = h('div');
   return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(btn, res, async () => {
-      const r = await api(`/socis/${m.id}/quotes`, { method: 'POST', body: { import_cent: parseEur(imp.value), metode: met.value, mesos: Number(mesos.value) } });
+      const r = await api(`/socis/${m.id}/quotes`, { method: 'POST', body: { import_cent: parseEur(imp.value), metode: met.value, mesos: Number(mesos.value), ...(nota && nota.value.trim() ? { nota: nota.value.trim() } : {}) } });
       m.quota = { al_dia: true, valid_fins: r.valid_fins };
       toast('Quota cobrada: vàlida fins al ' + dataCa(r.valid_fins));
       onDone(m);
     });
   } }, h('h3', null, 'Quota'),
-  h('div', { class: 'row' }, field('Import (€)', imp), field('Mesos', mesos), field('Mètode', met)),
+  h('div', { class: 'row' }, field('Import (€)', imp), field('Mesos', mesos), field('Mètode', met)), nota ? field('Nota (opcional)', nota) : null,
   h('div', { class: 'actions' }, btn), res);
 }
 
@@ -34,7 +35,8 @@ function memberCard(m, out, onChange) {
   const pill = h('span', { class: 'pill ' + (m.estat === 'actiu' ? 'ok' : 'bad') }, m.estat);
   const card = h('div', { class: 'card' }, h('div', { class: 'member' }, memberPhoto(m), h('div', null,
     h('div', { class: 'big' }, m.nom), h('div', null, pill, ' ', quotaPill(m.quota), m.te_carnet ? h('span', { class: 'pill' }, 'carnet') : null,
-      ' ', h('span', { class: 'muted' }, m.document + ' · ' + m.naixement)),
+      // El dispensador rep una fitxa reduïda (sense document, naixement ni telèfon): només es mostra el que arriba.
+      m.document ? h('span', { class: 'muted' }, ' ' + m.document + (m.naixement ? ' · ' + m.naixement : '')) : null),
     m.telefon ? h('div', { class: 'muted' }, m.telefon) : null)));
   const bar = h('div', { class: 'actions' });
   const tools = isManager() && onChange ? memberTools(m, out, onChange) : null;
@@ -70,8 +72,8 @@ function searchBox(onFound) {
     const perCarnet = !doc.value.trim() && carnet.value.trim();
     guard(btn, out, async () => {
       const m = perCarnet
-        ? await api(`/locals/${S.local}/socis/carnet?codi=${encodeURIComponent(normalizeScan(carnet.value, await readerProfile()))}`)
-        : await api(`/locals/${S.local}/socis/cerca?document=${encodeURIComponent(doc.value.trim())}`);
+        ? await api(`/locals/${S.local}/socis/carnet`, { method: 'POST', body: { codi: normalizeScan(carnet.value, await readerProfile()) } })
+        : await api(`/locals/${S.local}/socis/cerca`, { method: 'POST', body: { document: doc.value.trim() } });
       carnet.value = '';
       onFound(m, out);
     });

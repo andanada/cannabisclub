@@ -56,7 +56,7 @@ async function readerDiagnostic() {
     const nodes = [verdictNode(a)];
     if (a.code.length >= 4) {
       try {
-        const m = await api(`/locals/${S.local}/socis/carnet?codi=${encodeURIComponent(normalizeScan(a.code, cfg))}`);
+        const m = await api(`/locals/${S.local}/socis/carnet`, { method: 'POST', body: { codi: normalizeScan(a.code, cfg) } });
         nodes.push(msg('ok', `Aquest carnet és del soci «${m.nom}».`));
       } catch (e) { nodes.push(h('p', { class: 'muted' }, 'El lector funciona, però aquest carnet no està assignat a cap soci d\'aquest local.')); }
     }

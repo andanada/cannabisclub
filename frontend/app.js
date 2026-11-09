@@ -46,13 +46,14 @@ function renderLogin() {
       pasCarnet.hidden = true; pasPin.hidden = false; pinInput.focus();
       return;
     }
-    if (pinInput.value.length < 4) { carnetOut.replaceChildren(msg('err', 'Escriu el PIN (de 4 a 8 xifres)')); return; }
+    if (pinInput.value.length < 4) { carnetOut.replaceChildren(msg('err', 'Escriu el teu PIN')); return; }
     guard({}, carnetOut, async () => {
       try {
         const r = await api('/auth/login-carnet', { method: 'POST', noAuthRedirect: true, body: { codi: codiLlegit, pin: pinInput.value } });
         S.token = r.token;
         sessionStorage.setItem('t', r.token);
         await boot();
+        if (r.canvi_pin) toast('El teu PIN és antic (menys de 6 xifres): canvia-ho a «Compte» abans no deixi de servir.');
       } catch (err) { tornaAlCarnet(); throw err; }
     });
   } }, h('div', { class: 'carnet-icona', 'aria-hidden': 'true' }, '▦'), h('div', { class: 'carnet-text' }, h('strong', null, 'Entra amb el carnet'), h('span', { class: 'muted' }, 'Carnet més PIN: ràpid i segur.')),

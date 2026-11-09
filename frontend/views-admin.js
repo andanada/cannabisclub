@@ -51,7 +51,7 @@ function userCard(u) {
     out.replaceChildren(msg('ok', 'Nou secret per a l\'app d\'autenticació; no es tornarà a mostrar:'), h('div', { class: 'secret' }, r.totp_secret));
   }));
   // Carnet RFID d'entrada (carnet + PIN). Només carnets generats pel programa: codi llarg i imprevisible. No per a administradors.
-  const pinNou = h('input', { type: 'password', inputmode: 'numeric', maxlength: 8, autocomplete: 'new-password', placeholder: '4 a 8 xifres', 'aria-label': 'PIN de ' + u.username });
+  const pinNou = h('input', { type: 'password', inputmode: 'numeric', maxlength: 8, autocomplete: 'new-password', placeholder: '6 a 8 xifres', 'aria-label': 'PIN de ' + u.username });
   const generat = h('div');
   const genera = h('button', { type: 'button', class: 'primary' }, u.te_carnet ? 'Generar carnet nou' : 'Generar carnet');
   genera.addEventListener('click', () => guard(genera, out, async () => {
@@ -72,7 +72,7 @@ function userCard(u) {
     ? h('p', { class: 'muted' }, "Els administradors entren sempre amb contrasenya: no poden tenir carnet d'entrada.")
     : h('div', null,
       h('p', { class: 'muted' }, u.te_carnet ? "Aquest usuari ja té carnet. Per canviar-lo o posar-li un PIN nou, genera'n un de nou." : 'Entrarà amb el carnet més un PIN que només sap ell. Un carnet perdut no obre cap sessió sense el PIN.'),
-      h('div', { class: 'row' }, field('PIN (4 a 8 xifres, no seqüències)', pinNou), h('div', { class: 'actions' }, genera, treuCarnet)), generat);
+      h('div', { class: 'row' }, field('PIN (6 a 8 xifres, no seqüències)', pinNou), h('div', { class: 'actions' }, genera, treuCarnet)), generat);
   return h('div', { class: 'card' },
     h('div', null, h('strong', null, u.username), ' ', h('span', { class: 'pill' }, ROL_NOMS[u.role] || u.role), ' ', h('span', { class: 'pill ' + (u.active ? 'ok' : 'warn') }, u.active ? 'actiu' : 'desactivat')),
     h('div', { class: 'row' }, field('Rol', rol), field('Contrasenya nova', pw)),
@@ -116,5 +116,5 @@ function pinForm() {
       act.value = nou.value = '';
       out.replaceChildren(msg('ok', 'PIN canviat.'));
     });
-  } }, h('h3', null, 'PIN del carnet'), h('div', { class: 'row' }, field('PIN actual', act), field('PIN nou (4 a 8 xifres)', nou)), h('div', { class: 'actions' }, btn), out);
+  } }, h('h3', null, 'PIN del carnet'), h('div', { class: 'row' }, field('PIN actual', act), field('PIN nou (6 a 8 xifres)', nou)), h('div', { class: 'actions' }, btn), out);
 }
