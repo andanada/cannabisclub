@@ -15,7 +15,7 @@ from .db import make_engine, make_session_factory
 from .http_guard import BodyLimitMiddleware, FrontendFiles
 from .models import ImmutableError, User
 from .ratelimit import RateLimiter
-from .routes import auditoria, caixa, productes, sessio
+from .routes import auditoria, caixa, club, productes, rgpd, sessio
 from .routes import contenidors as routes_contenidors
 from .routes import descomptes as routes_descomptes
 from .routes import dispositius as routes_dispositius
@@ -136,6 +136,7 @@ def create_app(session_factory=None) -> FastAPI:
                   routes_magatzems, routes_contenidors, routes_linies_preu, routes_inventaris, routes_regles):
         demanats = inspect.signature(modul.register).parameters
         modul.register(app, **{k: v for k, v in disponibles.items() if k in demanats})
+    for _r in (rgpd, club): app.include_router(_r.router(db, current_user))  # RGPD i controls de club (routes/rgpd.py, club.py)
 
     front = Path(__file__).resolve().parents[2] / "frontend"
     if front.is_dir():
