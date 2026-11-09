@@ -16,6 +16,7 @@ PASS = "contrasenya-molt-llarga"
 def env(monkeypatch):
     monkeypatch.setenv("CLUB_FIELD_KEY", crypto.generate_key())
     monkeypatch.setenv("CLUB_INDEX_KEY", "clau-d-index-per-a-proves")
+    monkeypatch.setenv("CLUB_TOTP_REPLAY", "0")  # les proves fan molts logins amb el mateix codi; el test d'antireutilització ho activa
 
 
 @pytest.fixture

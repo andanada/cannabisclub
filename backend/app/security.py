@@ -1,6 +1,8 @@
 """Contrasenyes (Argon2id) i segon factor TOTP."""
+import hmac
 import os
 import threading
+import time
 
 import pyotp
 from argon2 import PasswordHasher
@@ -64,5 +66,43 @@ def new_totp_secret() -> str:
     return pyotp.random_base32()
 
 
+def totp_step(secret: str, code: str) -> int | None:
+    """Pas de temps (30 s) del codi si és vàlid (finestra ±1), o None."""
+    t = pyotp.TOTP(secret)
+    ara = time.time()
+    for off in (-1, 0, 1):
+        pas = int(ara // t.interval) + off
+        if hmac.compare_digest(t.at(pas * t.interval), str(code or "")):
+            return pas
+    return None
+
+
 def verify_totp(secret: str, code: str) -> bool:
-    return pyotp.TOTP(secret).verify(code, valid_window=1)
+    return totp_step(secret, code) is not None
+
+
+# Antireutilització del codi TOTP. LIMITACIÓ: no hi ha columna per desar l'últim pas per usuari (no es pot tocar
+# models.py), així que es guarda en memòria del procés amb TTL: es perd en reiniciar i cada worker té el seu mapa.
+# El TTL (>= 90 s) cobreix tota la finestra de validesa d'un codi (3 passos de 30 s).
+TOTP_REPLAY_TTL = 120
+_totp_usats: dict[int, tuple[int, float]] = {}
+_totp_lock = threading.Lock()
+
+
+def totp_replay_enabled() -> bool:
+    return os.environ.get("CLUB_TOTP_REPLAY", "1") != "0"
+
+
+def totp_consume(user_id: int, step: int) -> bool:
+    """True si el pas és nou per a l'usuari (i el marca com a usat); False si ja s'havia fet servir o és anterior."""
+    if not totp_replay_enabled():
+        return True
+    ara = time.monotonic()
+    with _totp_lock:
+        for k in [k for k, (_, exp) in _totp_usats.items() if exp < ara]:
+            del _totp_usats[k]
+        previ = _totp_usats.get(user_id)
+        if previ and step <= previ[0]:
+            return False
+        _totp_usats[user_id] = (step, ara + TOTP_REPLAY_TTL)
+        return True

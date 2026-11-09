@@ -73,7 +73,7 @@ def test_usuari_inexistent_no_s_audita_i_existent_s_audita_l_id(ctx):
     s = factory()
     uid = s.scalar(select(User.id).where(User.username == "enc"))
     s.close()
-    assert nou == [{"accio": "login", "usuari": uid, "ok": False}]
+    assert [{k: v for k, v in a.items() if k != "_alg"} for a in nou] == [{"accio": "login", "usuari": uid, "ok": False}]
 
 
 def test_bloqueig_d_inexistent_no_audita(ctx):
@@ -101,3 +101,24 @@ def test_ratelimiter_finestra():
 
 def test_argon2_te_concurrencia_limitada():
     assert security._gate._value <= 64 and isinstance(security.Overloaded(), Exception)
+
+
+def test_totp_no_es_pot_reutilitzar(ctx, monkeypatch):
+    import pyotp
+    monkeypatch.setenv("CLUB_TOTP_REPLAY", "1")
+    client, factory, sec = ctx
+    codi = pyotp.TOTP(sec["enc"]).now()
+    cos = {"username": "enc", "password": PASS, "totp": codi}
+    assert client.post("/auth/login", json=cos).status_code == 200
+    assert client.post("/auth/login", json=cos).status_code == 401           # mateix codi, mateix pas de temps
+    # un altre usuari amb el seu codi no es veu afectat
+    assert client.post("/auth/login", json={"username": "disp", "password": PASS, "totp": pyotp.TOTP(sec["disp"]).now()}).status_code == 200
+
+
+def test_totp_step_i_garantia_de_ttl():
+    import pyotp
+    s = pyotp.random_base32()
+    t = pyotp.TOTP(s)
+    assert security.totp_step(s, t.now()) is not None
+    assert security.totp_step(s, "000000" if t.now() != "000000" else "111111") is None
+    assert security.TOTP_REPLAY_TTL >= 90

@@ -181,7 +181,9 @@ def login(db: Session, username: str, password: str, totp: str) -> str | None:
     ok = security.verify_password(password, user.password_hash if user else security.dummy_hash())
     ok = bool(user) and ok
     if totp_required():
-        ok = ok and security.verify_totp(crypto.decrypt(user.totp_secret_enc), totp)
+        pas = security.totp_step(crypto.decrypt(user.totp_secret_enc), totp) if ok else None
+        # el codi només es «gasta» si la contrasenya també era bona; un codi ja usat no serveix una segona vegada
+        ok = ok and pas is not None and security.totp_consume(user.id, pas)
     if user:
         audit_append(db, {"accio": "login", "usuari": user.id, "ok": ok})
     if not ok:
