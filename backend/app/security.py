@@ -81,28 +81,19 @@ def verify_totp(secret: str, code: str) -> bool:
     return totp_step(secret, code) is not None
 
 
-# Antireutilització del codi TOTP. LIMITACIÓ: no hi ha columna per desar l'últim pas per usuari (no es pot tocar
-# models.py), així que es guarda en memòria del procés amb TTL: es perd en reiniciar i cada worker té el seu mapa.
-# El TTL (>= 90 s) cobreix tota la finestra de validesa d'un codi (3 passos de 30 s).
-TOTP_REPLAY_TTL = 120
-_totp_usats: dict[int, tuple[int, float]] = {}
-_totp_lock = threading.Lock()
-
-
 def totp_replay_enabled() -> bool:
     return os.environ.get("CLUB_TOTP_REPLAY", "1") != "0"
 
 
-def totp_consume(user_id: int, step: int) -> bool:
-    """True si el pas és nou per a l'usuari (i el marca com a usat); False si ja s'havia fet servir o és anterior."""
+def totp_consume(db, user_id: int, step: int) -> bool:
+    """Antireutilització persistent: l'últim pas TOTP consumit viu a users.last_totp_step. L'UPDATE condicional és
+    atòmic (dos intents simultanis amb el mateix codi: només un canvia la fila) i sobreviu a reinicis i a diversos workers.
+    True si el pas és nou per a l'usuari; False si ja s'havia fet servir o és anterior. El canvi es confirma amb el
+    commit del login."""
     if not totp_replay_enabled():
         return True
-    ara = time.monotonic()
-    with _totp_lock:
-        for k in [k for k, (_, exp) in _totp_usats.items() if exp < ara]:
-            del _totp_usats[k]
-        previ = _totp_usats.get(user_id)
-        if previ and step <= previ[0]:
-            return False
-        _totp_usats[user_id] = (step, ara + TOTP_REPLAY_TTL)
-        return True
+    from sqlalchemy import or_, update
+    from .models import User
+    r = db.execute(update(User).where(User.id == user_id, or_(User.last_totp_step.is_(None), User.last_totp_step < step))
+                   .values(last_totp_step=step))
+    return r.rowcount == 1

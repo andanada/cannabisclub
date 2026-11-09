@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from . import audit, crypto, security
-from .models import AuditLog, Member, SessionToken, User
+from .models import AuditAnchor, AuditLog, Member, SessionToken, User
 
 SESSION_HOURS = 8
 MAJORIA_EDAT = 18
@@ -32,7 +32,7 @@ def audit_append(db: Session, payload: dict) -> AuditLog:
     prev = last.hash if last else audit.GENESIS
     signat = {**payload, audit.ALG_KEY: audit.ALG_HMAC}  # entrades noves: HMAC (vegeu el docstring d'audit.py)
     h = audit.digest_h1(prev, signat)
-    row = AuditLog(payload=_canon(signat), prev_hash=prev, hash=h)
+    row = AuditLog(payload=_canon(signat), prev_hash=prev, hash=h, alg=audit.ALG_HMAC)
     db.add(row)
     db.flush()
     return row
@@ -43,6 +43,19 @@ def audit_anchor(db: Session) -> dict | None:
     audit_verify(anchor=...) detecta que s'hagi retallat el final o refet la cadena. None si encara és buida."""
     last = db.scalar(select(AuditLog).order_by(AuditLog.seq.desc()).limit(1))
     return {"seq": last.seq, "hash": last.hash} if last else None
+
+
+def audit_anchor_save(db: Session, origen: str = "manual") -> AuditAnchor | None:
+    """Desa l'ancoratge actual (últim seq + hash) a la taula audit_anchors (només d'afegir). audit_verify el comprova:
+    retallar el final de la cadena o refer-la passa a ser detectable també sense ancoratge extern. No substitueix
+    l'ancoratge FORA de l'equip (qui controla la BD podria refer cadena i taula d'ancoratges si és propietari)."""
+    a = audit_anchor(db)
+    if not a:
+        return None
+    row = AuditAnchor(seq=a["seq"], hash=a["hash"], origen=origen[:40])
+    db.add(row)
+    db.flush()
+    return row
 
 
 def _hmac_des_de() -> int | None:
@@ -56,7 +69,8 @@ def audit_verify_detail(db: Session, anchor: dict | None = None, batch: int = 10
     L'ancoratge és {"seq": n, "hash": h}: l'entrada n ha d'existir amb aquest hash i la cadena no pot acabar abans."""
     key = audit.audit_key()
     tall = _hmac_des_de()
-    prev, ultim_seq, n, vist_h1, ancora_vista = audit.GENESIS, 0, 0, False, False
+    prev, ultim_seq, n, vist_h1, ancora_vista, vist_alg = audit.GENESIS, 0, 0, False, False, False
+    interns = dict(db.execute(select(AuditAnchor.seq, AuditAnchor.hash)).all())  # ancoratges desats a la BD
     avisos: list[str] = []
 
     def res(ok, seq):
@@ -64,28 +78,35 @@ def audit_verify_detail(db: Session, anchor: dict | None = None, batch: int = 10
 
     cursor = 0
     while True:
-        files = db.execute(select(AuditLog.seq, AuditLog.payload, AuditLog.prev_hash, AuditLog.hash)
+        files = db.execute(select(AuditLog.seq, AuditLog.payload, AuditLog.prev_hash, AuditLog.hash, AuditLog.alg)
                            .where(AuditLog.seq > cursor).order_by(AuditLog.seq).limit(batch)).all()
         if not files:
             break
-        for seq, payload_txt, prev_hash, h in files:
+        for seq, payload_txt, prev_hash, h, alg in files:
             payload = json.loads(payload_txt)
             h1 = audit.is_h1(payload)
             # seq pot tenir forats si s'han esborrat files: la cadena de hash ho detecta igualment
             degradada = (vist_h1 and not h1) or (tall is not None and seq >= tall and not h1)
-            if prev_hash != prev or degradada or h != audit.expected_hash(prev, payload, key):
+            # columna alg: si hi és ha de coincidir amb el payload, i un cop vista no pot desaparèixer (entrades antigues: NULL)
+            alg_dolent = (alg is not None and (alg == audit.ALG_HMAC) != h1) or (vist_alg and alg is None)
+            if prev_hash != prev or degradada or alg_dolent or h != audit.expected_hash(prev, payload, key):
+                return res(False, seq)
+            if seq in interns and interns[seq] != h:
                 return res(False, seq)
             vist_h1 = vist_h1 or h1
+            vist_alg = vist_alg or alg is not None
             if anchor and seq == anchor["seq"]:
                 if h != anchor["hash"]:
                     return res(False, seq)
                 ancora_vista = True
             prev, ultim_seq, n, cursor = h, seq, n + 1, seq
+    if interns and max(interns) > ultim_seq:  # la cadena acaba abans d'un ancoratge intern: retallada
+        return res(False, ultim_seq + 1)
     if anchor:
         if not ancora_vista:  # la cadena acaba abans de l'ancoratge (retallada) o l'entrada ancorada ha desaparegut
             return res(False, ultim_seq + 1 if ultim_seq < anchor["seq"] else anchor["seq"])
     else:
-        avisos.append("sense_ancoratge")
+        avisos.append("ancoratge_intern" if interns else "sense_ancoratge")
     if n and not vist_h1:
         avisos.append("sense_hmac")
     return res(True, None)
@@ -183,7 +204,7 @@ def login(db: Session, username: str, password: str, totp: str) -> str | None:
     if totp_required():
         pas = security.totp_step(crypto.decrypt(user.totp_secret_enc), totp) if ok else None
         # el codi només es «gasta» si la contrasenya també era bona; un codi ja usat no serveix una segona vegada
-        ok = ok and pas is not None and security.totp_consume(user.id, pas)
+        ok = ok and pas is not None and security.totp_consume(db, user.id, pas)
     if user:
         audit_append(db, {"accio": "login", "usuari": user.id, "ok": ok})
     if not ok:
@@ -264,7 +285,7 @@ def member_view(m: Member) -> dict:
     }
 
 
-ESTATS = {"actiu", "suspes", "baixa"}
+ESTATS = {"pendent", "actiu", "suspes", "baixa"}
 
 
 def set_member_status(db: Session, actor: User, member: Member, estat: str) -> None:
@@ -274,7 +295,10 @@ def set_member_status(db: Session, actor: User, member: Member, estat: str) -> N
         raise ValueError("El soci ja té aquest estat")
     if member.estat == "baixa" and actor.role != "admin":
         raise ValueError("Només un administrador pot reactivar un soci de baixa")
+    if member.suprimit_en is not None:
+        raise ValueError("El soci està suprimit (seudonimitzat): no es pot reactivar")
     anterior, member.estat = member.estat, estat
+    member.baixa_en = datetime.now(timezone.utc) if estat == "baixa" else None
     audit_append(db, {"accio": "canvi_estat_soci", "soci": member.id, "de": anterior, "a": estat, "per": actor.id})
     db.commit()
 
@@ -341,7 +365,7 @@ def _signature_hash(png: bytes, member_id: int, ts_iso: str) -> str:
     return hashlib.sha256(png + f"|{member_id}|{ts_iso}".encode()).hexdigest()
 
 
-def save_signature(db: Session, actor: User, member: Member, png_b64: str):
+def save_signature(db: Session, actor: User, member: Member, png_b64: str, text_sha256: str | None = None):
     import base64
     import binascii
     from .models import Signature, now as _now
@@ -357,10 +381,10 @@ def save_signature(db: Session, actor: User, member: Member, png_b64: str):
         raise ValueError("La signatura està buida")
     ts = _now()
     sig = Signature(member_id=member.id, user_id=actor.id, ts=ts, png_enc=crypto.encrypt(png_b64),
-                    sha256=_signature_hash(png, member.id, ts.isoformat()))
+                    sha256=_signature_hash(png, member.id, ts.isoformat()), text_sha256=text_sha256)
     db.add(sig)
     db.flush()
-    audit_append(db, {"accio": "signatura_alta", "soci": member.id, "signatura": sig.id, "sha256": sig.sha256, "per": actor.id})
+    audit_append(db, {"accio": "signatura_alta", "soci": member.id, "signatura": sig.id, "sha256": sig.sha256, **({"text": text_sha256} if text_sha256 else {}), "per": actor.id})
     db.commit()
     return sig
 

@@ -36,6 +36,57 @@ $$ LANGUAGE plpgsql
 """
 
 
+# Taules d'apunts amb dades personals xifrades que la supressió RGPD ha de poder buidar (fotos i signatures). El trigger
+# només deixa passar un UPDATE que vingui de la funció club_buida_binaris (SECURITY DEFINER, propietat de l'usuari
+# propietari de la BD) i que només toqui la imatge i el seu hash: el rol de l'aplicació NO pot fer cap UPDATE directe
+# (ni té el privilegi ni passaria el trigger, perquè current_user seria ell).
+BUIDABLES = {"member_photos": "img_enc", "signatures": "png_enc"}
+
+SUPR_TRIGGER_FUNCTION = """
+CREATE OR REPLACE FUNCTION club_forbid_change_buidable() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP = 'UPDATE'
+     AND current_setting('club.supr_ok', true) = '1'
+     AND current_user = (SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = TG_RELID)
+     AND NEW.id = OLD.id AND NEW.member_id = OLD.member_id AND NEW.ts = OLD.ts AND NEW.user_id = OLD.user_id THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'La taula % és només d''afegir: operació % no permesa', TG_TABLE_NAME, TG_OP
+    USING ERRCODE = '42501';
+END;
+$$ LANGUAGE plpgsql
+"""
+
+BUIDA_FUNCTION = """
+CREATE OR REPLACE FUNCTION club_buida_binaris(p_member integer, p_mode text, p_cutoff timestamptz) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path FROM CURRENT AS $$
+DECLARE n integer := 0; k integer;
+BEGIN
+  IF p_mode = 'tot' THEN
+    IF NOT EXISTS (SELECT 1 FROM members WHERE id = p_member AND estat = 'baixa') THEN
+      RAISE EXCEPTION 'Només es poden buidar les dades d''un soci de baixa' USING ERRCODE = '42501';
+    END IF;
+    PERFORM set_config('club.supr_ok', '1', true);
+    UPDATE member_photos SET img_enc = '', sha256 = repeat('0', 64) WHERE member_id = p_member AND img_enc <> '';
+    GET DIAGNOSTICS k = ROW_COUNT; n := n + k;
+    UPDATE signatures SET png_enc = '', sha256 = repeat('0', 64) WHERE member_id = p_member AND png_enc <> '';
+    GET DIAGNOSTICS k = ROW_COUNT; n := n + k;
+  ELSIF p_mode = 'fotos_velles' THEN
+    PERFORM set_config('club.supr_ok', '1', true);
+    UPDATE member_photos f SET img_enc = '', sha256 = repeat('0', 64)
+      WHERE f.img_enc <> '' AND f.ts < p_cutoff
+        AND EXISTS (SELECT 1 FROM member_photos g WHERE g.member_id = f.member_id AND g.id > f.id);
+    GET DIAGNOSTICS k = ROW_COUNT; n := n + k;
+  ELSE
+    RAISE EXCEPTION 'Mode no vàlid' USING ERRCODE = '22023';
+  END IF;
+  PERFORM set_config('club.supr_ok', '', true);
+  RETURN n;
+END;
+$$
+"""
+
+
 def missing_indexes(engine) -> list[str]:
     """Índexs del model que falten en taules que ja existien (create_all no els crea en taules existents)."""
     from sqlalchemy import inspect
@@ -89,13 +140,16 @@ def install(engine) -> None:
         return
     with engine.begin() as c:
         c.execute(text(FUNCTION))
+        c.execute(text(SUPR_TRIGGER_FUNCTION))
         for t in APPEND_ONLY:
             c.execute(text(f"DROP TRIGGER IF EXISTS {t}_no_change ON {t}"))
             c.execute(text(f"CREATE TRIGGER {t}_no_change BEFORE UPDATE OR DELETE ON {t} "
-                           f"FOR EACH ROW EXECUTE FUNCTION club_forbid_change()"))
+                           f"FOR EACH ROW EXECUTE FUNCTION {'club_forbid_change_buidable' if t in BUIDABLES else 'club_forbid_change'}()"))
             c.execute(text(f"DROP TRIGGER IF EXISTS {t}_no_truncate ON {t}"))
             c.execute(text(f"CREATE TRIGGER {t}_no_truncate BEFORE TRUNCATE ON {t} "
                            f"FOR EACH STATEMENT EXECUTE FUNCTION club_forbid_change()"))
+        c.execute(text(BUIDA_FUNCTION))
+        c.execute(text("REVOKE ALL ON FUNCTION club_buida_binaris(integer, text, timestamptz) FROM PUBLIC"))
         # sessions de caixa: només passen d'oberta a tancada una vegada, i no s'esborren
         c.execute(text(SESSION_FUNCTION))
         c.execute(text("DROP TRIGGER IF EXISTS cash_sessions_guard ON cash_sessions"))
@@ -141,4 +195,5 @@ def grant_app_role(engine, role: str) -> None:
             else:
                 c.execute(text(f"REVOKE ALL ON {s}.{_q(t.name)} FROM {r}"))
                 c.execute(text(f"GRANT SELECT, INSERT, UPDATE, DELETE ON {s}.{_q(t.name)} TO {r}"))
+        c.execute(text(f"GRANT EXECUTE ON FUNCTION {s}.club_buida_binaris(integer, text, timestamptz) TO {r}"))
         c.execute(text(f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {s} TO {r}"))

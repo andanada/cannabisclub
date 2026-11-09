@@ -1,0 +1,11 @@
+INFORMATION ON THE PROCESSING OF PERSONAL DATA (version v1)
+
+Controller: the association that owns the club (identity and contact shown at the premises). Data protection officer, if any: shown at the premises.
+
+1. Basic processing (required to be a member). Purpose: managing registration, access control, dispensing and the association's obligations. Legal basis: performance of the membership relationship and compliance with legal obligations. Data: name, identity document, date of birth and activity log. Retention: while you are a member and the legal retention period afterwards; then the data are pseudonymised.
+2. Photograph (optional). Purpose: identifying the member at the counter. Legal basis: consent, which you may withdraw at any time without affecting the basic processing.
+3. Contact (optional). Purpose: sending you notices from the association by phone or email. Legal basis: consent, which you may withdraw at any time.
+
+Recipients: only authorised club staff; data are not disclosed to third parties except where legally required.
+Rights: access, rectification, erasure, restriction, objection and portability, by contacting the controller. You may lodge a complaint with the Spanish Data Protection Agency.
+Your data are stored encrypted and every access is logged.

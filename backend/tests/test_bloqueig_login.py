@@ -121,4 +121,22 @@ def test_totp_step_i_garantia_de_ttl():
     t = pyotp.TOTP(s)
     assert security.totp_step(s, t.now()) is not None
     assert security.totp_step(s, "000000" if t.now() != "000000" else "111111") is None
-    assert security.TOTP_REPLAY_TTL >= 90
+
+
+def test_totp_ultim_pas_persistent_a_la_bd(ctx, monkeypatch):
+    """L'anti-reús no depèn de la memòria del procés: viu a users.last_totp_step."""
+    import pyotp
+    from app.models import User
+    monkeypatch.setenv("CLUB_TOTP_REPLAY", "1")
+    client, factory, sec = ctx
+    codi = pyotp.TOTP(sec["enc"]).now()
+    assert client.post("/auth/login", json={"username": "enc", "password": PASS, "totp": codi}).status_code == 200
+    with factory() as s:
+        pas = s.query(User).filter_by(username="enc").one().last_totp_step
+        assert pas is not None
+        assert security.totp_consume(s, s.query(User).filter_by(username="enc").one().id, pas) is False
+        assert security.totp_consume(s, s.query(User).filter_by(username="enc").one().id, pas - 1) is False
+        s.rollback()
+    monkeypatch.setenv("CLUB_TOTP_REPLAY", "0")
+    with factory() as s:
+        assert security.totp_consume(s, 1, 1) is True  # desactivat: sempre passa

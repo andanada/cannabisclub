@@ -106,6 +106,9 @@ MAX_PHOTOS_PER_MEMBER = 20  # les fotos no s'esborren (taula només d'afegir): e
 
 def save_photo(db: Session, actor: User, member: Member, image_b64: str) -> MemberPhoto:
     from sqlalchemy import func
+    from . import consentiments
+    if not consentiments.allowed(db, member.id, "foto"):
+        raise ValueError("El soci no ha donat (o ha retirat) el consentiment per a la fotografia")
     if db.scalar(select(func.count()).select_from(MemberPhoto).where(MemberPhoto.member_id == member.id)) >= MAX_PHOTOS_PER_MEMBER:
         raise ValueError(f"S'ha arribat al límit de {MAX_PHOTOS_PER_MEMBER} fotos per soci")
     try:
