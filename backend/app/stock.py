@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
 from . import service, unitats
+from .races import flush_or_error
 from .models import CashEntry, Local, Member, MovementWarehouse, Product, StockMovement, User
 
 TZ = ZoneInfo("Europe/Madrid")
@@ -137,7 +138,7 @@ def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: st
         raise ValueError("Ja existeix un producte amb aquest nom en aquest local")
     p = Product(local_id=local_id, nom=nom, categoria=categoria, preu_cent_per_g=preu_cent_per_g, es_genetic=es_genetic)
     db.add(p)
-    db.flush()
+    flush_or_error(db, "Ja existeix un producte amb aquest nom en aquest local")
     service.audit_append(db, {"accio": "alta_producte", "producte": p.id, "local": local_id, "per": actor.id})
     db.commit()
     return p

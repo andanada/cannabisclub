@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import service, stock
+from .races import flush_or_error
 from .models import Product, Regla, StockMovement, User
 
 PERIODES = {"dia": "diari", "setmana": "setmanal", "mes": "mensual"}
@@ -82,7 +83,7 @@ def create(db: Session, actor: User, local_id: int, nom, ambit, categoria, produ
               categoria=(categoria or "").strip() or None if ambit == "categoria" else None,
               product_id=product_id if ambit == "producte" else None)
     db.add(r)
-    db.flush()
+    flush_or_error(db, "Ja existeix una regla amb aquest nom en aquest local")
     service.audit_append(db, {"accio": "alta_regla", "regla": r.id, "local": local_id, "per": actor.id})
     db.commit()
     return r

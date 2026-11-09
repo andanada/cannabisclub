@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import service
+from .races import flush_or_error
 from .models import Discount, Product, User
 
 TIPUS = {"percent", "import_g"}
@@ -68,13 +69,19 @@ def create(db: Session, actor: User, local_id: int, nom, tipus, valor, ambit, ca
     d = Discount(local_id=local_id, nom=nom, tipus=tipus, valor=valor, ambit=ambit, inici=inici, fi=fi,
                  categoria=(categoria or "").strip() or None if ambit == "categoria" else None, product_id=product_id if ambit == "producte" else None)
     db.add(d)
-    db.flush()
+    flush_or_error(db, "Ja existeix un descompte amb aquest nom en aquest local")
     service.audit_append(db, {"accio": "alta_descompte", "descompte": d.id, "local": local_id, "per": actor.id})
     db.commit()
     return d
 
 
-def update(db: Session, actor: User, d: Discount, actiu: bool | None, nom: str | None, valor: int | None, inici, fi, canvia_dates: bool) -> None:
+def update(db: Session, actor: User, d: Discount, actiu: bool | None, nom: str | None, valor: int | None, inici, fi,
+           canvia_dates: bool | set | frozenset = False) -> None:
+    """`canvia_dates`: bool (inici i fi alhora, comportament antic) o conjunt amb els camps enviats ({"inici"}, {"fi"}…):
+    editar només un no esborra l'altre."""
+    if canvia_dates is True:
+        canvia_dates = {"inici", "fi"}
+    camps_data = set(canvia_dates or ())
     canvis = {}
     if actiu is not None and actiu != d.actiu:
         canvis["actiu"] = actiu
@@ -83,9 +90,14 @@ def update(db: Session, actor: User, d: Discount, actiu: bool | None, nom: str |
     if valor is not None and valor != d.valor:
         _valida(db, d.local_id, d.nom, d.tipus, valor, d.ambit, d.categoria, d.product_id, d.inici, d.fi, d.id)
         canvis["valor"] = valor
-    if canvia_dates:
-        _valida(db, d.local_id, d.nom, d.tipus, d.valor, d.ambit, d.categoria, d.product_id, inici, fi, d.id)
-        canvis["inici"], canvis["fi"] = inici, fi
+    if camps_data:
+        nou_inici = inici if "inici" in camps_data else d.inici
+        nou_fi = fi if "fi" in camps_data else d.fi
+        _valida(db, d.local_id, d.nom, d.tipus, d.valor, d.ambit, d.categoria, d.product_id, nou_inici, nou_fi, d.id)
+        if nou_inici != d.inici:
+            canvis["inici"] = nou_inici
+        if nou_fi != d.fi:
+            canvis["fi"] = nou_fi
     if not canvis:
         raise ValueError("No hi ha cap canvi")
     for k, v in canvis.items():

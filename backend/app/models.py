@@ -330,6 +330,7 @@ class InventoryCount(Base):
     session_id: Mapped[int] = mapped_column(ForeignKey("inventory_sessions.id"), primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
     counted_mg: Mapped[int] = mapped_column(Integer)
+    expected_mg: Mapped[int | None] = mapped_column(Integer, nullable=True)  # estoc teòric en el moment del recompte
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 

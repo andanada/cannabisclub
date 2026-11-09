@@ -5,14 +5,14 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import service, stock
+from . import service, stock, unitats
+from .races import flush_or_error
 from .models import InventoryCount, InventorySession, Product, StockMovement, User
 
 MAX_MG = 1_000_000_000
 
 
-def _g(mg: int) -> str:
-    return str(Decimal(mg) / 1000)
+_g = unitats.mg_to_g
 
 
 def obrir(db: Session, actor: User, local_id: int, nom: str | None) -> InventorySession:
@@ -21,7 +21,7 @@ def obrir(db: Session, actor: User, local_id: int, nom: str | None) -> Inventory
     nom = (nom or "").strip() or "Inventari " + datetime.now(stock.TZ).strftime("%d/%m/%Y")
     s = InventorySession(local_id=local_id, nom=nom[:60], user_id=actor.id)
     db.add(s)
-    db.flush()
+    flush_or_error(db, "Ja hi ha un inventari obert en aquest local: tanca'l o cancel·la'l primer")
     service.audit_append(db, {"accio": "obre_inventari", "inventari": s.id, "local": local_id, "per": actor.id})
     db.commit()
     return s
@@ -53,29 +53,51 @@ def _obert(s: InventorySession) -> None:
         raise ValueError("Aquest inventari ja no està obert")
 
 
+def _lock_session(db: Session, s: InventorySession) -> None:
+    """Bloqueja la sessió (ordre: sessió -> productes) i en refresca l'estat: tancar i comptar no es creuen."""
+    db.execute(select(InventorySession).where(InventorySession.id == s.id).with_for_update().execution_options(populate_existing=True))
+
+
 def comptar(db: Session, actor: User, s: InventorySession, product_id: int, grams: Decimal) -> None:
+    """Desa el comptat i l'estoc teòric d'aquest moment: en tancar, l'ajust és comptat - teòric i
+    les vendes fetes després del recompte no s'esborren."""
+    _lock_session(db, s)
     _obert(s)
-    p = db.get(Product, product_id)
+    p = stock._lock_product_row(db, product_id)
     if not p or p.local_id != s.local_id or not p.actiu:
         raise ValueError("Producte inexistent o inactiu en aquest local")
-    mg = int((Decimal(grams) * 1000).quantize(Decimal("1")))
+    mg = unitats.g_to_mg(grams)
     if mg < 0 or mg > MAX_MG:
         raise ValueError("Quantitat no vàlida")
+    esperat = stock.stock_mg(db, product_id)
     fila = db.get(InventoryCount, (s.id, product_id))
     if fila:
-        fila.counted_mg, fila.user_id, fila.ts = mg, actor.id, datetime.now(timezone.utc)
+        fila.counted_mg, fila.expected_mg, fila.user_id, fila.ts = mg, esperat, actor.id, datetime.now(timezone.utc)
     else:
-        db.add(InventoryCount(session_id=s.id, product_id=product_id, counted_mg=mg, user_id=actor.id))
+        db.add(InventoryCount(session_id=s.id, product_id=product_id, counted_mg=mg, expected_mg=esperat, user_id=actor.id))
     db.commit()
 
 
 def tancar(db: Session, actor: User, s: InventorySession) -> dict:
-    """Ajusta cada producte comptat a la quantitat comptada. Tot o res: una sola transacció."""
+    """Ajusta cada producte comptat: delta = comptat - teòric en el moment del recompte. Tot o res (una transacció).
+    Primer es bloquegen TOTS els productes comptats per ordre d'id i només després s'escriu l'auditoria (que pren un
+    bloqueig global): així no pot interbloquejar-se amb una dispensació. Un producte desactivat després de comptar-lo
+    s'omet (no encalla el tancament)."""
+    _lock_session(db, s)
     _obert(s)
-    ajustos = sense = 0
-    for c in db.scalars(select(InventoryCount).where(InventoryCount.session_id == s.id).order_by(InventoryCount.product_id)):
-        p = stock._lock_product(db, c.product_id)
-        delta = c.counted_mg - stock.stock_mg(db, p.id)
+    comptes = list(db.scalars(select(InventoryCount).where(InventoryCount.session_id == s.id).order_by(InventoryCount.product_id)))
+    productes = {}
+    for c in comptes:
+        productes[c.product_id] = stock._lock_product_row(db, c.product_id)
+    ajustos = sense = omesos = 0
+    for c in comptes:
+        p = productes[c.product_id]
+        if not p or not p.actiu:
+            omesos += 1
+            continue
+        actual = stock.stock_mg(db, p.id)
+        esperat = c.expected_mg if c.expected_mg is not None else actual  # recomptes antics sense teòric guardat
+        delta = max(c.counted_mg - esperat, -actual)  # mai estoc negatiu (si després del recompte hi ha hagut vendes)
         if delta == 0:
             sense += 1
             continue
@@ -89,10 +111,11 @@ def tancar(db: Session, actor: User, s: InventorySession) -> dict:
     s.estat, s.ts_tancat = "tancat", datetime.now(timezone.utc)
     service.audit_append(db, {"accio": "tanca_inventari", "inventari": s.id, "ajustos": ajustos, "per": actor.id})
     db.commit()
-    return {"ajustos": ajustos, "sense_canvis": sense, "pendents": max(0, pendents)}
+    return {"ajustos": ajustos, "sense_canvis": sense, "pendents": max(0, pendents), "omesos": omesos}
 
 
 def cancellar(db: Session, actor: User, s: InventorySession) -> None:
+    _lock_session(db, s)
     _obert(s)
     s.estat, s.ts_tancat = "cancel·lat", datetime.now(timezone.utc)
     service.audit_append(db, {"accio": "cancella_inventari", "inventari": s.id, "per": actor.id})

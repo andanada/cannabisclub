@@ -45,7 +45,7 @@ def test_tancar_aplica_nomes_els_productes_comptats_amb_diferencia(ctx):
     compta(client, enc, sid, pa, "9")      # -1 g
     compta(client, enc, sid, pb, "20")     # igual: sense ajust
     r = client.post(f"/inventaris/{sid}/tancar", headers=enc)
-    assert r.status_code == 200 and r.json() == {"ajustos": 1, "sense_canvis": 1, "pendents": 0}
+    assert r.status_code == 200 and r.json() == {"ajustos": 1, "sense_canvis": 1, "pendents": 0, "omesos": 0}
     s = factory()
     ajusts = list(s.scalars(select(StockMovement).where(StockMovement.tipus == "ajust")))
     accions = [json.loads(a.payload)["accio"] for a in s.scalars(select(AuditLog))]
@@ -58,17 +58,43 @@ def test_tancar_aplica_nomes_els_productes_comptats_amb_diferencia(ctx):
     assert client.post(f"/inventaris/{sid}/tancar", headers=enc).status_code == 422
 
 
-def test_tancar_ajusta_a_lo_comptat_encara_que_lestoc_hagi_canviat(ctx):
+def test_tancar_no_esborra_els_moviments_posteriors_al_recompte(ctx):
+    """L'ajust és comptat - teòric del moment del recompte: la merma feta després (20 -> 19) es conserva."""
     client, factory, sec = ctx
     enc, pa, pb = prep(client, factory, sec)
     sid = obre(client, enc).json()["id"]
-    compta(client, enc, sid, pb, "18")
-    client.post("/moviments/merma", json={"product_id": pb, "grams": "1", "nota": "pols"}, headers=enc)  # 20 -> 19 durant el recompte
+    compta(client, enc, sid, pb, "18")  # teòric 20 -> ajust -2
+    client.post("/moviments/merma", json={"product_id": pb, "grams": "1", "nota": "pols"}, headers=enc)
     assert client.post(f"/inventaris/{sid}/tancar", headers=enc).json()["ajustos"] == 1
     s = factory()
     aj = s.scalars(select(StockMovement).where(StockMovement.tipus == "ajust")).one()
     s.close()
-    assert aj.delta_mg == -1000  # 19 -> 18
+    assert aj.delta_mg == -2000
+    estocs = {p["nom"]: p["estoc_g"] for p in client.get("/locals/1/estoc", headers=enc).json()}
+    assert estocs["B"] == "17"  # 20 - 2 (recompte) - 1 (merma posterior)
+
+
+def test_tancar_no_deixa_l_estoc_negatiu_si_hi_ha_hagut_vendes_despres(ctx):
+    client, factory, sec = ctx
+    enc, pa, pb = prep(client, factory, sec)
+    sid = obre(client, enc).json()["id"]
+    compta(client, enc, sid, pb, "2")  # teòric 20 -> -18
+    client.post("/moviments/merma", json={"product_id": pb, "grams": "10", "nota": "pols"}, headers=enc)  # queden 10
+    assert client.post(f"/inventaris/{sid}/tancar", headers=enc).status_code == 200
+    estocs = {p["nom"]: p["estoc_g"] for p in client.get("/locals/1/estoc", headers=enc).json()}
+    assert estocs["B"] == "0"
+
+
+def test_producte_desactivat_despres_de_comptar_no_encalla_el_tancament(ctx):
+    client, factory, sec = ctx
+    enc, pa, pb = prep(client, factory, sec)
+    sid = obre(client, enc).json()["id"]
+    compta(client, enc, sid, pa, "9")
+    compta(client, enc, sid, pb, "20")
+    client.post("/moviments/merma", json={"product_id": pa, "grams": "10", "nota": "tot"}, headers=enc)
+    assert client.patch(f"/productes/{pa}", json={"actiu": False}, headers=enc).status_code == 200
+    r = client.post(f"/inventaris/{sid}/tancar", headers=enc)
+    assert r.status_code == 200 and r.json()["omesos"] == 1
 
 
 def test_una_sola_sessio_oberta_i_cancellar(ctx):

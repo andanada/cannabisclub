@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from . import service, stock, unitats
+from .races import flush_or_error
 from .models import MovementWarehouse, Product, StockMovement, User, Warehouse
 
 RESERVAT = "principal"
@@ -45,7 +46,7 @@ def _nom(db: Session, local_id: int, nom, excepte_id=None) -> str:
 def create(db: Session, actor: User, local_id: int, nom) -> Warehouse:
     w = Warehouse(local_id=local_id, nom=_nom(db, local_id, nom))
     db.add(w)
-    db.flush()
+    flush_or_error(db, "Ja existeix un magatzem amb aquest nom en aquest local")
     service.audit_append(db, {"accio": "alta_magatzem", "magatzem": w.id, "local": local_id, "per": actor.id})
     db.commit()
     return w

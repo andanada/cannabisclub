@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import service
+from .races import flush_or_error
 from .csvutil import to_csv
 from .models import CashEntry, CashSession, Product, StockMovement, User
 from .stock import TZ
@@ -20,11 +21,7 @@ def open_session(db: Session, actor: User, local_id: int, opening_cent: int) -> 
         raise ValueError("Ja hi ha una caixa oberta en aquest local")
     cs = CashSession(local_id=local_id, opened_by=actor.id, opening_cent=opening_cent)
     db.add(cs)
-    try:
-        db.flush()  # l'índex únic parcial atura la segona obertura simultània
-    except IntegrityError:
-        db.rollback()
-        raise ValueError("Ja hi ha una caixa oberta en aquest local")
+    flush_or_error(db, "Ja hi ha una caixa oberta en aquest local")  # l'índex únic parcial atura la segona obertura simultània
     service.audit_append(db, {"accio": "obrir_caixa", "sessio": cs.id, "local": local_id, "cent": opening_cent, "per": actor.id})
     db.commit()
     return cs

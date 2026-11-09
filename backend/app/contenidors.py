@@ -1,23 +1,22 @@
 """Contenidors i tipus de contenidor: tara, producte contingut i pes net."""
-from decimal import Decimal
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import service, stock
+from . import service, stock, unitats
+from .races import flush_or_error
 from .models import Container, ContainerType, Product, User
 
 MAX_MG = 50_000_000  # 50 kg
 
 
 def _g(mg: int | None) -> str | None:
-    return None if mg is None else str(Decimal(mg) / 1000)
+    return None if mg is None else unitats.mg_to_g(mg)
 
 
 def _mg(g, nul_ok=False) -> int | None:
     if g is None and nul_ok:
         return None
-    mg = int((Decimal(g) * 1000).quantize(Decimal("1")))
+    mg = unitats.g_to_mg(g)
     if mg < 0 or mg > MAX_MG:
         raise ValueError("Pes no vàlid")
     return mg
@@ -44,7 +43,7 @@ def create_type(db: Session, actor: User, local_id: int, nom, tara_g) -> Contain
     nom = _nom(db, ContainerType, local_id, "nom", nom)
     t = ContainerType(local_id=local_id, nom=nom, tara_mg=_mg(tara_g))
     db.add(t)
-    db.flush()
+    flush_or_error(db, "Ja existeix un element amb aquest nom o codi en aquest local")
     service.audit_append(db, {"accio": "alta_tipus_contenidor", "tipus": t.id, "local": local_id, "per": actor.id})
     db.commit()
     return t
@@ -102,7 +101,7 @@ def create(db: Session, actor: User, local_id: int, codi, type_id, product_id, b
         raise ValueError("El pes brut no pot ser inferior a la tara del tipus")
     c = Container(local_id=local_id, codi=codi, type_id=t.id, product_id=_producte(db, local_id, product_id), brut_mg=brut)
     db.add(c)
-    db.flush()
+    flush_or_error(db, "Ja existeix un element amb aquest nom o codi en aquest local")
     service.audit_append(db, {"accio": "alta_contenidor", "contenidor": c.id, "local": local_id, "per": actor.id})
     db.commit()
     return c
