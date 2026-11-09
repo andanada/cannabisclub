@@ -4,10 +4,11 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import ajustos, controls, llibres, lots, service, stock, unitats
-from ..models import Batch, User
+from ..models import Batch, User, UserLocal
 from .comu import check_local, member_or_404, need_admin, need_manager, product_or_404, rang, run
 
 
@@ -181,6 +182,7 @@ def router(db, current_user) -> APIRouter:
     @r.post("/llibres/verificar")
     def verifica_llibre(body: VerificaIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_manager(user)
-        return {"coincidencies": llibres.verify(s, body.sha256)}
+        permesos = None if user.role == "admin" else set(s.scalars(select(UserLocal.local_id).where(UserLocal.user_id == user.id)))
+        return {"coincidencies": llibres.verify(s, body.sha256, permesos)}
 
     return r

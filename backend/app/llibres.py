@@ -57,12 +57,15 @@ def sign_and_log(db: Session, actor: User, llibre: str, local_id: int, des: date
     return h
 
 
-def verify(db: Session, sha256: str) -> list[dict]:
-    """Exportacions registrades amb aquest hash (buit = ningú l'ha generat: contingut desconegut o alterat)."""
+def verify(db: Session, sha256: str, locals_permesos: set[int] | None = None) -> list[dict]:
+    """Exportacions registrades amb aquest hash (buit = ningú l'ha generat: contingut desconegut o alterat).
+    `locals_permesos`: només les d'aquests locals (None = tots, per a l'administrador)."""
     if not re.fullmatch(r"[0-9a-f]{64}", sha256 or ""):
         return []
     out = []
     for r in db.scalars(select(AuditLog).where(AuditLog.payload.like('%"accio":"exporta_llibre"%'), AuditLog.payload.like(f'%"sha256":"{sha256}"%'))):
         p = json.loads(r.payload)
+        if locals_permesos is not None and p.get("local") not in locals_permesos:
+            continue
         out.append({"seq": r.seq, "ts": r.ts.isoformat(), "llibre": p["llibre"], "local": p["local"], "des": p["des"], "fins": p["fins"], "per": p["per"]})
     return out

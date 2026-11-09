@@ -216,3 +216,14 @@ def test_s3_estat_no_es_pot_canviar_des_de_o_cap_a_pendent_fora_de_l_aprovacio(c
     assert client.post(f"/socis/{mid}/aprovar", headers=adm).status_code == 200
     assert client.post(f"/socis/{mid}/estat", json={"estat": "pendent"}, headers=adm).status_code == 422  # tampoc cap a pendent
     assert client.post(f"/socis/{mid}/estat", json={"estat": "suspes"}, headers=enc).status_code == 200
+
+
+def test_s5_verificar_llibre_nomes_mostra_exportacions_dels_locals_de_l_usuari(ctx):
+    client, factory, sec = ctx
+    enc, adm = token(client, sec, "enc"), token(client, sec, "admin")
+    r = client.get("/locals/2/llibres/estoc.csv", params={"des": "2020-01-01", "fins": "2099-01-01"}, headers=adm)
+    assert r.status_code == 200
+    h = r.headers["x-content-sha256"]
+    assert client.post("/llibres/verificar", json={"sha256": h}, headers=enc).json()["coincidencies"] == []  # enc no és del local 2
+    trobades = client.post("/llibres/verificar", json={"sha256": h}, headers=adm).json()["coincidencies"]
+    assert [c["local"] for c in trobades] == [2]
