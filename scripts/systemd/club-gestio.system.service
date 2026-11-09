@@ -1,0 +1,50 @@
+# MODE SISTEMA: /etc/systemd/system/club-gestio.service  (sudo systemctl enable --now club-gestio)
+# Permet l'enduriment complet i l'ordenació amb Docker. Crea abans un usuari sense privilegis: sudo useradd -r -s /usr/sbin/nologin club
+# i posa-hi l'EnvironmentFile (chown root:club, mode 640) a /etc/club-gestio/app.env.
+[Unit]
+Description=Gestió del club (FastAPI, només a 127.0.0.1)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+StartLimitIntervalSec=0
+
+[Service]
+User=club
+Group=club
+WorkingDirectory=/data/repos/club-gestio/backend
+EnvironmentFile=/etc/club-gestio/app.env
+ExecStart=/data/repos/club-gestio/.venv/bin/uvicorn --no-access-log --factory app.main:create_app --host 127.0.0.1 --port 8099
+Restart=on-failure
+RestartSec=5
+
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=
+AmbientCapabilities=
+MemoryMax=768M
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,11 @@
+# MODE USUARI (systemctl --user). Per a mode sistema, vegeu club-gestio.system.service.
+# Perquè el servei arrenqui sense haver iniciat sessió i sobrevisqui al tancar-la: sudo loginctl enable-linger <usuari>
+# Un servei d'usuari NO pot ordenar-se amb After=docker.service (és una unitat del sistema): per això Restart=on-failure
+# sense límit d'intents; si la base de dades (contenidor) encara no és a punt, l'aplicació falla i es reintenta sola.
 [Unit]
 Description=Gestió del club (FastAPI, només a 127.0.0.1)
 After=network.target
+StartLimitIntervalSec=0
 
 [Service]
 WorkingDirectory=/data/repos/club-gestio/backend
@@ -8,8 +13,22 @@ WorkingDirectory=/data/repos/club-gestio/backend
 EnvironmentFile=%h/.config/club-gestio/app.env
 ExecStart=/data/repos/club-gestio/.venv/bin/uvicorn --no-access-log --factory app.main:create_app --host 127.0.0.1 --port 8099
 Restart=on-failure
-RestartSec=3
+RestartSec=5
+
+# --- Enduriment que funciona en mode usuari (necessita user namespaces sense privilegis, habituals a Debian/Ubuntu/Fedora) ---
+UMask=0077
 NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+# Tot el sistema de fitxers és de només lectura; aquí no cal escriure res (logs a journald). Afegeix rutes si l'app en necessita.
+ReadWritePaths=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# MemoryMax requereix que el controlador de memòria estigui delegat a l'usuari (cgroup v2; Delegate=memory a user@.service).
+# Si systemctl --user status avisa que s'ignora, activa'l amb: sudo systemctl edit user@.service  ->  [Service] Delegate=memory pids
+MemoryMax=768M
 
 [Install]
 WantedBy=default.target

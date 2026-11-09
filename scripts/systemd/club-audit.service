@@ -1,0 +1,9 @@
+[Unit]
+Description=Verificació setmanal de la cadena d'auditoria
+OnFailure=club-alert@%n.service
+
+[Service]
+Type=oneshot
+# Cal CLUB_APP_DATABASE_URL (el mateix app.env del servei; només llegeix)
+EnvironmentFile=%h/.config/club-gestio/app.env
+ExecStart=/data/repos/club-gestio/.venv/bin/python /data/repos/club-gestio/scripts/club-audit-verify.py

@@ -1,0 +1,8 @@
+[Unit]
+Description=Comprovacions del club (salut, disc, còpia, certificat)
+
+[Service]
+Type=oneshot
+# CLUB_ALERT_CMD, CLUB_CERT_HOST, CLUB_BACKUP_DIR... (fitxer amb permisos 600: pot contenir un token de Telegram)
+EnvironmentFile=%h/.config/club-gestio/monitor.env
+ExecStart=/data/repos/club-gestio/scripts/club-monitor.sh check

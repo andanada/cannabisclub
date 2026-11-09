@@ -1,8 +1,9 @@
 [Unit]
 Description=Còpia xifrada de la base de dades del club
+OnFailure=club-alert@%n.service
 
 [Service]
 Type=oneshot
-# Defineix aquí CLUB_BACKUP_GPG_RECIPIENT i, si cal, CLUB_BACKUP_REMOTE (no hi posis cap secret)
+# Defineix aquí CLUB_BACKUP_GPG_RECIPIENT, CLUB_BACKUP_KEYS_RECIPIENT, CLUB_BACKUP_SIGNER, CLUB_BACKUP_REMOTE... (cap secret)
 EnvironmentFile=%h/.config/club-gestio/backup.env
 ExecStart=/data/repos/club-gestio/scripts/club-backup.sh run

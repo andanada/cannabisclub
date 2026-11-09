@@ -1,0 +1,7 @@
+[Unit]
+Description=Alerta: la unitat %i ha fallat
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/club-gestio/monitor.env
+ExecStart=/data/repos/club-gestio/scripts/club-monitor.sh alert "la unitat %i ha fallat (journalctl --user -u %i)"

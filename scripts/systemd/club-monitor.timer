@@ -1,0 +1,10 @@
+[Unit]
+Description=Comprovacions del club cada 15 minuts
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
