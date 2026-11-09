@@ -921,3 +921,10 @@ Object.assign(I18N.es, {
  "Total sense cobrar": "Total sin cobrar",
  "Dispensació": "Dispensación",
 });
+
+Object.assign(I18N.es, {
+ "Inventari tancat, però alguns productes no s'han ajustat.": "Inventario cerrado, pero algunos productos no se han ajustado.",
+ "Productes omesos (desactivats després del recompte):": "Productos omitidos (desactivados después del recuento):",
+ "Entesos": "Entendido",
+ "Aquest local té límits de dispensació, però cap producte està marcat com a genètic: els límits no s'estan aplicant. Revisa els productes (flor, hash, extractes, clons, llavors) i marca'ls com a genètics.": "Este local tiene límites de dispensación, pero ningún producto está marcado como genético: los límites no se están aplicando. Revisa los productos (flor, hash, extractos, clones, semillas) y márcalos como genéticos.",
+});

@@ -112,7 +112,12 @@ async function productsSection() {
       show('estoc');
     });
   } }, h('h3', null, 'Nou producte'), h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)), h('label', null, genNou, ' És genètic'), h('div', { class: 'actions' }, b2), out2);
-  return h('div', null, nou, h('h3', null, 'Productes existents'),
+  // Els límits per soci només compten productes marcats com a genètics: sense cap, els límits no s'apliquen a res.
+  const lloc = (S.me.locals || []).find((l) => l.id === S.local) || {};
+  const amLimits = lloc.limit_diari_mg != null || lloc.limit_mensual_mg != null;
+  const avisGenetic = amLimits && tots.length && !tots.some((p) => p.es_genetic)
+    ? msg('err', 'Aquest local té límits de dispensació, però cap producte està marcat com a genètic: els límits no s'estan aplicant. Revisa els productes (flor, hash, extractes, clons, llavors) i marca'ls com a genètics.') : null;
+  return h('div', null, avisGenetic, nou, h('h3', null, 'Productes existents'),
     h('p', { class: 'muted' }, "El canvi de preu només afecta les dispensacions noves. Per desactivar un producte, l'estoc ha de ser zero."),
     ...(tots.length ? tots.map(productCard) : [h('div', { class: 'card empty' }, 'Encara no hi ha productes.')]));
 }

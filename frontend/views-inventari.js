@@ -34,6 +34,12 @@ async function openInventory(sid) {
       if (!window.confirm(`S'ajustarà l'estoc dels ${d.comptats} productes comptats.` + (faltenCount ? ` ${faltenCount} productes sense comptar no es toquen.` : ''))) return;
       const r = await api(`/inventaris/${sid}/tancar`, { method: 'POST' });
       toast(`Inventari tancat: ${r.ajustos} ajustos`);
+      if (r.omesos > 0) {  // avís que no es perd en 3 segons: hi ha productes del recompte que no s'han pogut ajustar
+        root.replaceChildren(h('div', { class: 'card' }, msg('err', 'Inventari tancat, però alguns productes no s'han ajustat.'),
+          h('p', null, 'Productes omesos (desactivats després del recompte):', ' ', String(r.omesos)),
+          h('div', { class: 'actions' }, h('button', { class: 'primary', type: 'button', onclick: () => show('estoc') }, 'Entesos'))));
+        return;
+      }
       show('estoc');
     }));
     const cancela = h('button', { type: 'button', class: 'danger' }, 'Cancel·lar inventari');
