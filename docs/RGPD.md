@@ -60,7 +60,9 @@ Resum tècnic; no substitueix la validació jurídica de la secció D.
    tall arbitrari i deixa rastre a `club_buida_log` (només d'afegir, sense privilegis per a `club_app`). Els socis de baixa antics sense `baixa_en` només es poden
    buidar amb retenció 0 fins que s'ompli la data.
 4. **Retenció** (`backend/app/retencio.py`, `scripts/club-retencio.py`, `GET /locals/{id}/retencio`): simula per defecte; amb `--aplicar` suprimeix els socis
-   vençuts, buida fotos antigues (no la darrera de cada soci; `CLUB_RETENCIO_FOTOS_DIES`, 365) i esborra intents de login (`CLUB_RETENCIO_INTENTS_DIES`, 30) i sessions caducades.
+   vençuts, buida fotos antigues (no la darrera de cada soci; `CLUB_RETENCIO_FOTOS_DIES`, 365) i esborra intents de login (`CLUB_RETENCIO_INTENTS_DIES`, 30) i sessions caducades. **Àmbit:** `/locals/{id}/retencio[/aplicar]` (i `--local N` de l'script) actua NOMÉS sobre els socis i fotos d'aquest local; els
+   intents de login i les sessions caducades són globals (no pertanyen a cap local) i només es compten/purguen amb l'endpoint global d'administrador
+   `GET /retencio` / `POST /retencio/aplicar` (o l'script sense `--local`).
 5. **Registre d'accessos**: s'audita la fitxa, quotes, consum, foto, signatura, exportacions i consultes d'auditoria. `GET /auditoria/consulta`
    (admin; per soci, usuari, acció, dates; paginat) i `GET /socis/{id}/accessos(.csv)` («qui ha accedit»).
 6. **Controls de club** (per local, valors per defecte = comportament anterior): `espera_dies`, `aval` (no/opcional/obligatori), `alta_pendent`

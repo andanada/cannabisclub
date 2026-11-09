@@ -83,7 +83,7 @@ def buida_binaris(db: Session, member_id: int, mode: str = "tot", cutoff: dateti
     else:
         ultimes = {m: i for m, i in db.execute(select(MemberPhoto.member_id, MemberPhoto.id).order_by(MemberPhoto.id))}
         for fid, mid, ts in db.execute(select(MemberPhoto.id, MemberPhoto.member_id, MemberPhoto.ts).where(MemberPhoto.img_enc != "")).all():
-            if _aware(ts) < cutoff and ultimes[mid] > fid:
+            if (not member_id or mid == member_id) and _aware(ts) < cutoff and ultimes[mid] > fid:
                 n += db.execute(update(MemberPhoto.__table__).where(MemberPhoto.id == fid).values(img_enc="", sha256="0" * 64)).rowcount
     return n
 

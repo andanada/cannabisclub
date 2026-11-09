@@ -35,21 +35,31 @@ def candidates(db: Session, local_id: int | None = None) -> list[dict]:
     return out
 
 
-def _fotos_velles(db: Session, tall: datetime) -> int:
+def _fotos_velles(db: Session, tall: datetime, local_id: int | None = None) -> dict[int, int]:
+    """Fotos velles per soci (id soci -> quantes); amb `local_id`, només dels socis d'aquest local."""
     ultimes = {m: i for m, i in db.execute(select(MemberPhoto.member_id, func.max(MemberPhoto.id)).group_by(MemberPhoto.member_id))}
-    return sum(1 for fid, mid, ts, enc in db.execute(select(MemberPhoto.id, MemberPhoto.member_id, MemberPhoto.ts, MemberPhoto.img_enc)).all()
-               if enc != "" and supressio._aware(ts) < tall and ultimes[mid] > fid)
+    q = select(MemberPhoto.id, MemberPhoto.member_id, MemberPhoto.ts, MemberPhoto.img_enc)
+    if local_id is not None:
+        q = q.join(Member, Member.id == MemberPhoto.member_id).where(Member.local_id == local_id)
+    out: dict[int, int] = {}
+    for fid, mid, ts, enc in db.execute(q).all():
+        if enc != "" and supressio._aware(ts) < tall and ultimes[mid] > fid:
+            out[mid] = out.get(mid, 0) + 1
+    return out
 
 
 def run(db: Session, actor_id: int | None = None, aplicar: bool = False, local_id: int | None = None) -> dict:
+    """`local_id` = purga NOMÉS d'aquest local (socis i fotos); els intents de login i les sessions caducades són globals
+    (no pertanyen a cap local) i només es compten/purguen amb `local_id=None` (endpoint global d'administrador)."""
     cfg = config()
     ara = datetime.now(timezone.utc)
     cands = candidates(db, local_id)
     tall_fotos = ara - timedelta(days=cfg["fotos_velles_dies"])
     tall_intents = ara - timedelta(days=cfg["intents_login_dies"])
-    fotos = _fotos_velles(db, tall_fotos)
-    intents = db.scalar(select(func.count()).select_from(LoginAttempt).where(LoginAttempt.ts < tall_intents)) or 0
-    sessions = db.scalar(select(func.count()).select_from(SessionToken).where(SessionToken.expires_at < ara)) or 0
+    velles = _fotos_velles(db, tall_fotos, local_id)
+    fotos = sum(velles.values())
+    intents = 0 if local_id is not None else db.scalar(select(func.count()).select_from(LoginAttempt).where(LoginAttempt.ts < tall_intents)) or 0
+    sessions = 0 if local_id is not None else db.scalar(select(func.count()).select_from(SessionToken).where(SessionToken.expires_at < ara)) or 0
     informe = {"aplicat": aplicar, "config": cfg, "candidats": cands, "suprimibles": sum(1 for c in cands if c["suprimible"]),
                "fotos_velles": fotos, "intents_login": intents, "sessions_caducades": sessions, "suprimits": []}
     if not aplicar:
@@ -57,9 +67,12 @@ def run(db: Session, actor_id: int | None = None, aplicar: bool = False, local_i
     for c in cands:
         if c["suprimible"]:
             informe["suprimits"].append(supressio.pseudonymize(db, actor_id, db.get(Member, c["soci"]), "retencio"))
-    informe["fotos_velles"] = supressio.buida_binaris(db, 0, "fotos_velles", tall_fotos) if fotos else 0
-    informe["intents_login"] = db.execute(delete(LoginAttempt).where(LoginAttempt.ts < tall_intents)).rowcount or 0
-    informe["sessions_caducades"] = db.execute(delete(SessionToken).where(SessionToken.expires_at < ara)).rowcount or 0
+    if local_id is None:
+        informe["fotos_velles"] = supressio.buida_binaris(db, 0, "fotos_velles", tall_fotos) if fotos else 0
+        informe["intents_login"] = db.execute(delete(LoginAttempt).where(LoginAttempt.ts < tall_intents)).rowcount or 0
+        informe["sessions_caducades"] = db.execute(delete(SessionToken).where(SessionToken.expires_at < ara)).rowcount or 0
+    else:
+        informe["fotos_velles"] = sum(supressio.buida_binaris(db, mid, "fotos_velles", tall_fotos) for mid in velles)
     service.audit_append(db, {"accio": "retencio", "suprimits": len(informe["suprimits"]), "fotos": informe["fotos_velles"],
                               "intents": informe["intents_login"], "sessions": informe["sessions_caducades"], "per": actor_id})
     db.commit()

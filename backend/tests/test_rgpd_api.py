@@ -169,3 +169,37 @@ def test_alta_enllaca_la_signatura_ja_desada(ctx):
     assert client.post(f"/socis/{mid}/alta-rgpd", json=cos, headers=enc).status_code == 201
     h = client.get(f"/socis/{mid}/consentiments", headers=enc).json()["historial"]
     assert {x["signature_id"] for x in h} == {sid} and {x["text_sha256"] for x in h} == {H}
+
+
+def test_s6_retencio_per_local_no_toca_altres_locals_ni_dades_globals(ctx, monkeypatch):
+    """La purga d'un local només afecta aquest local; intents de login i sessions són globals i només els compta/purga l'endpoint global."""
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select
+    from app import service
+    from app.models import LoginAttempt, MemberPhoto
+    monkeypatch.setenv("CLUB_RETENCIO_FOTOS_DIES", "0")
+    monkeypatch.setenv("CLUB_RETENCIO_INTENTS_DIES", "1")
+    client, factory, sec = ctx
+    adm, enc = token(client, sec, "admin"), token(client, sec, "enc")  # els inicis de sessió esborren intents vells: abans de crear-ne
+    jpeg = base64.b64encode(b"\xff\xd8\xff\xe0" + bytes(range(256)) * 2).decode()
+    m1 = client.post("/socis", json=SOCI, headers=adm).json()["id"]
+    m2 = client.post("/socis", json={**SOCI, "local_id": 2, "document": "87654321X"}, headers=adm).json()["id"]
+    for m in (m1, m1, m2, m2):
+        assert client.post(f"/socis/{m}/foto", json={"image_base64": jpeg}, headers=adm).status_code in (200, 201)
+    with factory() as s:
+        s.add(LoginAttempt(username="vell", ts=datetime.now(timezone.utc) - timedelta(days=5)))
+        s.commit()
+    r = client.post("/locals/1/retencio/aplicar", json={"confirmar": True}, headers=adm).json()
+    assert r["fotos_velles"] == 1 and r["intents_login"] == 0 and r["sessions_caducades"] == 0
+    with factory() as s:
+        bui = {m: sum(1 for f in s.scalars(select(MemberPhoto).where(MemberPhoto.member_id == m)) if f.img_enc == "") for m in (m1, m2)}
+        assert bui == {m1: 1, m2: 0}
+        assert s.scalar(select(LoginAttempt.id).where(LoginAttempt.username == "vell")) is not None
+    # endpoint global explícit (només admin)
+    assert client.get("/retencio", headers=enc).status_code == 403
+    assert client.post("/retencio/aplicar", json={"confirmar": True}, headers=enc).status_code == 403
+    assert client.post("/retencio/aplicar", json={}, headers=adm).status_code == 422
+    g = client.post("/retencio/aplicar", json={"confirmar": True}, headers=adm).json()
+    assert g["fotos_velles"] == 1 and g["intents_login"] >= 1
+    with factory() as s:
+        assert s.scalar(select(LoginAttempt.id).where(LoginAttempt.username == "vell")) is None

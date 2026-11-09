@@ -93,6 +93,7 @@ BEGIN
     PERFORM set_config('club.supr_ok', '1', true);
     UPDATE {s}.member_photos f SET img_enc = '', sha256 = repeat('0', 64)
       WHERE f.img_enc <> '' AND f.ts < v_tall
+        AND (p_member = 0 OR f.member_id = p_member)  -- 0 = totes; un id = només les fotos d'aquest soci
         AND EXISTS (SELECT 1 FROM {s}.member_photos g WHERE g.member_id = f.member_id AND g.id > f.id);
     GET DIAGNOSTICS k = ROW_COUNT; n := n + k;
   ELSE

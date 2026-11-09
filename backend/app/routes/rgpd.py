@@ -123,6 +123,19 @@ def router(db, current_user) -> APIRouter:
             raise HTTPException(422, "Cal confirmar l'execució de la purga")
         return retencio.run(s, user.id, True, local_id)
 
+    @r.get("/retencio")
+    def retencio_global_simula(user: User = Depends(current_user), s: Session = Depends(db)):
+        """Política de retenció GLOBAL (tots els locals, intents de login i sessions): només administrador."""
+        need_admin(user)
+        return retencio.run(s, user.id, False, None)
+
+    @r.post("/retencio/aplicar")
+    def retencio_global_aplica(body: RetencioIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        if not body.confirmar:
+            raise HTTPException(422, "Cal confirmar l'execució de la purga")
+        return retencio.run(s, user.id, True, None)
+
     @r.get("/auditoria/consulta")
     def consulta_auditoria(soci: int | None = None, usuari: int | None = None, accio: str | None = Query(default=None, max_length=40),
                            des: date | None = None, fins: date | None = None, limit: int = Query(default=100, ge=1, le=500),
