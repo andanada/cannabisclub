@@ -2,7 +2,8 @@
   python -m app.cli crear-admin <usuari>      (la contrasenya es demana per terminal)
   python -m app.cli preparar-bd <fitxer .env>  (crea el rol de l'aplicació i en desa la contrasenya al fitxer, sense mostrar-la)
   python -m app.cli desbloquejar <usuari>      (treu el bloqueig temporal per intents fallits d'un usuari)
-  python -m app.cli actualitzar-bd             (després d'actualitzar el programa: crea les taules noves i dona permisos; es pot repetir)
+  python -m app.cli verificar-auditoria [seq:hash]  (cadena d'auditoria i ancoratge; sortida 3 si està trencada)
+  python -m app.cli actualitzar-bd             (després d'actualitzar el programa: crea les taules noves, dona permisos i, UNA vegada, marca els productes genètics; es pot repetir)
 Cal CLUB_DATABASE_URL amb l'usuari PROPIETARI per a aquestes ordres; l'aplicació en funcionament fa servir el rol sense privilegis."""
 import getpass
 import sys
@@ -50,7 +51,19 @@ def actualitzar_bd() -> int:
         else:
             avis = f" Atenció: el rol «{role}» no existeix i no s'han donat permisos; executa preparar-bd."
     print("Base de dades al dia." + (f" Taules noves: {', '.join(abans)}." if abans else " No faltava res.") + avis)
+    # Migració única d'es_genetic (marca a local_settings: en repetir l'ordre no torna a tocar res)
+    from . import migracio_genetic
+    with make_session_factory(engine)() as db:
+        r = migracio_genetic.migra(db)
+    if r["marcats"] or r["pendents"]:
+        print(migracio_genetic.informe(r))
     return 0
+
+
+def verificar_auditoria(ancora: str | None = None) -> int:
+    """Verifica la cadena d'auditoria (i l'ancoratge «seq:hash», si es dona). Codi de sortida 3 si està trencada."""
+    from . import audit_cli
+    return 0 if audit_cli.main(["verifica"] + ([ancora] if ancora else [])) == 0 else 3
 
 
 def unlock(db, username: str) -> int:
@@ -69,6 +82,8 @@ def main(argv: list[str]) -> int:
         return 0
     if len(argv) == 1 and argv[0] == "actualitzar-bd":
         return actualitzar_bd()
+    if argv[:1] == ["verificar-auditoria"] and len(argv) <= 2:
+        return verificar_auditoria(argv[1] if len(argv) == 2 else None)
     if len(argv) == 2 and argv[0] == "preparar-bd":
         return preparar_bd(argv[1])
     if len(argv) != 2 or argv[0] != "crear-admin":

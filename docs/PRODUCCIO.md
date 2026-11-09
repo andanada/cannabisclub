@@ -25,7 +25,7 @@ Per defecte l'inici de sessió exigeix usuari, contrasenya i codi de l'app d'aut
 
 Els treballadors (no els administradors) poden entrar passant un carnet pel lector i escrivint un PIN, per canviar de lloc de feina sense escriure l'usuari. Es configura a **Configuració → Usuaris → Carnet d'entrada** (només administradors).
 
-- **Dues capes**: el carnet («alguna cosa que tens») i el PIN de 4 a 8 xifres («alguna cosa que saps»). Es rebutgen PIN fàcils (xifres repetides, seqüències). El PIN es desa com Argon2 d'un HMAC amb `CLUB_INDEX_KEY`: sense aquesta clau no es pot atacar fora de línia.
+- **Dues capes**: el carnet («alguna cosa que tens») i el PIN de **6 a 8 xifres** (abans 4-6; els PIN antics de 4-5 xifres segueixen entrant però el sistema obliga a canviar-lo) («alguna cosa que saps»). Es rebutgen PIN fàcils (xifres repetides, seqüències). El PIN es desa com Argon2 d'un HMAC amb `CLUB_INDEX_KEY`: sense aquesta clau no es pot atacar fora de línia.
 - **Només carnets generats pel programa** (codi llarg i imprevisible amb dígit de control). No s'accepta l'UID d'un xip qualsevol: és curt i es pot copiar o endevinar. El codi es mostra una sola vegada en generar-lo; s'imprimeix amb codi de barres o es grava en una etiqueta NFC.
 - **Bloqueig**: 5 PIN erronis en 15 minuts bloquegen el carnet d'aquell usuari (la contrasenya segueix funcionant); hi ha un límit global per a carnets desconeguts. El bloqueig i cada entrada queden a l'auditoria.
 - **Carnet perdut**: retira'l a Usuaris → Retirar carnet; deixa de servir a l'acte.
@@ -43,16 +43,55 @@ Una base de dades sense cap local mostra a l'administrador un formulari per crea
 - `scripts/club-monitor.sh check` (timer `club-monitor.timer`, cada 15 min) comprova `/salut`, l'espai en disc (85 %), l'edat de l'última còpia correcta (> 26 h) i la caducitat del certificat (`CLUB_CERT_HOST=host:443` o `CLUB_CERT_FILE`; 14 dies). Avisa en canviar d'estat i repeteix cada 6 h (`CLUB_ALERT_REPEAT_MIN`).
 - Notificació: `CLUB_ALERT_CMD` a `~/.config/club-gestio/monitor.env` (mode 600). Rep el missatge per stdin i a `$CLUB_ALERT_MESSAGE`. Exemples (mail, Telegram) a la capçalera del script. Prova: `scripts/club-monitor.sh test`.
 - `OnFailure=club-alert@%n.service` a `club-backup.service` i `club-audit.service`: una còpia o verificació fallida avisa sola.
-- Auditoria: `club-audit.timer` (dilluns 06:00) executa `scripts/club-audit-verify.py` i falla (i avisa) si la cadena està trencada. `python -m app.cli` **no té** subordre per a això. Per a qui editi `cli.py`: afegir `verificar-auditoria` que cridi `service.audit_verify` i retorni 3 si falla; llavors `club-audit.service` pot usar-lo en lloc de l'script.
+- Auditoria: `club-audit.timer` (dilluns 06:00) executa `scripts/club-audit-verify.py` i falla (i avisa) si la cadena està trencada. Equivalent: `python -m app.cli verificar-auditoria [seq:hash]` (sortida 3 si falla; accepta un ancoratge). Vegeu «Auditoria: HMAC i ancoratge» més avall.
 - Logs: `journalctl -u club-gestio`. Cada petició surt com `MÈTODE /camí estat durada` **sense** la query string. Un error inesperat surt amb un `id` de 12 caràcters; el mateix `id` el veu l'usuari a la pantalla. `CLUB_LOG_LEVEL=WARNING` redueix el soroll.
 
 ## 3. Actualitzar el programa
 
 1. Còpia de seguretat de la base de dades.
 2. Actualitza el codi i `pip install --require-hashes -r requirements.lock`.
-3. Amb l'usuari propietari: `python -m app.cli actualitzar-bd` (crea taules, **columnes** noves amb valor per defecte i **índexs**, i dona permisos; es pot repetir).
+3. Amb l'usuari propietari: `python -m app.cli actualitzar-bd` (crea taules, **columnes** noves amb valor per defecte i **índexs**, dona permisos i fa la migració única dels productes genètics, vegeu § 3.1; es pot repetir).
 4. Reinicia el servei. Si t'has oblidat del pas 3, el servei no arrenca i diu què falta (taules o columnes).
 5. Les pestanyes obertes agafen la versió nova la propera vegada que es recarreguen: els fitxers del front es serveixen amb `Cache-Control: no-cache` (el navegador revalida sempre) i el service worker s'activa de seguida.
+
+### 3.1 Migració dels productes genètics (`es_genetic`) — cal revisar-la
+
+Els límits diari/mensual per soci **només compten productes marcats com a genètics**. En una base de dades anterior a aquest camp, tots els productes queden amb `es_genetic = FALSE` i, sense fer res, **els límits deixarien d'aplicar-se**. Per això `actualitzar-bd`, **una sola vegada per local** (marca `es_genetic_migrat` a `local_settings`; en repetir l'ordre no torna a tocar res):
+
+1. Marca com a genètics els productes la **categoria** dels quals sigui de flor, hash/haixix, extracte/resina, clon/esqueix o llavor/semilla/seed (també «cannabis», «marihuana»).
+2. No toca res si el local ja té algun producte genètic (algú ja l'havia classificat): només desa la marca.
+3. **Mostra per pantalla** els productes marcats i la llista dels que han quedat com a **no genètics, pendents de revisar** (amb una pista si el *nom* sembla genètic però la categoria no). Desa aquesta sortida: no es torna a mostrar.
+4. Deixa un registre d'auditoria `migracio_es_genetic` amb els ids marcats.
+
+**Què has de fer després:** a **Estoc → Productes**, repassa la llista de pendents i marca «És genètic» on calgui. Mentre el local tingui límits actius i **cap** producte genètic, la pantalla de productes mostra un avís vermell. Un producte que la migració hagi marcat per error es desmarca a la mateixa pantalla (no es tornarà a marcar).
+
+### 3.2 Variables d'entorn noves
+
+Totes van al fitxer d'entorn del servei (`app.env`), llevat que s'indiqui.
+
+| Variable | Per defecte | Significat |
+|---|---|---|
+| `CLUB_AUDIT_KEY` | derivada de `CLUB_INDEX_KEY` | Clau de l'HMAC de la cadena d'auditoria (entrades noves marcades `h1`). Si no hi és s'usa una derivada de `CLUB_INDEX_KEY`. **Canviar-la (o canviar `CLUB_INDEX_KEY` sense `CLUB_AUDIT_KEY`) invalida la verificació de les entrades `h1` existents.** Custòdia fora del servidor, com les altres claus. |
+| `CLUB_AUDIT_HMAC_DES_DE` | — | Número de `seq` a partir del qual TOTES les entrades han de ser `h1`. Fixa'l al `seq` de l'últim ancoratge un cop activat l'HMAC: així ningú pot refer la cadena amb SHA-256 sense la clau. |
+| `CLUB_LOGIN_IP_LIMIT` | `60` | Intents de `/auth/login` i `/auth/login-carnet` per adreça IP i minut (429 si se supera). Darrere nginx cal `CLUB_TRUST_PROXY=1` perquè sigui la IP real. |
+| `CLUB_ARGON_CONCURRENCY` | `4` | Quantes verificacions Argon2 (contrasenya/PIN) poden córrer alhora; les altres esperen i, si el servidor va saturat, reben 503 amb `Retry-After`. Ajusta-ho als nuclis i a la memòria. |
+| `CLUB_MAX_BODY_BYTES` | `1048576` | Mida màxima del cos d'una petició (413 si es supera). El cos legítim més gran és la foto/signatura en base64 (~400 KB); no el pugis sense motiu i alinea'l amb `client_max_body_size` de nginx. |
+| `CLUB_TOTP_REPLAY` | `1` | Un codi TOTP només serveix una vegada per usuari. `0` ho desactiva (**només per a proves**). El registre és en memòria: es perd en reiniciar. |
+
+### 3.3 Canvis que cal conèixer en actualitzar
+
+- **Cerques per POST**: la cerca de soci per document i per carnet ja no passen per la URL sinó per `POST /locals/{id}/socis/cerca` i `POST /locals/{id}/socis/carnet` (cos JSON). Els `GET` antics han desaparegut: si hi ha scripts o marcadors propis, cal adaptar-los. Així el document i el codi no queden als logs de nginx ni a l'historial.
+- **Dispensar i cobrar**: `POST /dispensacions` accepta `metode` (`efectiu`/`targeta`) i aleshores dispensa i cobra en una sola transacció. La pantalla ofereix «Dispensar i cobrar en efectiu / amb targeta» i, a part, «Dispensar i cobrar després» (flux anterior).
+- **Tancar la caixa** avisa de les dispensacions sense cobrar (també abans de tancar, a Caixa → Tancament); la resposta porta `sense_cobrar` i `sense_cobrar_cent`.
+- **Errors**: un registre immutable (moviments, apunts, signatures…) o una col·lisió de restricció no esperada responen **409** amb un missatge net, mai 500.
+
+### 3.4 Auditoria: HMAC i ancoratge
+
+La cadena d'auditoria només detecta retalls del final o reescriptures completes si es compara amb un **ancoratge** guardat fora del servidor (últim `seq:hash`).
+
+- `python -m app.audit_cli ancora` imprimeix `seq:hash`. `scripts/club-backup.sh run` l'executa després de cada còpia i el desa a `club-AAAAMMDD-HHMMSS.dump.gpg.anchor` (al costat de la còpia i al remot, amb la mateixa retenció). Si no el pot obtenir, avisa però la còpia es conserva.
+- Verificar contra un ancoratge: `python -m app.cli verificar-auditoria <seq:hash>` (o `python -m app.audit_cli verifica <seq:hash>`); sense argument només comprova la cadena i avisa `sense_ancoratge`. Per fer-ho contra el de la còpia remota més recent: `... verificar-auditoria "$(cat club-....dump.gpg.anchor)"`.
+- Recomanat: un cop activat l'HMAC, fixa `CLUB_AUDIT_HMAC_DES_DE` al `seq` de l'ancoratge i guarda la clau (`CLUB_AUDIT_KEY` o `CLUB_INDEX_KEY`) fora del servidor.
 
 ## 4. Incidències habituals
 

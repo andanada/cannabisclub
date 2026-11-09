@@ -46,8 +46,8 @@ remote_ls() {
 remote_rm() {  # noms ja validats amb DUMP_RE: no hi ha caràcters especials
   local n
   for n in "$@"; do
-    if remote_is_ssh; then ssh -o BatchMode=yes "$(remote_host)" "rm -f -- '$(remote_path)/$n' '$(remote_path)/$n.sha256'"
-    else rm -f -- "$CLUB_BACKUP_REMOTE/$n" "$CLUB_BACKUP_REMOTE/$n.sha256"; fi
+    if remote_is_ssh; then ssh -o BatchMode=yes "$(remote_host)" "rm -f -- '$(remote_path)/$n' '$(remote_path)/$n.sha256' '$(remote_path)/$n.anchor'"
+    else rm -f -- "$CLUB_BACKUP_REMOTE/$n" "$CLUB_BACKUP_REMOTE/$n.sha256" "$CLUB_BACKUP_REMOTE/$n.anchor"; fi
   done
 }
 remote_sha() {  # sha256 d'un fitxer remot
@@ -77,7 +77,7 @@ retention_victims() {
 # shellcheck disable=SC2012  # noms validats amb DUMP_RE
 prune_local() {
   local v
-  while read -r v; do [ -n "$v" ] && rm -f -- "$DEST/$v" "$DEST/$v.sha256"; done < <(ls -1 "$DEST" | retention_victims)
+  while read -r v; do [ -n "$v" ] && rm -f -- "$DEST/$v" "$DEST/$v.sha256" "$DEST/$v.anchor"; done < <(ls -1 "$DEST" | retention_victims)
 }
 prune_remote() {
   [ -n "${CLUB_BACKUP_REMOTE:-}" ] || return 0
@@ -117,6 +117,22 @@ keys_changed() {  # cert si les claus actuals no coincideixen amb l'última empr
 
 cmd_keys() { mkdir -p "$DEST"; make_keys_package; }
 
+# Ancoratge de l'auditoria («seq:hash») desat al costat de la còpia i al remot: permet detectar que algú hagi retallat
+# el final de la cadena. Si no es pot obtenir NO s'atura la còpia (ja és feta i verificada), però es avisa.
+save_anchor() {
+  local out="$1" anchor
+  anchor="$(set -a; [ -r "$ENV_FILE" ] && . "$ENV_FILE"; set +a; cd "$REPO/backend" && "$PY" -m app.audit_cli ancora 2>/dev/null)" || anchor=""
+  if ! [[ "$anchor" =~ ^[0-9]+:[0-9a-f]{64}$ ]]; then
+    echo "AVÍS: no s'ha pogut obtenir l'ancoratge de l'auditoria (${anchor:-buit}); la còpia és vàlida igualment." >&2
+    return 0
+  fi
+  echo "$anchor" > "$out.anchor"
+  if [ -n "${CLUB_BACKUP_REMOTE:-}" ]; then
+    rsync -a --chmod=F600 -e "ssh -o BatchMode=yes" "$out.anchor" "$CLUB_BACKUP_REMOTE/" || echo "AVÍS: l'ancoratge no s'ha pogut copiar al remot" >&2
+  fi
+  echo "Ancoratge d'auditoria: $anchor"
+}
+
 cmd_run() {
   : "${CLUB_BACKUP_GPG_RECIPIENT:?Falta CLUB_BACKUP_GPG_RECIPIENT (clau pública amb què es xifra el volcat)}"
   if [ -z "${CLUB_BACKUP_REMOTE:-}" ] && [ "${CLUB_BACKUP_ALLOW_LOCAL_ONLY:-0}" != "1" ]; then
@@ -153,6 +169,7 @@ cmd_run() {
   else
     echo "AVÍS: només còpia local (CLUB_BACKUP_ALLOW_LOCAL_ONLY=1)." >&2
   fi
+  save_anchor "$out"
   date +%s > "$DEST/.last-ok"
   echo "OK $out ($(stat -c %s "$out") bytes)"
 }

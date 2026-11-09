@@ -1,6 +1,6 @@
 """Verifica la cadena d'auditoria (hash encadenat) i surt amb codi 3 si està trencada.
 Substitueix el botó «Verificar la integritat de l'auditoria» per a execució programada (timer setmanal).
-No hi ha subcomandament a `python -m app.cli`; si algun dia s'hi afegeix, aquest script es pot retirar.
+Equivalent: `python -m app.cli verificar-auditoria [seq:hash]` (accepta un ancoratge).
 Cal CLUB_DATABASE_URL (el rol de l'aplicació és suficient: només llegeix).
 Ús: club-audit-verify.py   (des de qualsevol directori)"""
 import sys
