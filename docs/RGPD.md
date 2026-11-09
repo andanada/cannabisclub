@@ -54,7 +54,11 @@ Resum tècnic; no substitueix la validació jurídica de la secció D.
    a taules només d'afegir: el mecanisme és la funció `club_buida_binaris` (SECURITY DEFINER, propietat del propietari de la BD) i un trigger que
    només admet l'UPDATE originat per aquesta funció que buida la imatge i el seu hash; el rol `club_app` només pot cridar-la i només per a socis
    de baixa. Descartat el *crypto-shredding* per soci (obligaria a re-xifrar tot i custodiar una taula de claus) i donar propietat a l'aplicació
-   (trencaria el mínim privilegi). Bloquejada fins que passin `CLUB_RETENCIO_MIN_DIES` dies (365 per defecte) des de la baixa. Queda a l'auditoria.
+   (trencaria el mínim privilegi). Bloquejada fins que passin `CLUB_RETENCIO_MIN_DIES` dies (365 per defecte) des de la baixa. Queda a l'auditoria. **Endurit (PostgreSQL):** la funció té `search_path = pg_catalog, <esquema>, pg_temp` i taules qualificades, i `TEMPORARY` està revocat a PUBLIC
+   (cap taula temporal pot fer-hi ombra). La funció calcula ella mateixa la retenció (`baixa_en <= now() - min_dies`) llegint `club_retencio_cfg`, que
+   només escriu el propietari (`actualitzar-bd` la sincronitza amb `CLUB_RETENCIO_MIN_DIES`/`CLUB_RETENCIO_FOTOS_DIES`; també `schema.set_retention`); no accepta cap
+   tall arbitrari i deixa rastre a `club_buida_log` (només d'afegir, sense privilegis per a `club_app`). Els socis de baixa antics sense `baixa_en` només es poden
+   buidar amb retenció 0 fins que s'ompli la data.
 4. **Retenció** (`backend/app/retencio.py`, `scripts/club-retencio.py`, `GET /locals/{id}/retencio`): simula per defecte; amb `--aplicar` suprimeix els socis
    vençuts, buida fotos antigues (no la darrera de cada soci; `CLUB_RETENCIO_FOTOS_DIES`, 365) i esborra intents de login (`CLUB_RETENCIO_INTENTS_DIES`, 30) i sessions caducades.
 5. **Registre d'accessos**: s'audita la fitxa, quotes, consum, foto, signatura, exportacions i consultes d'auditoria. `GET /auditoria/consulta`

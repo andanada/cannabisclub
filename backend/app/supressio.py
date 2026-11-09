@@ -73,8 +73,8 @@ def buida_binaris(db: Session, member_id: int, mode: str = "tot", cutoff: dateti
     """Buida imatges de fotos i signatures. PostgreSQL: funció SECURITY DEFINER; SQLite (proves): UPDATE directe."""
     cutoff = cutoff or datetime.now(timezone.utc)
     if db.get_bind().dialect.name == "postgresql":
-        return int(db.execute(text("SELECT club_buida_binaris(:m, :mode, :c)"),
-                              {"m": member_id, "mode": mode, "c": cutoff}).scalar() or 0)
+        # el tall i la retenció els calcula la funció (configuració de la BD que l'aplicació no pot escriure); `cutoff` només val a SQLite
+        return int(db.execute(text("SELECT club_buida_binaris(:m, :mode)"), {"m": member_id, "mode": mode}).scalar() or 0)
     n = 0
     if mode == "tot":
         for t, col in ((MemberPhoto, "img_enc"), (Signature, "png_enc")):

@@ -22,6 +22,13 @@ def _soci(client, enc, **extra):
     return client.post("/socis", json={**SOCI, **extra}, headers=enc).json()["id"]
 
 
+def _sync_ret(factory):
+    """A PostgreSQL la funció de buidatge llegeix la retenció de la BD (no de l'entorn): la sincronitzem com ho fa actualitzar-bd."""
+    with factory() as s:
+        if s.get_bind().dialect.name == "postgresql":
+            schema.set_retention(s.get_bind())
+
+
 def _admin(s):
     return s.scalar(select(User).where(User.username == "admin"))
 
@@ -112,6 +119,7 @@ def test_supressio_bloquejada_si_no_es_de_baixa_o_no_ha_vencut_la_retencio(ctx, 
 def test_supressio_buida_dades_personals_i_conserva_els_llibres(ctx, monkeypatch):
     monkeypatch.setenv("CLUB_RETENCIO_MIN_DIES", "0")
     client, factory, sec = ctx
+    _sync_ret(factory)
     enc = token(client, sec, "enc")
     mid = _soci(client, enc)
     _dades_personals(client, enc, mid)
@@ -145,6 +153,7 @@ def test_supressio_buida_dades_personals_i_conserva_els_llibres(ctx, monkeypatch
 def test_retencio_simula_per_defecte_i_aplica_nomes_amb_aplicar(ctx, monkeypatch):
     monkeypatch.setenv("CLUB_RETENCIO_MIN_DIES", "10")
     client, factory, sec = ctx
+    _sync_ret(factory)
     enc = token(client, sec, "enc")
     vell, recent = _soci(client, enc), _soci(client, enc, document="87654321X", nom="Berta Prova")
     for i in (vell, recent):
@@ -169,6 +178,7 @@ def test_retencio_simula_per_defecte_i_aplica_nomes_amb_aplicar(ctx, monkeypatch
 def test_purga_de_fotos_velles_deixa_la_darrera(ctx, monkeypatch):
     monkeypatch.setenv("CLUB_RETENCIO_FOTOS_DIES", "0")
     client, factory, sec = ctx
+    _sync_ret(factory)
     enc = token(client, sec, "enc")
     mid = _soci(client, enc)
     for _ in range(3):
@@ -200,6 +210,7 @@ def app_pg(ctx):
 def test_pg_el_rol_de_l_aplicacio_no_pot_buidar_amb_sql_directe(app_pg, monkeypatch):
     monkeypatch.setenv("CLUB_RETENCIO_MIN_DIES", "0")
     eng, client, sec, owner_factory = app_pg
+    _sync_ret(owner_factory)
     enc = token(client, sec, "enc")
     mid = _soci(client, enc)
     _dades_personals(client, enc, mid)
@@ -216,7 +227,7 @@ def test_pg_el_rol_de_l_aplicacio_no_pot_buidar_amb_sql_directe(app_pg, monkeypa
         s.rollback()
         # la funció exigeix que el soci estigui de baixa
         with pytest.raises(DBAPIError):
-            s.execute(text("SELECT club_buida_binaris(:m, 'tot', now())"), {"m": mid})
+            s.execute(text("SELECT club_buida_binaris(:m, 'tot')"), {"m": mid})
         s.rollback()
     with owner_factory() as s:
         service.set_member_status(s, _admin(s), s.get(Member, mid), "baixa")
