@@ -5,11 +5,14 @@ from argon2.exceptions import VerifyMismatchError
 
 _ph = PasswordHasher()
 MIN_PASSWORD_LEN = 12
+MAX_PASSWORD_LEN = 200  # Argon2 amb entrades enormes seria una via de DoS
 
 
 def hash_password(password: str) -> str:
     if len(password) < MIN_PASSWORD_LEN:
         raise ValueError(f"La contrasenya ha de tenir almenys {MIN_PASSWORD_LEN} caràcters")
+    if len(password) > MAX_PASSWORD_LEN:
+        raise ValueError(f"La contrasenya no pot passar de {MAX_PASSWORD_LEN} caràcters")
     return _ph.hash(password)
 
 

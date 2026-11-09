@@ -1,19 +1,20 @@
+import json
 import logging
 import os
 import time
 import uuid
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from . import ajustos, carnet_login, cash, contenidors, descomptes, dispositius, informes, informes_socis, inventaris, linies_preu, magatzems, personal, quotes, regles, schema, service, socis, stock, usuaris
+from .http_guard import BodyLimitMiddleware, FrontendFiles
 from .db import make_engine, make_session_factory
 from .models import CashEntry, Container, ContainerType, DeviceProfile, Discount, Local, InventorySession, Member, PriceLine, Product, Regla, StockMovement, User, UserCard, UserLocal, Warehouse
 
@@ -48,7 +49,9 @@ def _configura_logs() -> None:
 
 def create_app(session_factory=None) -> FastAPI:
     _configura_logs()
-    app = FastAPI(title="club-gestio")
+    # Sense /docs, /redoc ni /openapi.json: no regalem el mapa complet de l'API a qui no té sessió.
+    app = FastAPI(title="club-gestio", docs_url=None, redoc_url=None, openapi_url=None)
+    app.add_middleware(BodyLimitMiddleware)
 
     @app.exception_handler(Exception)
     async def error_inesperat(request, exc):
@@ -501,14 +504,22 @@ def create_app(session_factory=None) -> FastAPI:
 
     class UsuariIn(BaseModel):
         username: str = Field(min_length=3, max_length=60)
-        password: str
+        password: str = Field(max_length=200)
         role: str
-        local_ids: list[int] = []
+        local_ids: list[int] = Field(default=[], max_length=50)
+
+    MAX_LIMIT_DIARI_G = Decimal("100000")
+    MAX_LIMIT_MENSUAL_G = Decimal("1000000")
+    MAX_TOLERANCIA_G = Decimal("1000")
+
+    def to_mg(g: Decimal | None) -> int | None:
+        """Grams -> mil·ligrams arrodonint al més proper (0,0005 g = 1 mg); abans es truncava i 0,0019 g donava 1 mg."""
+        return None if g is None else int((g * 1000).quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
     class LimitsIn(BaseModel):
-        limit_diari_g: Decimal | None = Field(default=None, ge=0)
-        limit_mensual_g: Decimal | None = Field(default=None, ge=0)
-        tolerancia_bascula_g: Decimal | None = Field(default=None, ge=0)
+        limit_diari_g: Decimal | None = Field(default=None, ge=0, le=MAX_LIMIT_DIARI_G, allow_inf_nan=False)
+        limit_mensual_g: Decimal | None = Field(default=None, ge=0, le=MAX_LIMIT_MENSUAL_G, allow_inf_nan=False)
+        tolerancia_bascula_g: Decimal | None = Field(default=None, ge=0, le=MAX_TOLERANCIA_G, allow_inf_nan=False)
 
     def need_admin(user: User):
         if user.role != "admin":
@@ -633,13 +644,27 @@ def create_app(session_factory=None) -> FastAPI:
     class DispositiuIn(BaseModel):
         kind: str
         nom: str = Field(max_length=60)
-        config: dict = {}
+        config: dict = Field(default={}, max_length=40)
         per_defecte: bool = False
+
+        @field_validator("config")
+        @classmethod
+        def _config_petita(cls, v):
+            if len(json.dumps(v, default=str)) > 2000:
+                raise ValueError("La configuració és massa gran")
+            return v
 
     class DispositiuUpdateIn(BaseModel):
         nom: str | None = Field(default=None, max_length=60)
-        config: dict | None = None
+        config: dict | None = Field(default=None, max_length=40)
         per_defecte: bool | None = None
+
+        @field_validator("config")
+        @classmethod
+        def _config_petita(cls, v):
+            if v is not None and len(json.dumps(v, default=str)) > 2000:
+                raise ValueError("La configuració és massa gran")
+            return v
 
     def dispositiu_or_404(s: Session, did: int) -> DeviceProfile:
         d = s.get(DeviceProfile, did)
@@ -1119,10 +1144,13 @@ def create_app(session_factory=None) -> FastAPI:
         loc = s.get(Local, local_id)
         if not loc:
             raise HTTPException(404, "Local inexistent")
-        mg = lambda g: None if g is None else int(g * 1000)
-        loc.limit_diari_mg, loc.limit_mensual_mg = mg(body.limit_diari_g), mg(body.limit_mensual_g)
-        loc.tolerancia_bascula_mg = mg(body.tolerancia_bascula_g)
-        service.audit_append(s, {"accio": "canvi_limits", "local": local_id, "per": user.id})
+        diari, mensual, tol = (to_mg(g) for g in (body.limit_diari_g, body.limit_mensual_g, body.tolerancia_bascula_g))
+        if diari is not None and mensual is not None and diari > mensual:
+            raise HTTPException(422, "El límit diari no pot superar el mensual")
+        abans = {"diari_mg": loc.limit_diari_mg, "mensual_mg": loc.limit_mensual_mg, "tolerancia_mg": loc.tolerancia_bascula_mg}
+        loc.limit_diari_mg, loc.limit_mensual_mg, loc.tolerancia_bascula_mg = diari, mensual, tol
+        despres = {"diari_mg": diari, "mensual_mg": mensual, "tolerancia_mg": tol}
+        service.audit_append(s, {"accio": "canvi_limits", "local": local_id, "abans": abans, "despres": despres, "per": user.id})
         s.commit()
         return {"ok": True}
 
@@ -1162,5 +1190,5 @@ def create_app(session_factory=None) -> FastAPI:
 
     front = Path(__file__).resolve().parents[2] / "frontend"
     if front.is_dir():
-        app.mount("/", StaticFiles(directory=front, html=True), name="front")
+        app.mount("/", FrontendFiles(directory=front, html=True), name="front")
     return app

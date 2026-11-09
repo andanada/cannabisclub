@@ -16,7 +16,8 @@ def make_engine(url: str | None = None):
     else:
         # pre_ping: una connexió tallada (reinici de PostgreSQL, xarxa) es refà sola en lloc de donar un error a l'usuari.
         kwargs = {"pool_pre_ping": True, "pool_size": 10, "max_overflow": 10, "pool_recycle": 1800}
-    return create_engine(url, **kwargs)
+    # hide_parameters: un error SQL mai ha de bolcar als logs els valors (documents, PIN, noms…) de la consulta.
+    return create_engine(url, hide_parameters=True, **kwargs)
 
 
 def make_session_factory(engine):
