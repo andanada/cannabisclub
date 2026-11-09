@@ -37,13 +37,16 @@ def llista(db: Session, local_id: int) -> list[dict]:
 def detall(db: Session, s: InventorySession) -> dict:
     prods = list(db.scalars(select(Product).where(Product.local_id == s.local_id, Product.actiu.is_(True)).order_by(Product.categoria, Product.nom)))
     esperat = stock.stock_by_product(db, [p.id for p in prods])
-    comptat = {c.product_id: c.counted_mg for c in db.scalars(select(InventoryCount).where(InventoryCount.session_id == s.id))}
+    files = {c.product_id: c for c in db.scalars(select(InventoryCount).where(InventoryCount.session_id == s.id))}
+    comptat = {i: c.counted_mg for i, c in files.items()}
+    # Si el recompte va guardar l'estoc teòric d'aquell moment, la diferència es compara amb aquest (no amb l'actual)
+    teoric = {i: c.expected_mg for i, c in files.items() if c.expected_mg is not None}
     linies = []
     for p in prods:
         c = comptat.get(p.id)
         linies.append({"product_id": p.id, "nom": p.nom, "categoria": p.categoria, "esperat_g": _g(esperat[p.id]),
                        "comptat_g": _g(c) if c is not None else None,
-                       "diferencia_g": _g(c - esperat[p.id]) if c is not None else None})
+                       "diferencia_g": _g(c - teoric.get(p.id, esperat[p.id])) if c is not None else None})
     return {"id": s.id, "nom": s.nom, "estat": s.estat, "total": len(prods), "comptats": sum(1 for l in linies if l["comptat_g"] is not None),
             "linies": linies}
 

@@ -49,5 +49,5 @@ def register(app, db, current_user, check_local, need_manager, run, product_or_4
         if not d:
             raise HTTPException(404, "Descompte inexistent")
         check_local(s, user, d.local_id)
-        run(descomptes.update, s, user, d, body.actiu, body.nom, body.valor, body.inici, body.fi, bool({"inici", "fi"} & body.model_fields_set))
+        run(descomptes.update, s, user, d, body.actiu, body.nom, body.valor, body.inici, body.fi, frozenset({"inici", "fi"} & body.model_fields_set))
         return {"ok": True}

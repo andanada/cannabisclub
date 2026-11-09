@@ -12,6 +12,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Res
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import ajustos, carnet_login, cash, contenidors, descomptes, dispositius, informes, informes_socis, inventaris, linies_preu, magatzems, personal, quotes, regles, schema, service, socis, stock, usuaris
@@ -26,7 +27,7 @@ from .routes import inventaris as routes_inventaris
 from .routes import regles as routes_regles
 from .http_guard import BodyLimitMiddleware, FrontendFiles
 from .db import make_engine, make_session_factory
-from .models import CashEntry, Container, ContainerType, DeviceProfile, Discount, Local, InventorySession, Member, PriceLine, Product, Regla, StockMovement, User, UserCard, UserLocal, Warehouse
+from .models import ImmutableError, CashEntry, Container, ContainerType, DeviceProfile, Discount, Local, InventorySession, Member, PriceLine, Product, Regla, StockMovement, User, UserCard, UserLocal, Warehouse
 
 CAN_CREATE_MEMBER = {"admin", "encarregat"}
 log = logging.getLogger("club")
@@ -69,6 +70,17 @@ def create_app(session_factory=None) -> FastAPI:
     async def massa_feina(request, exc):
         return JSONResponse({"detail": "El servidor està ocupat. Torna-ho a provar d'aquí a un moment."}, status_code=503,
                             headers={"Retry-After": "5", "Cache-Control": "no-store"})
+
+    @app.exception_handler(ImmutableError)
+    async def immutable(request, exc):
+        return JSONResponse({"detail": str(exc)}, status_code=409, headers={"Cache-Control": "no-store"})
+
+    @app.exception_handler(IntegrityError)
+    async def integritat(request, exc):
+        # Carrera residual (dues peticions a l'hora xoquen amb una restricció): conflicte, no error intern. Cap detall de SQL.
+        log.warning("conflicte_integritat %s %s", request.method, request.url.path)
+        return JSONResponse({"detail": "Conflicte amb una altra operació simultània. Torna-ho a provar."}, status_code=409,
+                            headers={"Cache-Control": "no-store"})
 
     @app.exception_handler(Exception)
     async def error_inesperat(request, exc):
@@ -273,6 +285,7 @@ def create_app(session_factory=None) -> FastAPI:
         grams: Decimal = Field(gt=0, max_digits=9, decimal_places=3)
         pes_bascula_g: Decimal | None = Field(default=None, gt=0, max_digits=9, decimal_places=3)
         discount_id: int | None = None
+        metode: str | None = Field(default=None, max_length=20)  # amb mètode es cobra en la mateixa transacció
 
     class CorreccioIn(BaseModel):
         nota: str = Field(min_length=3, max_length=300)
@@ -362,8 +375,8 @@ def create_app(session_factory=None) -> FastAPI:
     @app.post("/dispensacions", status_code=201)
     def dispensacio(body: DispensacioIn, user: User = Depends(current_user), s: Session = Depends(db)):
         product_or_404(s, user, body.product_id)
-        m = run(stock.dispense, s, user, body.member_id, body.product_id, body.grams, body.pes_bascula_g, None, body.discount_id)
-        return {"id": m.id, "import_cent": m.import_cent, "descompte_cent": getattr(m, "descompte_cent", 0)}
+        m = run(stock.dispense, s, user, body.member_id, body.product_id, body.grams, body.pes_bascula_g, None, body.discount_id, body.metode)
+        return {"id": m.id, "import_cent": m.import_cent, "descompte_cent": getattr(m, "descompte_cent", 0), "cobrat": body.metode is not None}
 
     @app.post("/moviments/{movement_id}/correccio", status_code=201)
     def correccio(movement_id: int, body: CorreccioIn, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -411,7 +424,8 @@ def create_app(session_factory=None) -> FastAPI:
         need_manager(user)
         check_local(s, user, body.local_id)
         cs = run(cash.close_session, s, user, body.local_id, body.counted_cent)
-        return {"sessio": cs.id, "esperat_cent": cs.expected_cent, "comptat_cent": cs.counted_cent, "diferencia_cent": cs.diff_cent}
+        return {"sessio": cs.id, "esperat_cent": cs.expected_cent, "comptat_cent": cs.counted_cent, "diferencia_cent": cs.diff_cent,
+                "sense_cobrar": cs.sense_cobrar, "sense_cobrar_cent": cs.sense_cobrar_cent}
 
     @app.post("/cobraments", status_code=201)
     def cobrament(body: CobramentIn, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -902,6 +916,8 @@ def create_app(session_factory=None) -> FastAPI:
         out = {"oberta": True, "sessio": cs.id, "obertura_cent": cs.opening_cent}
         if user.role in CAN_CREATE_MEMBER:
             out["esperat_cent"] = cash.expected_cash(s, cs)
+            pendents = cash.unpaid_dispensations(s, local_id, cs.opened_at)
+            out["sense_cobrar"], out["sense_cobrar_cent"] = pendents, sum(p["import_cent"] for p in pendents)
         return out
 
     front = Path(__file__).resolve().parents[2] / "frontend"
