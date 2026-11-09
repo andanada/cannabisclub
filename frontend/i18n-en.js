@@ -911,3 +911,13 @@ I18N.pat.en.push([new RegExp("^Codi\\ de\\ barres\\s+(.*)$"), "Barcode $1"],
 Object.assign(I18N.en, {
  "Un traspàs no es pot corregir: fes un traspàs en sentit contrari": "A transfer cannot be corrected: make a transfer in the opposite direction",
 });
+
+Object.assign(I18N.en, {
+ "Dispensar i cobrar en efectiu": "Dispense and charge in cash",
+ "Dispensar i cobrar amb targeta": "Dispense and charge by card",
+ "Dispensar i cobrar després": "Dispense and charge later",
+ "Atenció: la caixa s'ha tancat amb dispensacions sense cobrar.": "Warning: the register was closed with unpaid dispensings.",
+ "Hi ha dispensacions sense cobrar. Cobra-les abans de tancar la caixa.": "There are unpaid dispensings. Charge them before closing the register.",
+ "Total sense cobrar": "Total unpaid",
+ "Dispensació": "Dispensing",
+});

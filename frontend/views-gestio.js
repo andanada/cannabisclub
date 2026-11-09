@@ -161,6 +161,14 @@ async function expenseForm() {
   field('Concepte', con), h('div', { class: 'actions' }, btn), out);
 }
 
+// Avís de dispensacions sense cobrar (abans i després de tancar la caixa).
+function senseCobrar(llista, centTotal, tancada) {
+  if (!llista || !llista.length) return null;
+  return h('div', { class: 'card' }, msg('err', tancada ? 'Atenció: la caixa s'ha tancat amb dispensacions sense cobrar.' : 'Hi ha dispensacions sense cobrar. Cobra-les abans de tancar la caixa.'),
+    h('p', { class: 'muted' }, 'Total sense cobrar'), h('div', { class: 'big' }, eur(centTotal)),
+    h('ul', null, llista.map((d) => h('li', null, 'Dispensació', ' #' + d.moviment + ' · ' + eur(d.import_cent) + ' · ', 'Soci', ' #' + d.soci_id))));
+}
+
 async function closeForm() {
   const st = await api(`/locals/${S.local}/caixa`);
   if (!st.oberta) return h('div', { class: 'card empty' }, 'No hi ha cap caixa oberta per tancar.');
@@ -168,6 +176,8 @@ async function closeForm() {
   const btn = h('button', { class: 'danger', type: 'submit' }, 'Tancar caixa');
   const out = h('div');
   const box = h('div');
+  const avisAbans = senseCobrar(st.sense_cobrar, st.sense_cobrar_cent, false);
+  if (avisAbans) box.append(avisAbans);
   box.append(h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(btn, out, async () => {
@@ -176,7 +186,7 @@ async function closeForm() {
       box.replaceChildren(h('div', { class: 'card' }, h('h3', null, 'Caixa tancada'), h('div', { class: 'stats' },
         h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Esperat'), h('div', { class: 'big' }, eur(r.esperat_cent))),
         h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Comptat'), h('div', { class: 'big' }, eur(r.comptat_cent))),
-        h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Diferència'), h('span', { class: 'pill ' + (d === 0 ? 'ok' : 'bad') }, (d > 0 ? '+' : '') + eur(d))))));
+        h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Diferència'), h('span', { class: 'pill ' + (d === 0 ? 'ok' : 'bad') }, (d > 0 ? '+' : '') + eur(d))))), senseCobrar(r.sense_cobrar, r.sense_cobrar_cent, true));
     });
   } }, h('h3', null, 'Tancament de caixa'), h('p', { class: 'muted' }, "Compta l'efectiu del calaix i escriu-lo: el programa calcula la diferència."),
   field('Efectiu comptat al calaix (€)', comptat), h('div', { class: 'actions' }, btn), out));

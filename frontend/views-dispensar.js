@@ -166,21 +166,31 @@ VIEWS.dispensar = async () => {
     }));
     const g = h('input', { inputmode: 'decimal', placeholder: '0,000' });
     const pes = h('input', { inputmode: 'decimal', placeholder: 'Pes de la bàscula (opcional)' });
-    const btn = h('button', { class: 'primary', type: 'submit' }, 'Dispensar');
+    const btnEfectiu = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar en efectiu');
+    const btnTargeta = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar amb targeta');
+    const btnApart = h('button', { type: 'submit' }, 'Dispensar i cobrar després');
     const scale = scalePanel(g, pes);
-    return h('form', { class: 'card', onsubmit: (e) => {
-      e.preventDefault();
-      guard(btn, out, async () => {
-        if (!chosen) throw new Error('Tria un producte');
-        const r = await api('/dispensacions', { method: 'POST', body: { member_id: m.id, product_id: chosen.id,
-          grams: parseGrams(g.value), pes_bascula_g: pes.value.trim() ? parseGrams(pes.value) : null,
-          discount_id: descSel.value ? Number(descSel.value) : null } });
+    // Amb mètode, la dispensació i el cobrament es fan en una sola operació al servidor (o es fa tot o res).
+    const envia = (btn, metode) => guard(btn, out, async () => {
+      if (!chosen) throw new Error('Tria un producte');
+      const body = { member_id: m.id, product_id: chosen.id,
+        grams: parseGrams(g.value), pes_bascula_g: pes.value.trim() ? parseGrams(pes.value) : null,
+        discount_id: descSel.value ? Number(descSel.value) : null };
+      if (metode) body.metode = metode;
+      const r = await api('/dispensacions', { method: 'POST', body });
+      if (r.cobrat) {
+        step.replaceChildren(msg('ok', `Cobrat ${eur(r.import_cent)} (${metode}) a ${m.nom}`),
+          h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => show('dispensar') }, 'Nova dispensació')));
+      } else {
         step.replaceChildren(chargeStep(m, r));
-      });
-    } }, h('h3', null, 'Producte'), list,
+      }
+    });
+    btnEfectiu.onclick = () => envia(btnEfectiu, 'efectiu');
+    btnTargeta.onclick = () => envia(btnTargeta, 'targeta');
+    return h('form', { class: 'card', onsubmit: (e) => { e.preventDefault(); envia(btnApart, null); } }, h('h3', null, 'Producte'), list,
     scale,
     h('div', { class: 'row' }, field('Quantitat (g)', g), field('Bàscula (g)', pes), field('Descompte', descSel)),
-    h('div', { class: 'actions' }, btn), out);
+    h('div', { class: 'actions' }, btnEfectiu, btnTargeta, btnApart), out);
   }
 
   function chargeStep(m, r) {
