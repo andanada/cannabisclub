@@ -108,7 +108,7 @@ La cadena d'auditoria només detecta retalls del final o reescriptures completes
 
 ## 5. Límits coneguts
 
-- Una persona que conegui un nom d'usuari el pot bloquejar 15 minuts amb intents fallits; en una xarxa privada és un risc acceptat.
+- **Bloqueig provocable per tercers (límit conegut):** qualsevol persona amb accés a la pantalla d'entrada i que conegui un nom d'usuari el pot bloquejar 15 minuts amb 5 intents fallits (denegació de servei dirigida; el comportament no s'ha canviat deliberadament, perquè l'alternativa —no bloquejar— afebleix la protecció contra l'endevinació de PIN). Mitigació recomanada: a nginx, `limit_req` (i si cal `limit_conn`) per IP a `/auth/` (ja inclòs a `scripts/nginx/club.conf`; ajusta `rate`/`burst`), amb `CLUB_TRUST_PROXY=1` perquè el límit i els registres vegin la IP real, i no exposar el servei a Internet obert. En una xarxa privada és un risc acceptat.
 - Els codis de carnet només es mostren en generar-los (al servidor només hi ha una empremta): si es perd la targeta, es genera un carnet nou.
 - La bàscula OHAUS i la gravació NFC no s'han provat amb maquinari real; hi ha eines de prova a Configuració per ajustar-ho al teu model.
 - Hi ha una versió del programa per a un sol servidor. Si es fan servir dos servidors alhora, caldria compartir els bloquejos d'inici de sessió (ara van a la base de dades, així que ja és compatible) i revisar la caché de perfils del navegador.
