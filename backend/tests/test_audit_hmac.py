@@ -15,6 +15,12 @@ def omple(db, n, abans=0):
     db.commit()
 
 
+def permet_manipular(db):
+    """En PostgreSQL l'auditoria és només d'afegir (disparador): per simular un atacant amb accés a la BD es desactiva."""
+    if db.get_bind().dialect.name == "postgresql":
+        db.execute(text("ALTER TABLE audit_log DISABLE TRIGGER USER"))
+
+
 def afegeix_antiga(db, payload):
     """Una entrada com les d'abans de l'HMAC: SHA-256 pla i sense marca d'algorisme."""
     last = db.scalar(select(AuditLog).order_by(AuditLog.seq.desc()).limit(1))
@@ -51,7 +57,7 @@ def test_reescriure_amb_sha256_sense_clau_es_detecta(ctx, monkeypatch):
     s = factory()
     omple(s, 4)
     ancora = service.audit_anchor(s)
-    s.execute(text("DROP TRIGGER IF EXISTS audit_log_no_change ON audit_log")) if s.get_bind().dialect.name == "postgresql" else None
+    permet_manipular(s)
     prev = audit.GENESIS
     for f in s.scalars(select(AuditLog).order_by(AuditLog.seq)).all():
         p = {k: v for k, v in json.loads(f.payload).items() if k != "_alg"}
@@ -69,6 +75,7 @@ def test_alterar_el_payload_o_el_hash_es_detecta(ctx):
     client, factory, sec = ctx
     s = factory()
     omple(s, 4)
+    permet_manipular(s)
     fila = s.scalars(select(AuditLog).order_by(AuditLog.seq)).all()[1]
     fila.payload = fila.payload.replace('"i":1', '"i":9')
     s.commit()
@@ -83,6 +90,7 @@ def test_ancoratge_detecta_retall_del_final(ctx):
     ancora = service.audit_anchor(s)
     assert set(ancora) == {"seq", "hash"} and ancora["seq"] == 5
     assert service.audit_verify(s, anchor=ancora) == (True, None)
+    permet_manipular(s)
     for f in s.scalars(select(AuditLog).where(AuditLog.seq > 3)).all():
         s.delete(f)
     s.commit()
@@ -129,6 +137,7 @@ def test_degradar_nomes_la_cua_es_detecta_sense_cap_configuracio(ctx):
     client, factory, sec = ctx
     s = factory()
     omple(s, 4)
+    permet_manipular(s)
     f = s.scalars(select(AuditLog).order_by(AuditLog.seq)).all()
     prev = f[2].hash
     for x in f[3:]:
