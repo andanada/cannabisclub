@@ -169,8 +169,8 @@ def test_una_sessio_de_caixa_tancada_no_es_pot_tornar_a_tocar_ni_esborrar(ctx):
     client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=enc)
     s = factory()
     sid = s.scalar(select(CashSession.id))
-    s.execute(text("UPDATE cash_sessions SET opening_cent = 5"))  # obrint-la no es poden canviar les dades d'obertura
-    with pytest.raises(DBAPIError):
+    with pytest.raises(DBAPIError):  # oberta no se'n poden canviar les dades d'obertura
+        s.execute(text("UPDATE cash_sessions SET opening_cent = 5"))
         s.commit()
     s.rollback()
     assert client.post("/caixa/tancar", json={"local_id": 1, "counted_cent": 0}, headers=enc).status_code == 200
