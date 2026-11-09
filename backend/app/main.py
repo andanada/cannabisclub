@@ -1038,10 +1038,11 @@ def create_app(session_factory=None) -> FastAPI:
         import_cent: int = Field(gt=0, le=quotes.MAX_IMPORT_CENT)
         metode: str
         mesos: int = Field(default=1, ge=1, le=quotes.MAX_MESOS)
+        nota: str | None = Field(default=None, max_length=200)
 
     @app.post("/socis/{member_id}/quotes", status_code=201)
     def cobrar_quota(member_id: int, body: QuotaIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        q = run(quotes.charge, s, user, member_or_404(s, user, member_id), body.import_cent, body.metode, body.mesos)
+        q = run(quotes.charge, s, user, member_or_404(s, user, member_id), body.import_cent, body.metode, body.mesos, None, body.nota)
         return {"id": q.id, "valid_des": q.valid_des.isoformat(), "valid_fins": q.valid_fins.isoformat(), "apunt": q.cash_entry_id}
 
     @app.get("/socis/{member_id}/quotes")

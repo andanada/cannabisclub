@@ -118,6 +118,7 @@ def test_aillament_per_local_i_rols(ctx):
     mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
     altre = client.post("/socis", json={**SOCI, "local_id": 2, "document": "99999999R"}, headers=admin).json()["id"]
     obrir(client, enc)
+    client.put("/locals/1/config", json={"quota_cent": 2000, "quota_mesos": 3}, headers=admin)  # el dispensador només cobra la tarifa del local
     assert quota(client, enc, altre).status_code == 403
     assert client.get(f"/socis/{altre}/quotes", headers=enc).status_code == 403
     assert quota(client, disp, mid).status_code == 201  # recepció: qualsevol rol del local pot cobrar la quota
@@ -148,3 +149,38 @@ def test_config_de_quota_per_defecte(ctx):
     assert loc["quota_cent"] == 2500 and loc["quota_mesos"] == 6 and loc["quota_obligatoria"] is False
     assert client.put("/locals/1/config", json={"quota_mesos": 99}, headers=admin).status_code == 422
     assert client.put("/locals/9/config", json={"quota_cent": 1}, headers=admin).status_code == 404
+
+
+def test_dispensador_nomes_cobra_la_tarifa_del_local(ctx):
+    client, factory, sec = ctx
+    enc, disp, admin = token(client, sec, "enc"), token(client, sec, "disp"), token(client, sec, "admin")
+    mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
+    obrir(client, enc)
+    assert quota(client, disp, mid, 1).status_code == 422                       # sense tarifa configurada no cobra
+    client.put("/locals/1/config", json={"quota_cent": 2500, "quota_mesos": 3}, headers=admin)
+    assert quota(client, disp, mid, 1, mesos=1).status_code == 422              # import simbòlic
+    assert quota(client, disp, mid, 2500, mesos=2).status_code == 422           # import != tarifa x mesos
+    assert quota(client, disp, mid, 10000, mesos=4).status_code == 422          # més mesos dels permesos
+    assert quota(client, disp, mid, 7500, mesos=3).status_code == 201
+    assert quota(client, disp, mid, 2500, mesos=1).status_code == 201
+
+
+def test_gestor_pot_cobrar_un_altre_import_amb_nota_i_queda_auditat(ctx):
+    import json
+    from sqlalchemy import select
+    from app.models import AuditLog
+    client, factory, sec = ctx
+    enc, admin = token(client, sec, "enc"), token(client, sec, "admin")
+    mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
+    obrir(client, enc)
+    client.put("/locals/1/config", json={"quota_cent": 2500, "quota_mesos": 3}, headers=admin)
+    assert quota(client, enc, mid, 1000).status_code == 422                     # import diferent sense nota
+    r = client.post(f"/socis/{mid}/quotes", json={"import_cent": 1000, "metode": "efectiu", "mesos": 1, "nota": "descompte família"}, headers=enc)
+    assert r.status_code == 201
+    r = client.post(f"/socis/{mid}/quotes", json={"import_cent": 2500, "metode": "efectiu", "mesos": 6, "nota": "pagament anual acordat"}, headers=enc)
+    assert r.status_code == 201                                                  # un gestor pot passar de quota_mesos amb nota
+    s = factory()
+    regs = [json.loads(a.payload) for a in s.scalars(select(AuditLog)) if "cobrament_quota" in a.payload]
+    s.close()
+    assert regs[0]["esperat_cent"] == 2500 and regs[0]["nota"] == "descompte família" and regs[0]["cent"] == 1000
+    assert "nota" not in regs[-1] or regs[-1]["nota"] == "pagament anual acordat"

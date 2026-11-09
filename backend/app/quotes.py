@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import cash, service
+from . import ajustos, cash, service
 from .models import CashEntry, Member, Quota, User
 from .stock import TZ
 
@@ -45,8 +45,33 @@ def ultimes_quotes(db: Session, local_id: int) -> dict[int, date]:
     return {m: fins for m, fins in db.execute(q)}
 
 
+def _comprova_tarifa(db: Session, actor: User, local_id: int, import_cent: int, mesos: int, nota: str | None) -> int | None:
+    """Regla de tarifa. Rols no gestors (dispensador): l'import ha de ser exactament quota_cent x mesos i els mesos
+    no poden passar de quota_mesos; sense tarifa configurada no cobren. Gestors (admin, encarregat): amb tarifa configurada poden cobrar un
+    altre import o més mesos, però només amb una nota (>= 3 caràcters) i l'import esperat queda a l'auditoria.
+    Retorna l'import esperat segons la tarifa (None si no n'hi ha)."""
+    aj = ajustos.get(db, local_id)
+    tarifa, max_mesos = aj["quota_cent"], aj["quota_mesos"]
+    esperat = tarifa * mesos if tarifa else None
+    gestor = actor.role in ("admin", "encarregat")
+    quadra = esperat is not None and import_cent == esperat and mesos <= max_mesos
+    if quadra:
+        return esperat
+    if not gestor:
+        if tarifa is None:
+            raise ValueError("Aquest local no té la quota configurada: la cobra un encarregat o un administrador")
+        if mesos > max_mesos:
+            raise ValueError(f"Només es poden cobrar fins a {max_mesos} mesos de quota de cop")
+        raise ValueError("L'import ha de ser la quota del local per aquests mesos")
+    if tarifa is None:
+        return None  # sense tarifa configurada no hi ha res amb què comparar: el gestor cobra l'import indicat
+    if len((nota or "").strip()) < 3:
+        raise ValueError("Un import o uns mesos diferents de la tarifa del local necessiten una nota que ho justifiqui")
+    return esperat
+
+
 def charge(db: Session, actor: User, member: Member, import_cent: int, metode: str, mesos: int,
-           dia: date | None = None) -> Quota:
+           dia: date | None = None, nota: str | None = None) -> Quota:
     if member.estat == "baixa":
         raise ValueError("El soci està de baixa")
     if not 0 < import_cent <= MAX_IMPORT_CENT:
@@ -55,6 +80,7 @@ def charge(db: Session, actor: User, member: Member, import_cent: int, metode: s
         raise ValueError(f"Els mesos han d'estar entre 1 i {MAX_MESOS}")
     if metode not in cash.METODES:
         raise ValueError("Mètode de pagament no vàlid")
+    esperat = _comprova_tarifa(db, actor, member.local_id, import_cent, mesos, nota)
     cs = cash._require_open(db, member.local_id)
     # Es bloqueja el soci abans de llegir la quota vigent: dos cobraments simultanis (doble clic, dos llocs) es posen
     # en cua i el segon veu el primer, en lloc de cobrar dues vegades el mateix període.
@@ -70,8 +96,11 @@ def charge(db: Session, actor: User, member: Member, import_cent: int, metode: s
               mesos=mesos, user_id=actor.id)
     db.add(q)
     db.flush()
-    service.audit_append(db, {"accio": "cobrament_quota", "apunt": e.id, "quota": q.id, "soci": member.id,
-                              "cent": import_cent, "metode": metode, "des": des.isoformat(), "fins": fins.isoformat(), "per": actor.id})
+    registre = {"accio": "cobrament_quota", "apunt": e.id, "quota": q.id, "soci": member.id, "cent": import_cent, "metode": metode,
+                "des": des.isoformat(), "fins": fins.isoformat(), "mesos": mesos, "esperat_cent": esperat, "per": actor.id}
+    if nota and nota.strip():
+        registre["nota"] = nota.strip()
+    service.audit_append(db, registre)
     db.commit()
     return q
 
