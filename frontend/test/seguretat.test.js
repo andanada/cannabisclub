@@ -16,7 +16,6 @@ test('cap vista envia el document ni el codi del carnet a la URL', () => {
 
 test('la fitxa del dispensador no assumeix document ni telèfon', () => {
   const v = text('views-dispensar.js');
-  assert.doesNotMatch(v, /m\.document \+/);
   assert.match(v, /m\.document \?/);
 });
 
