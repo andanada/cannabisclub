@@ -90,35 +90,56 @@ def clear_failures(db: Session, key: str) -> int:
     return db.execute(delete(LoginAttempt).where(LoginAttempt.username == key[:60])).rowcount or 0
 
 
+def register_attempt(db: Session, key: str, maxim: int = MAX_FAILED_LOGINS) -> int:
+    """Registra l'intent i el confirma ABANS de verificar res; llança LoginLocked si ja n'hi ha més de `maxim` en la
+    finestra. Així les peticions en paral·lel es veuen entre elles (el patró comprovar→verificar→registrar es podia saltar).
+    Retorna el nombre d'intents comptant aquest. Cal fer clear_failures() quan la verificació surt bé."""
+    from .models import LoginAttempt
+    since = datetime.now(timezone.utc) - timedelta(minutes=LOCKOUT_MINUTES)
+    db.add(LoginAttempt(username=key[:60]))
+    db.commit()
+    n = db.scalar(select(func.count()).select_from(LoginAttempt).where(LoginAttempt.username == key[:60], LoginAttempt.ts >= since))
+    if n > maxim:
+        raise LoginLocked()
+    return n
+
+
 def totp_required() -> bool:
     """El segon factor és obligatori. Només es pot desactivar amb CLUB_TOTP=0 (p. ex. en un servidor de proves)."""
     return os.environ.get("CLUB_TOTP", "1") != "0"
 
 
 def login(db: Session, username: str, password: str, totp: str) -> str | None:
+    """Entrada amb usuari, contrasenya i TOTP.
+
+    L'intent es registra i es confirma (commit) ABANS de la verificació Argon2: així deu peticions en paral·lel veuen
+    cadascuna els intents de les altres i només les primeres MAX_FAILED_LOGINS arriben a verificar-se. Un èxit esborra
+    el compte. A l'auditoria mai va el text rebut: només l'id de l'usuari si existeix; per a un nom inexistent no s'hi
+    deixa res (un anònim no pot escriure en un registre que només s'afegeix)."""
     from .models import LoginAttempt
     key = username[:60]
-    since = datetime.now(timezone.utc) - timedelta(minutes=LOCKOUT_MINUTES)
+    ara = datetime.now(timezone.utc)
+    since = ara - timedelta(minutes=LOCKOUT_MINUTES)
     db.execute(delete(LoginAttempt).where(LoginAttempt.ts < since))  # esborra els intents ja caducats
-    db.execute(delete(SessionToken).where(SessionToken.expires_at < datetime.now(timezone.utc)))  # i les sessions caducades
-    fails = db.scalar(select(func.count()).select_from(LoginAttempt).where(LoginAttempt.username == key, LoginAttempt.ts >= since))
-    if fails >= MAX_FAILED_LOGINS:
-        # Es bloqueja abans de comprovar res i també per a noms inexistents: així no es revela si un usuari existeix.
-        # Només s'audita el moment en què es bloqueja: si no, qualsevol anònim podria inflar l'auditoria (només d'afegir).
-        if fails == MAX_FAILED_LOGINS:
-            audit_append(db, {"accio": "login_bloquejat", "usuari": key})
-            db.add(LoginAttempt(username=key))  # el següent intent ja no torna a auditar
+    db.execute(delete(SessionToken).where(SessionToken.expires_at < ara))  # i les sessions caducades
+    db.add(LoginAttempt(username=key))
+    db.commit()
+    intents = db.scalar(select(func.count()).select_from(LoginAttempt).where(LoginAttempt.username == key, LoginAttempt.ts >= since))
+    user = db.scalar(select(User).where(User.username == username, User.active.is_(True)))
+    if intents > MAX_FAILED_LOGINS:
+        # Bloquejat abans de comprovar res i també per a noms inexistents: no es revela si l'usuari existeix.
+        if intents == MAX_FAILED_LOGINS + 1 and user:  # només el moment del bloqueig, i només per a usuaris reals
+            audit_append(db, {"accio": "login_bloquejat", "usuari": user.id})
             db.commit()
         raise LoginLocked()
-    user = db.scalar(select(User).where(User.username == username, User.active.is_(True)))
     # Sempre es calcula un hash, existeixi o no l'usuari, perquè el temps de resposta no delati els noms d'usuari.
     ok = security.verify_password(password, user.password_hash if user else security.dummy_hash())
     ok = bool(user) and ok
     if totp_required():
         ok = ok and security.verify_totp(crypto.decrypt(user.totp_secret_enc), totp)
-    audit_append(db, {"accio": "login", "usuari": key, "ok": ok})
+    if user:
+        audit_append(db, {"accio": "login", "usuari": user.id, "ok": ok})
     if not ok:
-        db.add(LoginAttempt(username=key))
         db.commit()
         return None
     db.execute(delete(LoginAttempt).where(LoginAttempt.username == key))  # un accés correcte reinicia el compte

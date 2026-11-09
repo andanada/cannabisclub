@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -14,6 +15,8 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from . import ajustos, carnet_login, cash, contenidors, descomptes, dispositius, informes, informes_socis, inventaris, linies_preu, magatzems, personal, quotes, regles, schema, service, socis, stock, usuaris
+from . import security
+from .ratelimit import RateLimiter
 from .http_guard import BodyLimitMiddleware, FrontendFiles
 from .db import make_engine, make_session_factory
 from .models import CashEntry, Container, ContainerType, DeviceProfile, Discount, Local, InventorySession, Member, PriceLine, Product, Regla, StockMovement, User, UserCard, UserLocal, Warehouse
@@ -52,6 +55,13 @@ def create_app(session_factory=None) -> FastAPI:
     # Sense /docs, /redoc ni /openapi.json: no regalem el mapa complet de l'API a qui no té sessió.
     app = FastAPI(title="club-gestio", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(BodyLimitMiddleware)
+
+    ip_limiter = RateLimiter(int(os.environ.get("CLUB_LOGIN_IP_LIMIT", "60")), 60)
+
+    @app.exception_handler(security.Overloaded)
+    async def massa_feina(request, exc):
+        return JSONResponse({"detail": "El servidor està ocupat. Torna-ho a provar d'aquí a un moment."}, status_code=503,
+                            headers={"Retry-After": "5", "Cache-Control": "no-store"})
 
     @app.exception_handler(Exception)
     async def error_inesperat(request, exc):
@@ -138,7 +148,10 @@ def create_app(session_factory=None) -> FastAPI:
                 "te_foto": socis.has_photo(s, m.id), "te_carnet": socis.has_card(s, m.id)}
 
     @app.post("/auth/login")
-    def login(body: LoginIn, s: Session = Depends(db)):
+    def login(body: LoginIn, request: Request, s: Session = Depends(db)):
+        ip = carnet_login.client_ip(request.client.host if request.client else None, request.headers.get("x-forwarded-for")) or "?"
+        if not ip_limiter.allow("login:" + ip):
+            raise HTTPException(429, "Massa peticions des d'aquesta adreça. Torna-ho a provar d'aquí a un minut.")
         try:
             token = service.login(s, body.username, body.password, body.totp)
         except service.LoginLocked:
@@ -160,20 +173,28 @@ def create_app(session_factory=None) -> FastAPI:
         if not carnet_login.network_allowed(ip):
             raise HTTPException(403, "L'entrada amb carnet només es pot fer des de la xarxa del club")
         try:
-            token = carnet_login.login(s, body.codi, body.pin)
+            if not ip_limiter.allow("carnet:" + (ip or "?")):
+                raise HTTPException(429, "Massa peticions des d'aquesta adreça. Torna-ho a provar d'aquí a un minut.")
+            token = carnet_login.login(s, body.codi, body.pin, ip)
         except service.LoginLocked:
             raise HTTPException(429, "Massa intents fallits amb carnet: queda bloquejat uns minuts. Entra amb usuari i contrasenya.")
         if not token:
             raise HTTPException(401, "Carnet o PIN incorrectes")
-        return {"token": token}
+        return {"token": token, "canvi_pin": carnet_login.pin_antic(body.pin)}
 
     class PinCarnetIn(BaseModel):
         actual: str = Field(max_length=12)
         nova: str = Field(max_length=12)
 
     @app.post("/auth/carnet-pin")
-    def canvia_pin_carnet(body: PinCarnetIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        run(carnet_login.change_pin, s, user, body.actual, body.nova)
+    def canvia_pin_carnet(body: PinCarnetIn, authorization: str = Header(default=""), user: User = Depends(current_user), s: Session = Depends(db)):
+        _, _, tok = authorization.partition(" ")
+        try:
+            carnet_login.change_pin(s, user, body.actual, body.nova, hashlib.sha256(tok.encode()).hexdigest())
+        except service.LoginLocked:
+            raise HTTPException(429, "Massa intents fallits: queda bloquejat uns minuts.")
+        except ValueError as e:
+            raise HTTPException(422, str(e))
         return {"ok": True}
 
     @app.post("/socis", status_code=201)

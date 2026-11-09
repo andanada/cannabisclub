@@ -18,13 +18,15 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from . import security, service, socis
+from . import security, service, socis, usuaris
 from .models import LoginAttempt, MemberCard, SessionToken, User, UserCard
 
 KEY_DESCONEGUTS = "#carnet"          # intents amb carnets que no existeixen (no pot coincidir amb cap nom d'usuari)
 MAX_DESCONEGUTS = 30
+MAX_DESCONEGUTS_IP = 10              # carnets desconeguts per adreça IP (el global de dalt és la xarxa de seguretat)
 MAX_PIN_ERRONIS = 5
-PIN_RE = re.compile(r"\d{4,8}")
+MIN_PIN = 6                          # PIN nous: 6 a 8 xifres. Els antics de 4-5 xifres encara entren però han de canviar-lo
+PIN_RE = re.compile(r"\d{6,8}")
 
 
 def enabled() -> bool:
@@ -57,7 +59,7 @@ def client_ip(client_host: str | None, forwarded_for: str | None) -> str | None:
 
 def validate_pin(pin: str) -> None:
     if not isinstance(pin, str) or not PIN_RE.fullmatch(pin):
-        raise ValueError("El PIN ha de tenir de 4 a 8 xifres")
+        raise ValueError("El PIN ha de tenir de 6 a 8 xifres")
     if len(set(pin)) == 1:
         raise ValueError("El PIN és massa fàcil (xifres repetides)")
     digits = [int(c) for c in pin]
@@ -103,6 +105,7 @@ def assign(db: Session, actor: User, user: User, codi: str, pin: str) -> None:
     else:
         db.add(UserCard(user_id=user.id, code_idx=idx, pin_hash=pin_hash, creat_per=actor.id))
     _reinicia_bloqueig(db, user.id)
+    usuaris._close_sessions(db, user.id)  # un carnet nou (o reassignat) invalida les sessions obertes de l'usuari
     service.audit_append(db, {"accio": "assigna_carnet_usuari", "usuari": user.id, "per": actor.id})
     db.commit()
 
@@ -127,19 +130,26 @@ def remove(db: Session, actor: User, user: User) -> bool:
         return False
     db.delete(fila)
     _reinicia_bloqueig(db, user.id)
+    usuaris._close_sessions(db, user.id)
     service.audit_append(db, {"accio": "retira_carnet_usuari", "usuari": user.id, "per": actor.id})
     db.commit()
     return True
 
 
-def change_pin(db: Session, user: User, actual: str, nova: str) -> None:
+def change_pin(db: Session, user: User, actual: str, nova: str, keep_hash: str | None = None) -> None:
+    """Canvia el PIN. Els intents amb un PIN actual erroni compten (clau per usuari) i es registren abans de verificar;
+    en canviar-lo es tanquen les altres sessions de l'usuari (es conserva la que fa el canvi)."""
     fila = db.get(UserCard, user.id)
     if not fila:
         raise ValueError("No tens cap carnet d'entrada")
+    clau = f"#pin:{user.id}"
+    service.register_attempt(db, clau, MAX_PIN_ERRONIS)
     if not _pin_ok(user.id, actual, fila.pin_hash):
         raise ValueError("El PIN actual no és correcte")
+    db.execute(delete(LoginAttempt).where(LoginAttempt.username == clau))
     validate_pin(nova)
     fila.pin_hash = _hash_pin(user.id, nova)
+    usuaris._close_sessions(db, user.id, keep_hash=keep_hash)
     service.audit_append(db, {"accio": "canvia_pin_carnet", "usuari": user.id, "per": user.id})
     db.commit()
 
@@ -158,12 +168,20 @@ def _fallits(db: Session, clau: str, desde: datetime) -> int:
     return db.scalar(select(func.count()).select_from(LoginAttempt).where(LoginAttempt.username == clau, LoginAttempt.ts >= desde))
 
 
-def login(db: Session, codi: str, pin: str) -> str | None:
-    """Torna un token de sessió o None. Llança LoginLocked si hi ha massa intents fallits (de l'usuari o amb carnets desconeguts)."""
+def pin_antic(pin: str) -> bool:
+    """True si el PIN amb què s'ha entrat és d'abans de l'exigència actual (cal demanar que el canviï)."""
+    return len(pin or "") < MIN_PIN
+
+
+def login(db: Session, codi: str, pin: str, ip: str | None = None) -> str | None:
+    """Torna un token de sessió o None. Llança LoginLocked si hi ha massa intents fallits (de l'usuari, amb carnets
+    desconeguts en global o des de la mateixa IP). L'intent es registra i es confirma ABANS d'executar Argon2, de manera
+    que les peticions en paral·lel no poden superar el límit; un èxit esborra el compte de l'usuari."""
     ara = datetime.now(timezone.utc)
     desde = ara - timedelta(minutes=service.LOCKOUT_MINUTES)
+    clau_ip = f"#cip:{ip or '?'}"[:60]
     db.execute(delete(LoginAttempt).where(LoginAttempt.ts < desde))
-    if _fallits(db, KEY_DESCONEGUTS, desde) >= MAX_DESCONEGUTS:
+    if _fallits(db, KEY_DESCONEGUTS, desde) >= MAX_DESCONEGUTS or _fallits(db, clau_ip, desde) >= MAX_DESCONEGUTS_IP:
         db.commit()
         raise service.LoginLocked()
     fila = user = None
@@ -173,27 +191,28 @@ def login(db: Session, codi: str, pin: str) -> str | None:
     except ValueError:
         pass
     if not user:
-        _pin_ok(0, pin or "", None)  # mateixa feina que amb un usuari real
-        db.add(LoginAttempt(username=KEY_DESCONEGUTS))
+        db.add_all([LoginAttempt(username=KEY_DESCONEGUTS), LoginAttempt(username=clau_ip)])
         db.commit()
+        if _fallits(db, KEY_DESCONEGUTS, desde) > MAX_DESCONEGUTS or _fallits(db, clau_ip, desde) > MAX_DESCONEGUTS_IP:
+            raise service.LoginLocked()
+        _pin_ok(0, pin or "", None)  # mateixa feina que amb un usuari real
         return None
     clau = _clau(user.id)
-    fallits = _fallits(db, clau, desde)
-    if fallits >= MAX_PIN_ERRONIS:
-        if fallits == MAX_PIN_ERRONIS:  # només s'audita el moment del bloqueig: un anònim no pot inflar l'auditoria
-            service.audit_append(db, {"accio": "carnet_bloquejat", "usuari": user.username})
-            db.add(LoginAttempt(username=clau))
-        db.commit()
+    db.add(LoginAttempt(username=clau))
+    db.commit()
+    intents = _fallits(db, clau, desde)
+    if intents > MAX_PIN_ERRONIS:
+        if intents == MAX_PIN_ERRONIS + 1:  # només el moment del bloqueig: un anònim no pot inflar l'auditoria
+            service.audit_append(db, {"accio": "carnet_bloquejat", "usuari": user.id})
+            db.commit()
         raise service.LoginLocked()
     bo = _pin_ok(user.id, pin or "", fila.pin_hash) and user.active and user.role != "admin"
     if not bo:
-        db.add(LoginAttempt(username=clau))
-        db.commit()
         return None
     _reinicia_bloqueig(db, user.id)
     token = secrets.token_urlsafe(32)
     db.add(SessionToken(token_hash=hashlib.sha256(token.encode()).hexdigest(), user_id=user.id,
                         expires_at=ara + timedelta(hours=service.SESSION_HOURS)))
-    service.audit_append(db, {"accio": "login", "usuari": user.username, "metode": "carnet+pin", "ok": True})
+    service.audit_append(db, {"accio": "login", "usuari": user.id, "metode": "carnet+pin", "ok": True})
     db.commit()
     return token

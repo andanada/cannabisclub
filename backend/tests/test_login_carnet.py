@@ -8,7 +8,7 @@ from app.models import AuditLog
 from app.socis import ALFABET, _control
 from tests.test_api import SOCI, ctx, env, token  # noqa: F401
 
-PIN = "4821"
+PIN = "482159"
 
 
 def codi(n: int) -> str:
@@ -48,9 +48,9 @@ def test_nomes_carnets_llargs_generats_pel_programa_i_pins_forts(ctx):
     did = uid(client, admin, "disp")
     assert posa(client, admin, did, "WRK-0001").status_code == 422             # codi curt (UID d'un xip qualsevol)
     assert posa(client, admin, did, "STF-AAAAAAAAAA").status_code == 422       # dígit de control incorrecte
-    for pin_dolent in ["", "12", "abcd", "123456789", "0000", "7777", "1234", "4321", "56789"]:
+    for pin_dolent in ["", "12", "abcd", "123456789", "0000", "7777", "1234", "4321", "56789", "482", "48215", "111111", "123456", "654321"]:
         assert posa(client, admin, did, codi(1), pin_dolent).status_code == 422, pin_dolent
-    assert posa(client, admin, did, codi(1), "13579").status_code == 200
+    assert posa(client, admin, did, codi(1), "135792").status_code == 200
 
 
 def test_els_administradors_no_poden_tenir_carnet(ctx):
@@ -64,11 +64,11 @@ def test_bloqueig_per_usuari_despres_de_5_pins_erronis(ctx):
     client, factory, sec = ctx
     admin = token(client, sec, "admin")
     posa(client, admin, uid(client, admin, "disp"), codi(1))
-    posa(client, admin, uid(client, admin, "enc"), codi(5), "9632")
+    posa(client, admin, uid(client, admin, "enc"), codi(5), "963258")
     for _ in range(5):
-        assert entra(client, codi(1), "0001").status_code == 401
+        assert entra(client, codi(1), "000159").status_code == 401
     assert entra(client, codi(1), PIN).status_code == 429                       # ni amb el PIN bo: bloquejat
-    assert entra(client, codi(5), "9632").status_code == 200                    # un altre treballador no es veu afectat
+    assert entra(client, codi(5), "963258").status_code == 200                    # un altre treballador no es veu afectat
     assert client.post("/auth/login", json={"username": "disp", "password": "mala-contrasenya", "totp": "000000"}).status_code == 401
     s = factory()
     accions = [json.loads(a.payload)["accio"] for a in s.scalars(select(AuditLog))]
@@ -81,7 +81,8 @@ def test_bloqueig_per_usuari_despres_de_5_pins_erronis(ctx):
     s.close()
 
 
-def test_limit_global_amb_carnets_desconeguts(ctx):
+def test_limit_global_amb_carnets_desconeguts(ctx, monkeypatch):
+    monkeypatch.setattr(carnet_login, "MAX_DESCONEGUTS_IP", 1000)  # aquí només es prova el límit global
     client, factory, sec = ctx
     admin = token(client, sec, "admin")
     posa(client, admin, uid(client, admin, "disp"), codi(1))
@@ -101,7 +102,7 @@ def test_generar_carnet_el_codi_surt_una_vegada_i_serveix_per_entrar(ctx):
     assert entra(client, c).status_code == 200
     nou = client.post(f"/usuaris/{did}/carnet/generar", json={"pin": PIN}, headers=admin).json()["codi"]
     assert nou != c and entra(client, c).status_code == 401 and entra(client, nou).status_code == 200   # el nou substitueix l'antic
-    assert client.post(f"/usuaris/{did}/carnet/generar", json={"pin": "1111"}, headers=admin).status_code == 422
+    assert client.post(f"/usuaris/{did}/carnet/generar", json={"pin": "111111"}, headers=admin).status_code == 422
     assert client.post(f"/usuaris/{uid(client, admin, 'admin')}/carnet/generar", json={"pin": PIN}, headers=admin).status_code == 422
 
 
@@ -110,12 +111,12 @@ def test_el_treballador_canvia_el_seu_pin(ctx):
     admin = token(client, sec, "admin")
     posa(client, admin, uid(client, admin, "disp"), codi(1))
     h = {"Authorization": "Bearer " + entra(client, codi(1)).json()["token"]}
-    assert client.post("/auth/carnet-pin", json={"actual": "0000", "nova": "9632"}, headers=h).status_code == 422   # PIN actual erroni
-    assert client.post("/auth/carnet-pin", json={"actual": PIN, "nova": "1234"}, headers=h).status_code == 422      # massa fàcil
-    assert client.post("/auth/carnet-pin", json={"actual": PIN, "nova": "9632"}, headers=h).status_code == 200
-    assert entra(client, codi(1), PIN).status_code == 401 and entra(client, codi(1), "9632").status_code == 200
+    assert client.post("/auth/carnet-pin", json={"actual": "0000", "nova": "963258"}, headers=h).status_code == 422   # PIN actual erroni
+    assert client.post("/auth/carnet-pin", json={"actual": PIN, "nova": "123456"}, headers=h).status_code == 422      # massa fàcil
+    assert client.post("/auth/carnet-pin", json={"actual": PIN, "nova": "963258"}, headers=h).status_code == 200
+    assert entra(client, codi(1), PIN).status_code == 401 and entra(client, codi(1), "963258").status_code == 200
     enc = token(client, sec, "enc")
-    assert client.post("/auth/carnet-pin", json={"actual": PIN, "nova": "9632"}, headers=enc).status_code == 422    # sense carnet
+    assert client.post("/auth/carnet-pin", json={"actual": PIN, "nova": "963258"}, headers=enc).status_code == 422    # sense carnet
 
 
 def test_usuari_desactivat_carnet_retirat_i_conflicte_amb_socis(ctx):
@@ -163,10 +164,65 @@ def test_el_pin_no_es_desa_en_clar_i_les_entrades_queden_a_l_auditoria(ctx):
     admin = token(client, sec, "admin")
     posa(client, admin, uid(client, admin, "disp"), codi(1))
     entra(client, codi(1))
+    uid_disp = uid(client, admin, "disp")
     s = factory()
     fila = s.scalars(select(UserCard)).one()
     registres = [json.loads(a.payload) for a in s.scalars(select(AuditLog))]
     s.close()
     assert PIN not in fila.pin_hash and fila.pin_hash.startswith("$argon2")
     assert PIN not in json.dumps(registres) and codi(1) not in json.dumps(registres)
-    assert any(r.get("accio") == "login" and r.get("metode") == "carnet+pin" and r["usuari"] == "disp" for r in registres)
+    assert any(r.get("accio") == "login" and r.get("metode") == "carnet+pin" and r["usuari"] == uid_disp for r in registres)
+
+
+def test_pin_antic_de_4_xifres_entra_i_demana_canvi_pero_no_es_pot_crear_de_nou(ctx):
+    from app import security
+    client, factory, sec = ctx
+    admin = token(client, sec, "admin")
+    did = uid(client, admin, "disp")
+    assert posa(client, admin, did, codi(1), "13579").status_code == 422        # 5 xifres: ja no s'accepta per a PIN nous
+    posa(client, admin, did, codi(1))
+    s = factory()                                                                # simula un PIN antic de 4 xifres
+    fila = s.scalars(select(carnet_login.UserCard)).one()
+    fila.pin_hash = carnet_login._hash_pin(did, "4821")
+    s.commit()
+    s.close()
+    r = entra(client, codi(1), "4821")
+    assert r.status_code == 200 and r.json()["canvi_pin"] is True
+    h = {"Authorization": "Bearer " + r.json()["token"]}
+    assert client.post("/auth/carnet-pin", json={"actual": "4821", "nova": "9876"}, headers=h).status_code == 422
+    assert client.post("/auth/carnet-pin", json={"actual": "4821", "nova": "963258"}, headers=h).status_code == 200
+    assert entra(client, codi(1), "963258").json()["canvi_pin"] is False
+
+
+def test_carnet_pin_te_bloqueig_per_usuari(ctx):
+    client, factory, sec = ctx
+    admin = token(client, sec, "admin")
+    posa(client, admin, uid(client, admin, "disp"), codi(1))
+    h = {"Authorization": "Bearer " + entra(client, codi(1)).json()["token"]}
+    for _ in range(carnet_login.MAX_PIN_ERRONIS):
+        assert client.post("/auth/carnet-pin", json={"actual": "000159", "nova": "963258"}, headers=h).status_code == 422
+    assert client.post("/auth/carnet-pin", json={"actual": PIN, "nova": "963258"}, headers=h).status_code == 429
+
+
+def test_canviar_pin_retirar_o_reassignar_carnet_tanca_sessions(ctx):
+    client, factory, sec = ctx
+    admin = token(client, sec, "admin")
+    did = uid(client, admin, "disp")
+    posa(client, admin, did, codi(1))
+    a = {"Authorization": "Bearer " + entra(client, codi(1)).json()["token"]}
+    b = {"Authorization": "Bearer " + entra(client, codi(1)).json()["token"]}
+    assert client.post("/auth/carnet-pin", json={"actual": PIN, "nova": "963258"}, headers=a).status_code == 200
+    assert client.get("/me", headers=a).status_code == 200 and client.get("/me", headers=b).status_code == 401
+    c = {"Authorization": "Bearer " + entra(client, codi(1), "963258").json()["token"]}
+    posa(client, admin, did, codi(2))                                            # reassignar
+    assert client.get("/me", headers=c).status_code == 401
+    d = {"Authorization": "Bearer " + entra(client, codi(2)).json()["token"]}
+    client.delete(f"/usuaris/{did}/carnet", headers=admin)                       # retirar
+    assert client.get("/me", headers=d).status_code == 401
+
+
+def test_carnets_desconeguts_tambe_es_limiten_per_ip(ctx):
+    client, factory, sec = ctx
+    for i in range(carnet_login.MAX_DESCONEGUTS_IP):
+        assert entra(client, f"ZZZ-{i:010d}").status_code == 401
+    assert entra(client, "ZZZ-9999999999").status_code == 429

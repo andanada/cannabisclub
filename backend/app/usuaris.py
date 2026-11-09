@@ -81,10 +81,8 @@ def set_password(db: Session, actor: User, user: User, password: str) -> None:
 
 
 def change_own_password(db: Session, user: User, current: str, new: str, token: str) -> None:
-    service.assert_not_locked(db, user.username)  # amb un token robat no es poden provar contrasenyes sense límit
+    service.register_attempt(db, user.username)  # abans de verificar: amb un token robat no es poden provar contrasenyes en paral·lel
     if not security.verify_password(current, user.password_hash):
-        service.register_failure(db, user.username)
-        db.commit()
         raise PermissionError("La contrasenya actual no és correcta")
     service.clear_failures(db, user.username)
     if new == current:
