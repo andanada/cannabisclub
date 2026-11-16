@@ -132,6 +132,26 @@ def test_llibre_d_estoc_signat_i_verificable(ctx):
     assert client.post("/llibres/verificar", json={"sha256": "x' OR '1"}, headers=enc).status_code == 422
 
 
+def test_els_llibres_compten_el_dia_en_hora_local_no_en_utc(ctx):
+    """Una dispensació a les 00:30 hora de Madrid del dia D és del dia D (a UTC encara és el D-1) i ha de sortir al llibre
+    del dia D, igual que a caixa i informes."""
+    from datetime import timezone
+    from decimal import Decimal
+    from app import stock
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid, pid = setup_data(client, enc, factory, gprod="10")
+    from app.models import User
+    with factory() as s:
+        user = s.scalar(select(User).where(User.username == "enc"))
+        # 15 de març de 2026, 00:30 hora d'hivern (UTC+1) = 14 de març 23:30 UTC
+        stock.dispense(s, user, mid, pid, Decimal("1"), None, now=datetime(2026, 3, 14, 23, 30, tzinfo=timezone.utc))
+    def estoc(des, fins):
+        return client.get("/locals/1/llibres/estoc.csv", params={"des": des, "fins": fins}, headers=enc).text
+    assert "dispensacio" in estoc("2026-03-15", "2026-03-15")        # el dia local D: hi és
+    assert "dispensacio" not in estoc("2026-03-14", "2026-03-14")    # el dia local D-1: no hi és
+
+
 # ---------- lots ----------
 
 def lot(client, h, pid, codi, **x):

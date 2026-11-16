@@ -235,3 +235,23 @@ def test_s6_retencio_per_local_no_toca_altres_locals_ni_dades_globals(ctx, monke
     assert g["fotos_velles"] == 1 and g["intents_login"] >= 1
     with factory() as s:
         assert s.scalar(select(LoginAttempt.id).where(LoginAttempt.username == "vell")) is None
+
+
+def test_alta_amb_canal_o_finalitat_no_valids_no_deixa_res_desat(ctx):
+    """Si el consentiment ha de fallar, la signatura i els controls de l'alta tampoc es desen (tot o res)."""
+    from sqlalchemy import func, select
+    from app.models import Consent, Signature
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
+    cos = {"versio": "v1", "text_sha256": H, "finalitats": ["basic", "foto"], "doc_verificat": True, "png_base64": PNG}
+    for extra in ({"canal": "xyz"}, {"finalitats": ["basic", "x"]}):
+        r = client.post(f"/socis/{mid}/alta-rgpd", json={**cos, **extra}, headers=enc)
+        assert r.status_code == 422, r.text
+        with factory() as s:
+            assert s.scalar(select(func.count()).select_from(Signature).where(Signature.member_id == mid)) == 0
+            assert s.scalar(select(func.count()).select_from(Consent).where(Consent.member_id == mid)) == 0
+    ok = client.post(f"/socis/{mid}/alta-rgpd", json=cos, headers=enc)       # amb dades correctes sí que es desa
+    assert ok.status_code == 201, ok.text
+    with factory() as s:
+        assert s.scalar(select(func.count()).select_from(Signature).where(Signature.member_id == mid)) == 1

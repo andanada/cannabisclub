@@ -23,6 +23,9 @@ def main(argv=None) -> int:
     print(json.dumps(r, indent=2, ensure_ascii=False))
     if not a.aplicar:
         print("\nSimulació: no s'ha canviat res. Torna a executar amb --aplicar per fer-ho.", file=sys.stderr)
+    if r.get("errors"):   # algun soci no s'ha pogut suprimir: no és un èxit (el monitor ha d'avisar)
+        print(f"ERROR: {len(r['errors'])} soci(s) no s'han pogut suprimir (vegeu «errors»).", file=sys.stderr)
+        return 1
     return 0
 
 

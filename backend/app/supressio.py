@@ -97,6 +97,13 @@ def pseudonymize(db: Session, actor_id: int | None, member: Member, motiu: str =
         raise ValueError("Només es pot suprimir un soci de baixa")
     if b == "retencio":
         raise ValueError(f"Bloquejat per la política de conservació: calen {retencio_min_dies()} dies des de la baixa")
+    if member.baixa_en is None:
+        # Soci de baixa d'abans de la columna `baixa_en`: la data era a l'auditoria. La funció SQL que buida les imatges exigeix
+        # baixa_en (no es refia de l'aplicació), així que s'omple abans: si no, la purga petaria sempre amb aquest soci.
+        antiga = baixa_date(db, member)
+        if antiga is not None:
+            member.baixa_en = antiga
+            db.flush()
     binaris = buida_binaris(db, member.id, "tot")
     targetes = db.execute(delete(MemberCard).where(MemberCard.member_id == member.id)).rowcount
     member.nom_enc = crypto.encrypt(f"{TOKEN_NOM} #{member.id}")

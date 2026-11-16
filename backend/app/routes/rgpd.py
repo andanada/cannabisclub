@@ -60,6 +60,12 @@ def router(db, current_user) -> APIRouter:
         m = member_or_404(s, user, member_id)
         if "basic" not in body.finalitats:
             raise HTTPException(422, "El consentiment del tractament bàsic és obligatori")
+        # Tot el que pot fallar del consentiment es valida ABANS de desar res: save_signature fa commit i, si el consentiment
+        # fallés després, quedarien desades la signatura i els controls de l'alta sense consentiment.
+        if body.canal not in consentiments.CANALS:
+            raise HTTPException(422, "Canal no vàlid")
+        if not set(body.finalitats) <= set(textos.FINALITATS):
+            raise HTTPException(422, "Finalitat no vàlida (basic, foto, contacte)")
         if textos.idioma_del_hash(body.versio, body.text_sha256) is None:  # abans de desar res
             raise HTTPException(422, "El text informatiu acceptat no coincideix amb cap versió publicada")
         run(controls.complete_alta, s, user, m, body.doc_verificat, body.avalador_id)  # primer el que pot fallar per regles del local

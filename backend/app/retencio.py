@@ -64,9 +64,14 @@ def run(db: Session, actor_id: int | None = None, aplicar: bool = False, local_i
                "fotos_velles": fotos, "intents_login": intents, "sessions_caducades": sessions, "suprimits": []}
     if not aplicar:
         return informe
+    informe["errors"] = []
     for c in cands:
         if c["suprimible"]:
-            informe["suprimits"].append(supressio.pseudonymize(db, actor_id, db.get(Member, c["soci"]), "retencio"))
+            try:
+                informe["suprimits"].append(supressio.pseudonymize(db, actor_id, db.get(Member, c["soci"]), "retencio"))
+            except Exception as e:  # noqa: BLE001  (un soci amb problemes no ha d'aturar la purga dels següents)
+                db.rollback()
+                informe["errors"].append({"soci": c["soci"], "error": str(e)[:200]})
     if local_id is None:
         informe["fotos_velles"] = supressio.buida_binaris(db, 0, "fotos_velles", tall_fotos) if fotos else 0
         informe["intents_login"] = db.execute(delete(LoginAttempt).where(LoginAttempt.ts < tall_intents)).rowcount or 0
@@ -74,6 +79,7 @@ def run(db: Session, actor_id: int | None = None, aplicar: bool = False, local_i
     else:
         informe["fotos_velles"] = sum(supressio.buida_binaris(db, mid, "fotos_velles", tall_fotos) for mid in velles)
     service.audit_append(db, {"accio": "retencio", "suprimits": len(informe["suprimits"]), "fotos": informe["fotos_velles"],
-                              "intents": informe["intents_login"], "sessions": informe["sessions_caducades"], "per": actor_id})
+                              "intents": informe["intents_login"], "sessions": informe["sessions_caducades"],
+                              **({"errors": [e["soci"] for e in informe["errors"]]} if informe["errors"] else {}), "per": actor_id})
     db.commit()
     return informe

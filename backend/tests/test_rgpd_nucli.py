@@ -307,3 +307,55 @@ def test_script_club_retencio_simula_i_nomes_aplica_amb_flag(tmp_path, monkeypat
     assert mod.main(["--aplicar"]) == 0
     with f() as s:
         assert s.get(Member, mid).suprimit_en is not None
+
+
+@pg_only
+def test_purga_amb_un_soci_de_baixa_antic_sense_baixa_en_no_bloqueja_els_altres(ctx, monkeypatch):
+    """Un soci de baixa d'abans de la columna `baixa_en` (NULL) tenia la data a l'auditoria: l'aplicació el donava per
+    suprimible però la funció SQL, que exigeix baixa_en, el rebutjava i la purga petava sempre al primer de la llista."""
+    monkeypatch.setenv("CLUB_RETENCIO_MIN_DIES", "10")
+    client, factory, sec = ctx
+    _sync_ret(factory)
+    enc = token(client, sec, "enc")
+    antic, normal = _soci(client, enc), _soci(client, enc, document="87654321X", nom="Berta Prova")
+    for i in (antic, normal):
+        client.post(f"/socis/{i}/foto", json={"image_base64": JPEG}, headers=enc)
+    vella = datetime.now(timezone.utc) - timedelta(days=400)
+    with factory() as s:
+        u = _admin(s)
+        service.set_member_status(s, u, s.get(Member, antic), "baixa")
+        service.set_member_status(s, u, s.get(Member, normal), "baixa")
+        s.get(Member, antic).baixa_en = None                      # soci anterior a la columna
+        s.get(Member, normal).baixa_en = vella
+        s.commit()
+        monkeypatch.setattr(supressio, "baixa_date", lambda db, m: _aware_vella(vella) if m.baixa_en is None else supressio._aware(m.baixa_en))
+        r = retencio.run(s, None, aplicar=True)
+        assert sorted(x["soci"] for x in r["suprimits"]) == sorted([antic, normal]) and not r.get("errors"), r
+        assert s.get(Member, antic).baixa_en is not None           # la data queda omplerta a la fitxa
+
+
+def _aware_vella(d):
+    return d
+
+
+def test_un_soci_que_falla_a_la_purga_no_atura_els_seguents(ctx, monkeypatch):
+    monkeypatch.setenv("CLUB_RETENCIO_MIN_DIES", "0")
+    client, factory, sec = ctx
+    _sync_ret(factory)
+    enc = token(client, sec, "enc")
+    primer, segon = _soci(client, enc), _soci(client, enc, document="87654321X", nom="Berta Prova")
+    with factory() as s:
+        u = _admin(s)
+        for i in (primer, segon):
+            service.set_member_status(s, u, s.get(Member, i), "baixa")
+        original = supressio.pseudonymize
+
+        def tallada(db, actor, member, motiu=""):
+            if member.id == primer:
+                raise RuntimeError("error inesperat de la base de dades")
+            return original(db, actor, member, motiu)
+        monkeypatch.setattr(supressio, "pseudonymize", tallada)
+        r = retencio.run(s, None, aplicar=True)
+        assert [x["soci"] for x in r["suprimits"]] == [segon]
+        assert [e["soci"] for e in r["errors"]] == [primer] and "inesperat" in r["errors"][0]["error"]
+        assert s.get(Member, segon).suprimit_en is not None and s.get(Member, primer).suprimit_en is None

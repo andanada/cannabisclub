@@ -1,13 +1,18 @@
 """Consulta de l'auditoria filtrada i paginada (només administradors) i «qui ha accedit a les dades d'aquest soci».
 Les entrades no contenen dades personals en clar; el filtre per soci/usuari/acció es fa sobre el JSON canònic."""
 import json
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from .csvutil import to_csv
 from .models import AuditLog, User
+from .stock import TZ
+
+
+def _dia_local(d: date) -> datetime:
+    return datetime.combine(d, time.min, tzinfo=TZ).astimezone(timezone.utc)
 
 MAX_LIMIT = 500
 # accions que són un ACCÉS a dades personals d'un soci (lectura o exportació)
@@ -29,10 +34,11 @@ def _cond(soci: int | None, usuari: int | None, accio: str | None, des: date | N
         if not accio.replace("_", "").isalnum():
             raise ValueError("Acció no vàlida")
         c.append(AuditLog.payload.like(f'%"accio":"{accio}"%'))
+    # Dies en hora local (Europe/Madrid), com a caixa, informes i llibres.
     if des:
-        c.append(AuditLog.ts >= datetime.combine(des, time.min, tzinfo=timezone.utc))
+        c.append(AuditLog.ts >= _dia_local(des))
     if fins:
-        c.append(AuditLog.ts < datetime.combine(fins, time.max, tzinfo=timezone.utc))
+        c.append(AuditLog.ts < _dia_local(fins + timedelta(days=1)))
     return c
 
 

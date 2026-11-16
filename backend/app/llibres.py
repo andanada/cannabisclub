@@ -5,7 +5,7 @@ endavant que un fitxer no ha estat alterat (`verify`). Els camps lliures (nota, 
 import hashlib
 import json
 import re
-from datetime import date, datetime, time, timezone
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,7 +18,10 @@ ACCIONS_SOCI = ("alta_soci", "canvi_estat_soci", "aprova_soci", "supressio_soci"
 
 
 def _lim(des: date, fins: date):
-    return (datetime.combine(des, time.min, tzinfo=timezone.utc), datetime.combine(fins, time.max, tzinfo=timezone.utc))
+    """[inici, fi) del rang en HORA LOCAL (Europe/Madrid), com caixa i informes: una dispensació a les 00:30 locals és del dia
+    local, no del dia UTC anterior. El límit superior és exclusiu."""
+    from .cash import _range
+    return _range(des, fins)
 
 
 def members_book(db: Session, local_id: int, des: date, fins: date) -> str:
@@ -26,7 +29,7 @@ def members_book(db: Session, local_id: int, des: date, fins: date) -> str:
     noms = {i: n for i, n in db.execute(select(User.id, User.username))}
     locals_ = {i: l for i, l in db.execute(select(Member.id, Member.local_id))}
     rows = []
-    for r in db.scalars(select(AuditLog).where(AuditLog.ts >= a, AuditLog.ts <= b).order_by(AuditLog.seq)):
+    for r in db.scalars(select(AuditLog).where(AuditLog.ts >= a, AuditLog.ts < b).order_by(AuditLog.seq)):
         p = json.loads(r.payload)
         if p.get("accio") not in ACCIONS_SOCI or locals_.get(p.get("soci")) != local_id:
             continue
@@ -43,7 +46,7 @@ def stock_book(db: Session, local_id: int, des: date, fins: date) -> str:
     for mb, bt in db.execute(select(MovementBatch, Batch).join(Batch, Batch.id == MovementBatch.batch_id)):
         lots.setdefault(mb.movement_id, []).append(f"{bt.codi}:{mb.mg}")
     q = (select(StockMovement, Product.nom).join(Product, Product.id == StockMovement.product_id)
-         .where(StockMovement.local_id == local_id, StockMovement.ts >= a, StockMovement.ts <= b).order_by(StockMovement.id))
+         .where(StockMovement.local_id == local_id, StockMovement.ts >= a, StockMovement.ts < b).order_by(StockMovement.id))
     rows = [[m.id, m.ts.isoformat(), m.tipus, nom, m.delta_mg, ";".join(lots.get(m.id, [])), m.member_id or "", m.corregeix_id or "",
              noms.get(m.user_id), m.nota or ""] for m, nom in db.execute(q)]
     return to_csv(["moviment", "data", "tipus", "producte", "delta_mg", "lots(codi:mg)", "soci_id", "corregeix_id", "usuari", "nota"], rows)
