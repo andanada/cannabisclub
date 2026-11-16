@@ -173,6 +173,14 @@ def update_product(db: Session, actor: User, product_id: int, nom: str | None = 
         canvis["actiu"] = [p.actiu, actiu]
     if not canvis:
         raise ValueError("No hi ha cap canvi")
+    if "es_genetic" in canvis or "categoria" in canvis:
+        # El consum passat es recalcula amb el valor ACTUAL (net_consumed_query, regles per categoria): canviar-los amb consum
+        # en curs buidaria o inflaria el que ja compta per als límits (dia/setmana/mes) i les regles per soci.
+        des = min(_window_start("setmana", datetime.now(timezone.utc)), _window_start("mes", datetime.now(timezone.utc)))
+        if db.scalar(select(StockMovement.id).where(StockMovement.product_id == p.id, StockMovement.tipus == "dispensacio",
+                                                    StockMovement.ts >= des).limit(1)):
+            raise ValueError("No es pot canviar si és genètic ni la categoria: hi ha dispensacions d'aquest producte en el període "
+                             "dels límits per soci (setmana o mes en curs) i el seu consum canviaria. Espera al període següent.")
     for camp, (_, nou) in canvis.items():
         setattr(p, camp, nou)
     service.audit_append(db, {"accio": "edita_producte", "producte": p.id, "local": p.local_id, "canvis": canvis, "per": actor.id})

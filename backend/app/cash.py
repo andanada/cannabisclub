@@ -1,9 +1,9 @@
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from . import service
 from .races import flush_or_error
@@ -47,18 +47,25 @@ def expected_cash(db: Session, cs: CashSession) -> int:
         CashEntry.session_id == cs.id, CashEntry.metode == "efectiu"))
 
 
-def unpaid_dispensations(db: Session, local_id: int, since: datetime) -> list[dict]:
-    """Dispensacions des de `since` sense cobrar (ni cobrades i després corregides sense recobrar)
-    i que no estan corregides. Serveix d'avís en tancar la caixa."""
-    corregides = select(StockMovement.corregeix_id).where(StockMovement.corregeix_id.is_not(None))
-    rows = db.scalars(select(StockMovement).where(
-        StockMovement.local_id == local_id, StockMovement.tipus == "dispensacio", StockMovement.ts >= since,
-        StockMovement.import_cent > 0, StockMovement.id.not_in(corregides)).order_by(StockMovement.id))
-    out = []
-    for m in rows:
-        if _live_charge(db, m.id) is None:
-            out.append({"moviment": m.id, "import_cent": m.import_cent, "soci_id": m.member_id, "producte_id": m.product_id})
-    return out
+def unpaid_dispensations(db: Session, local_id: int, since: datetime | None = None, until: datetime | None = None,
+                         limit: int = 500) -> list[dict]:
+    """Dispensacions sense cobrar (ni cobrades i després corregides sense recobrar) i que no estan corregides, entre `since`
+    (inclòs) i `until` (exclòs). Una sola consulta (abans, una per dispensació). Serveix d'avís en tancar la caixa i per
+    mostrar els deutes de sessions anteriors."""
+    correccio = aliased(StockMovement)
+    cobrament, corregit = aliased(CashEntry), aliased(CashEntry)
+    q = select(StockMovement).where(
+        StockMovement.local_id == local_id, StockMovement.tipus == "dispensacio", StockMovement.import_cent > 0,
+        ~exists().where(correccio.corregeix_id == StockMovement.id),
+        # cobrament vigent = un cobrament que no té correcció
+        ~exists().where(cobrament.movement_id == StockMovement.id, cobrament.tipus == "cobrament",
+                        ~exists().where(corregit.corregeix_id == cobrament.id)))
+    if since is not None:
+        q = q.where(StockMovement.ts >= since)
+    if until is not None:
+        q = q.where(StockMovement.ts < until)
+    return [{"moviment": m.id, "import_cent": m.import_cent, "soci_id": m.member_id, "producte_id": m.product_id}
+            for m in db.scalars(q.order_by(StockMovement.id).limit(limit))]
 
 
 def close_session(db: Session, actor: User, local_id: int, counted_cent: int) -> CashSession:

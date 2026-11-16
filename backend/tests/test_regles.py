@@ -110,3 +110,13 @@ def test_les_regles_queden_a_lauditoria(ctx):
     accions = [json.loads(a.payload)["accio"] for a in s.scalars(select(AuditLog))]
     s.close()
     assert "alta_regla" in accions and "edita_regla" in accions
+
+
+def test_regla_amb_maxim_desorbitat_o_mal_format_es_rebutja_amb_422_no_500(ctx):
+    client, _, sec = ctx
+    adm = token(client, sec, "admin")
+    base = {"nom": "R", "ambit": "tot", "periode": "dia"}
+    for valor in ("1e30", "999999999999", "-1", "0", "abc", "NaN", "Infinity"):
+        r = client.post("/locals/1/regles", json={**base, "max_g": valor}, headers=adm)
+        assert r.status_code == 422, (valor, r.status_code, r.text)
+    assert client.post("/locals/1/regles", json={**base, "max_g": "5"}, headers=adm).status_code == 201

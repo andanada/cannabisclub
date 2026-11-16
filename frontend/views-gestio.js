@@ -102,16 +102,18 @@ async function productsSection() {
   const tots = await api(`/locals/${S.local}/productes`);
   const out2 = h('div');
   const n = h('input'), c = h('input'), p = h('input', { inputmode: 'decimal', placeholder: '8,00' });
-  const genNou = h('input', { type: 'checkbox' });
+  // Elecció explícita (sense valor per defecte): un producte nou no genètic queda fora dels límits per soci sense que ningú ho hagi decidit.
+  const genNou = h('select', null, h('option', { value: '' }, 'Tria…'), h('option', { value: 'si' }, 'Sí: compta per als límits per soci'), h('option', { value: 'no' }, 'No: no compta per als límits'));
   const b2 = h('button', { class: 'primary', type: 'submit' }, 'Crear producte');
   const nou = h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(b2, out2, async () => {
-      await api('/productes', { method: 'POST', body: { local_id: S.local, nom: n.value.trim(), categoria: c.value.trim(), preu_cent_per_g: parseEur(p.value), es_genetic: genNou.checked } });
+      if (!genNou.value) throw new Error('Indica si el producte és genètic (flor, hash, extractes, clons…): decideix si compta per als límits per soci');
+      await api('/productes', { method: 'POST', body: { local_id: S.local, nom: n.value.trim(), categoria: c.value.trim(), preu_cent_per_g: parseEur(p.value), es_genetic: genNou.value === 'si' } });
       toast('Producte creat');
       show('estoc');
     });
-  } }, h('h3', null, 'Nou producte'), h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)), h('label', null, genNou, ' És genètic'), h('div', { class: 'actions' }, b2), out2);
+  } }, h('h3', null, 'Nou producte'), h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)), field('És genètic?', genNou), h('div', { class: 'actions' }, b2), out2);
   // Els límits per soci només compten productes marcats com a genètics: sense cap, els límits no s'apliquen a res.
   const lloc = (S.me.locals || []).find((l) => l.id === S.local) || {};
   const amLimits = lloc.limit_diari_mg != null || lloc.limit_mensual_mg != null;
@@ -133,19 +135,20 @@ VIEWS.estoc = async () => {
 async function cashState() {
   const st = await api(`/locals/${S.local}/caixa`);
   const out = h('div');
+  const deutes = senseCobrar(st.sense_cobrar_anteriors, st.sense_cobrar_anteriors_cent, false, true, st.oberta);   // sessions anteriors: no poden quedar invisibles
   if (!st.oberta) {
     const card = h('div', { class: 'card' }, h('span', { class: 'pill warn' }, 'Caixa tancada'), h('p', { class: 'muted' }, 'Cal obrir la caixa per dispensar, cobrar quotes o registrar despeses.'));
     if (!isManager()) return card;
     const ini = h('input', { inputmode: 'decimal', placeholder: '0,00' });
     const btn = h('button', { class: 'primary', type: 'submit' }, 'Obrir caixa');
-    return h('div', null, card, h('form', { class: 'card', onsubmit: (e) => {
+    return h('div', null, card, deutes, h('form', { class: 'card', onsubmit: (e) => {
       e.preventDefault();
       guard(btn, out, async () => { await api('/caixa/obrir', { method: 'POST', body: { local_id: S.local, opening_cent: parseEur(ini.value) } }); show('caixa'); });
     } }, h('h3', null, 'Obrir caixa'), field('Efectiu inicial al calaix (€)', ini), h('div', { class: 'actions' }, btn), out));
   }
-  return h('div', { class: 'card' }, h('span', { class: 'pill ok' }, 'Caixa oberta'),
+  return h('div', null, h('div', { class: 'card' }, h('span', { class: 'pill ok' }, 'Caixa oberta'),
     h('div', { class: 'stats' }, h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Obertura'), h('div', { class: 'big' }, eur(st.obertura_cent))),
-      st.esperat_cent != null ? h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Efectiu esperat ara'), h('div', { class: 'big' }, eur(st.esperat_cent))) : null));
+      st.esperat_cent != null ? h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Efectiu esperat ara'), h('div', { class: 'big' }, eur(st.esperat_cent))) : null)), deutes);
 }
 
 async function expenseForm() {
@@ -168,11 +171,29 @@ async function expenseForm() {
 }
 
 // Avís de dispensacions sense cobrar (abans i després de tancar la caixa).
-function senseCobrar(llista, centTotal, tancada) {
+function senseCobrar(llista, centTotal, tancada, anteriors, cobrables) {
   if (!llista || !llista.length) return null;
-  return h('div', { class: 'card' }, msg('err', tancada ? 'Atenció: la caixa s’ha tancat amb dispensacions sense cobrar.' : 'Hi ha dispensacions sense cobrar. Cobra-les abans de tancar la caixa.'),
+  const out = h('div');
+  // Deutes de sessions anteriors: es poden cobrar aquí mateix (amb la caixa oberta; el cobrament entra a la sessió actual).
+  const cobra = (d, metode, b) => guard(b, out, async () => {
+    await api('/cobraments', { method: 'POST', body: { movement_id: d.moviment, metode } });
+    toast('Cobrat ' + eur(d.import_cent) + ' (' + metode + ')');
+    show('caixa');
+  });
+  const accions = (d) => {
+    if (!anteriors || !cobrables) return null;
+    const e = h('button', { class: 'small' }, 'Efectiu');
+    const t = h('button', { class: 'small' }, 'Targeta');
+    e.addEventListener('click', () => cobra(d, 'efectiu', e));
+    t.addEventListener('click', () => cobra(d, 'targeta', t));
+    return h('span', { class: 'actions fila-accions' }, e, t);
+  };
+  const avis = anteriors ? (cobrables ? 'Hi ha dispensacions sense cobrar de sessions anteriors. Cobra-les aquí: el cobrament entra a la caixa oberta.'
+    : 'Hi ha dispensacions sense cobrar de sessions anteriors. Obre la caixa per poder cobrar-les.')
+    : tancada ? 'Atenció: la caixa s’ha tancat amb dispensacions sense cobrar.' : 'Hi ha dispensacions sense cobrar. Cobra-les abans de tancar la caixa.';
+  return h('div', { class: 'card' }, msg('err', avis),
     h('p', { class: 'muted' }, 'Total sense cobrar'), h('div', { class: 'big' }, eur(centTotal)),
-    h('ul', null, llista.map((d) => h('li', null, 'Dispensació', ' #' + d.moviment + ' · ' + eur(d.import_cent) + ' · ', 'Soci', ' #' + d.soci_id))));
+    h('ul', null, llista.map((d) => h('li', null, 'Dispensació', ' #' + d.moviment + ' · ' + eur(d.import_cent) + ' · ', 'Soci', ' #' + d.soci_id, ' ', accions(d)))), out);
 }
 
 async function closeForm() {

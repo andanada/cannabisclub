@@ -82,10 +82,14 @@ def register(app, db, current_user, check_local, need_manager, run):
     def estat_caixa(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
         check_local(s, user, local_id)
         cs = cash.current_session(s, local_id)
+        gestor = user.role in CAN_CREATE_MEMBER
+        # Deutes de sessions anteriors (o fets amb la caixa tancada): no han de quedar invisibles; es cobren amb la caixa oberta.
+        anteriors = cash.unpaid_dispensations(s, local_id, None, cs.opened_at if cs else None) if gestor else None
+        extra = {} if anteriors is None else {"sense_cobrar_anteriors": anteriors, "sense_cobrar_anteriors_cent": sum(p["import_cent"] for p in anteriors)}
         if not cs:
-            return {"oberta": False}
-        out = {"oberta": True, "sessio": cs.id, "obertura_cent": cs.opening_cent}
-        if user.role in CAN_CREATE_MEMBER:
+            return {"oberta": False, **extra}
+        out = {"oberta": True, "sessio": cs.id, "obertura_cent": cs.opening_cent, **extra}
+        if gestor:
             out["esperat_cent"] = cash.expected_cash(s, cs)
             pendents = cash.unpaid_dispensations(s, local_id, cs.opened_at)
             out["sense_cobrar"], out["sense_cobrar_cent"] = pendents, sum(p["import_cent"] for p in pendents)

@@ -16,11 +16,11 @@ def register(app, db, current_user, check_local, need_manager, need_admin, run):
         categoria: str | None = Field(default=None, max_length=60)
         product_id: int | None = None
         periode: str
-        max_g: Decimal
+        max_g: Decimal = Field(gt=0, le=1_000_000, max_digits=12, decimal_places=3)   # sense límit, «1e30» acabava en un 500
 
     class ReglaUpdateIn(BaseModel):
         nom: str | None = Field(default=None, max_length=60)
-        max_g: Decimal | None = None
+        max_g: Decimal | None = Field(default=None, gt=0, le=1_000_000, max_digits=12, decimal_places=3)
         actiu: bool | None = None
 
     @app.get("/locals/{local_id}/regles")

@@ -102,3 +102,41 @@ def test_apunts_immutables(ctx):
     with pytest.raises(ImmutableError):
         s.commit()
     s.rollback(); s.close()
+
+
+def test_deutes_de_sessions_anteriors_surten_a_l_estat_de_la_caixa_fins_que_es_cobren(ctx):
+    """Una dispensació «cobrar després» d'una caixa ja tancada (o feta amb la caixa tancada) no pot quedar invisible:
+    surt a l'estat de la caixa, amb la caixa oberta o tancada, i desapareix en cobrar-la."""
+    client, factory, sec = ctx
+    enc, disp_h = token(client, sec, "enc"), token(client, sec, "disp")
+    mid, pid = setup_data(client, enc, factory)
+    assert client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=enc).status_code == 201
+    d, cent = disp(client, enc, mid, pid)                       # no es cobra
+    assert client.post("/caixa/tancar", json={"local_id": 1, "counted_cent": 0}, headers=enc).status_code == 200
+    st = client.get("/locals/1/caixa", headers=enc).json()       # caixa tancada
+    assert st["oberta"] is False and [p["moviment"] for p in st["sense_cobrar_anteriors"]] == [d]
+    assert st["sense_cobrar_anteriors_cent"] == cent
+    assert "sense_cobrar_anteriors" not in client.get("/locals/1/caixa", headers=disp_h).json()   # només per a gestors
+    assert client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=enc).status_code == 201
+    st = client.get("/locals/1/caixa", headers=enc).json()       # nova sessió: la deute de l'anterior continua visible
+    assert st["oberta"] is True and [p["moviment"] for p in st["sense_cobrar_anteriors"]] == [d] and st["sense_cobrar"] == []
+    assert client.post("/cobraments", json={"movement_id": d, "metode": "efectiu"}, headers=enc).status_code == 201
+    st = client.get("/locals/1/caixa", headers=enc).json()
+    assert st["sense_cobrar_anteriors"] == [] and st["sense_cobrar_anteriors_cent"] == 0
+
+
+def test_sense_cobrar_ignora_el_cobrat_el_corregit_i_el_cobrament_corregit(ctx):
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid, pid = setup_data(client, enc, factory)
+    assert client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=enc).status_code == 201
+    cobrada, _ = disp(client, enc, mid, pid, "1")
+    sense, _ = disp(client, enc, mid, pid, "1")
+    corregida, _ = disp(client, enc, mid, pid, "1")
+    recobrar, _ = disp(client, enc, mid, pid, "1")
+    assert client.post("/cobraments", json={"movement_id": cobrada, "metode": "efectiu"}, headers=enc).status_code == 201
+    assert client.post(f"/moviments/{corregida}/correccio", json={"nota": "error"}, headers=enc).status_code == 201
+    e = client.post("/cobraments", json={"movement_id": recobrar, "metode": "efectiu"}, headers=enc).json()["apunt"]
+    assert client.post(f"/caixa/apunts/{e}/correccio", json={"nota": "cobrament equivocat"}, headers=enc).status_code == 201
+    st = client.get("/locals/1/caixa", headers=enc).json()
+    assert sorted(p["moviment"] for p in st["sense_cobrar"]) == sorted([sense, recobrar])

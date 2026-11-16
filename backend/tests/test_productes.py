@@ -113,3 +113,24 @@ def test_producte_genetic_es_pot_crear_i_canviar_i_surt_a_les_vendes(ctx):
     r = client.get("/locals/1/informe/vendes", params={"des": (avui - timedelta(days=1)).isoformat(), "fins": (avui + timedelta(days=1)).isoformat()}, headers=enc).json()
     p = r["productes"][0]
     assert p["product_id"] == pid and p["es_genetic"] is True and p["imatge"] is None
+
+
+def test_no_es_pot_canviar_genetic_ni_categoria_si_hi_ha_consum_en_curs_de_limits_i_regles(ctx):
+    """El consum passat es recalcula amb el valor ACTUAL de es_genetic i categoria: canviar-los mig mes buida o infla el consum
+    que ja compta per als límits i les regles per soci."""
+    from tests.test_stock import setup_data
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid, pid = setup_data(client, enc, factory, genetic=True)
+    sense = client.post("/productes", json={"local_id": 1, "nom": "Sense moviments", "categoria": "flor", "preu_cent_per_g": 100, "es_genetic": True}, headers=enc).json()["id"]
+    # sense dispensacions, es pot canviar lliurement
+    assert client.patch(f"/productes/{sense}", json={"es_genetic": False}, headers=enc).status_code == 200
+    assert client.post("/dispensacions", json={"member_id": mid, "product_id": pid, "grams": "1"}, headers=enc).status_code == 201
+    r = client.patch(f"/productes/{pid}", json={"es_genetic": False}, headers=enc)
+    assert r.status_code == 422 and "dispensacions" in r.json()["detail"]
+    assert client.patch(f"/productes/{pid}", json={"categoria": "resina"}, headers=enc).status_code == 422
+    # el que no afecta els límits (nom, preu) sí que es pot canviar
+    assert client.patch(f"/productes/{pid}", json={"preu_cent_per_g": 900}, headers=enc).status_code == 200
+    assert client.patch(f"/productes/{pid}", json={"nom": "Altre nom"}, headers=enc).status_code == 200
+    # i repetir el mateix valor no és un canvi
+    assert client.patch(f"/productes/{pid}", json={"es_genetic": True, "preu_cent_per_g": 950}, headers=enc).status_code == 200
