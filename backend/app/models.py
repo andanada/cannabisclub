@@ -263,6 +263,19 @@ class LoginAttempt(Base):
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class IdempotencyKey(Base):
+    """Referència d'una operació enviada pel client (`client_ref`): si es repeteix (doble clic, Intro, reintent per un tall de
+    xarxa) no es torna a executar; es retorna la resposta desada. Vegeu idempotencia.py."""
+    __tablename__ = "idempotency_keys"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    clau: Mapped[str] = mapped_column(String(64), unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    ruta: Mapped[str] = mapped_column(String(40))
+    cos_sha256: Mapped[str] = mapped_column(String(64))
+    resposta: Mapped[str | None] = mapped_column(Text, nullable=True)   # JSON; buit mentre l'operació encara no ha acabat
+    creat: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+
+
 class LocalSetting(Base):
     """Ajustos opcionals d'un local (clau/valor). Taula a part perquè afegir-ne no canviï la taula `locals`."""
     __tablename__ = "local_settings"

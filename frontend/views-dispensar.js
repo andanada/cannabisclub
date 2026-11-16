@@ -18,10 +18,11 @@ function quotaForm(m, out, onDone) {
   const nota = isManager() ? h('input', { maxlength: 200, placeholder: "Només si l'import no és la tarifa del local" }) : null;
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Cobrar quota');
   const res = h('div');
+  const ref = novaRef();   // un cobrament de quota = una referència: un doble clic no cobra dos períodes
   return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(btn, res, async () => {
-      const r = await api(`/socis/${m.id}/quotes`, { method: 'POST', body: { import_cent: parseEur(imp.value), metode: met.value, mesos: Number(mesos.value), ...(nota && nota.value.trim() ? { nota: nota.value.trim() } : {}) } });
+      const r = await api(`/socis/${m.id}/quotes`, { method: 'POST', body: { client_ref: ref, import_cent: parseEur(imp.value), metode: met.value, mesos: Number(mesos.value), ...(nota && nota.value.trim() ? { nota: nota.value.trim() } : {}) } });
       m.quota = { al_dia: true, valid_fins: r.valid_fins };
       toast('Quota cobrada: vàlida fins al ' + dataCa(r.valid_fins));
       onDone(m);
@@ -164,6 +165,7 @@ VIEWS.dispensar = async () => {
   function productStep(m, productes) {
     let chosen = null;
     const out = h('div');
+    const ref = novaRef();   // una dispensació = una referència: repetir l'enviament no dispensa dues vegades
     const sense = () => h('option', { value: '' }, 'Sense descompte');
     const descSel = h('select', null, sense());
     // Descomptes vigents que es poden aplicar al producte triat (cada un amb el seu import o percentatge).
@@ -204,7 +206,7 @@ VIEWS.dispensar = async () => {
     // Els tres botons fan la mateixa dispensació: es bloquegen junts (un Intro o un segon clic no la repeteix).
     const envia = (btn, metode) => guardTots([btnEfectiu, btnTargeta, btnApart], out, async () => {
       if (!chosen) throw new Error('Tria un producte');
-      const body = { member_id: m.id, product_id: chosen.id,
+      const body = { client_ref: ref, member_id: m.id, product_id: chosen.id,
         grams: parseGrams(g.value), pes_bascula_g: pes.value.trim() ? parseGrams(pes.value) : null,
         discount_id: descSel.value ? Number(descSel.value) : null };
       if (lotSel.value) body.batch_id = Number(lotSel.value);

@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import cash
+from .. import cash, idempotencia
 from ..models import CashEntry, StockMovement, User
 from .comu import CAN_CREATE_MEMBER
 
@@ -32,6 +32,7 @@ def register(app, db, current_user, check_local, need_manager, run):
         metode: str
         categoria: str = Field(min_length=1, max_length=60)
         concepte: str = Field(min_length=3, max_length=300)
+        client_ref: str | None = Field(default=None, pattern=idempotencia.REF_PATTERN)  # referència de l'operació: repetida, no es torna a fer
 
     @app.post("/caixa/obrir", status_code=201)
     def obrir_caixa(body: ObrirIn, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -61,8 +62,11 @@ def register(app, db, current_user, check_local, need_manager, run):
     def despesa(body: DespesaIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_manager(user)
         check_local(s, user, body.local_id)
-        e = run(cash.expense, s, user, body.local_id, body.cent, body.metode, body.categoria, body.concepte)
-        return {"apunt": e.id}
+
+        def fes():
+            e = run(cash.expense, s, user, body.local_id, body.cent, body.metode, body.categoria, body.concepte)
+            return {"apunt": e.id}
+        return idempotencia.executa(s, user, "despeses", body.client_ref, body.model_dump(mode="json"), fes)
 
     @app.post("/caixa/apunts/{entry_id}/correccio", status_code=201)
     def correccio_apunt(entry_id: int, body: CorreccioIn, user: User = Depends(current_user), s: Session = Depends(db)):

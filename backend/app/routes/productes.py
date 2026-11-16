@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import linies_preu, stock
+from .. import idempotencia, linies_preu, stock
 from ..models import Product, StockMovement, User
 from .comu import CAN_CREATE_MEMBER
 
@@ -33,6 +33,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         discount_id: int | None = None
         metode: str | None = Field(default=None, max_length=20)  # amb mètode es cobra en la mateixa transacció
         batch_id: int | None = None  # lot triat; buit = FIFO (lot més antic amb existències)
+        client_ref: str | None = Field(default=None, pattern=idempotencia.REF_PATTERN)  # referència de l'operació: repetida, no es torna a fer
 
     class CorreccioIn(BaseModel):
         nota: str = Field(min_length=3, max_length=300)
@@ -109,8 +110,11 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.post("/dispensacions", status_code=201)
     def dispensacio(body: DispensacioIn, user: User = Depends(current_user), s: Session = Depends(db)):
         product_or_404(s, user, body.product_id)
-        m = run(stock.dispense, s, user, body.member_id, body.product_id, body.grams, body.pes_bascula_g, None, body.discount_id, body.metode, body.batch_id)
-        return {"id": m.id, "import_cent": m.import_cent, "descompte_cent": getattr(m, "descompte_cent", 0), "cobrat": body.metode is not None}
+
+        def fes():
+            m = run(stock.dispense, s, user, body.member_id, body.product_id, body.grams, body.pes_bascula_g, None, body.discount_id, body.metode, body.batch_id)
+            return {"id": m.id, "import_cent": m.import_cent, "descompte_cent": getattr(m, "descompte_cent", 0), "cobrat": body.metode is not None}
+        return idempotencia.executa(s, user, "dispensacions", body.client_ref, body.model_dump(mode="json"), fes)
 
     @app.post("/moviments/{movement_id}/correccio", status_code=201)
     def correccio(movement_id: int, body: CorreccioIn, user: User = Depends(current_user), s: Session = Depends(db)):

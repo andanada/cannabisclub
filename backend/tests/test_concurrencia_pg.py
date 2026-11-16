@@ -273,3 +273,28 @@ def test_dispensar_i_cobrar_bloqueja_la_sessio_de_caixa_abans_que_l_auditoria(ct
         fil.join(30)
     assert not fil.is_alive() and not isinstance(resultat[0], Exception), resultat
     assert sessio_bloquejada, "dispense(metode) ha agafat l'auditoria abans de bloquejar la sessió de caixa"
+
+
+@pg_only
+def test_dues_peticions_simultanies_amb_la_mateixa_referencia_dispensen_una_sola_vegada(ctx):
+    from fastapi import HTTPException
+    from app import idempotencia
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid, pid = setup_data(client, enc, factory)
+    cos = {"member_id": mid, "product_id": pid, "grams": "2"}
+
+    def envia(s, user):
+        def fes():
+            m = stock.dispense(s, user, mid, pid, Decimal("2"), None)
+            return {"id": m.id}
+        return idempotencia.executa(s, user, "dispensacions", "ref-simultania-0001", cos, fes)
+
+    res = correr_junts(factory, envia, envia, envia)
+    with factory() as s:
+        fets = list(s.scalars(select(StockMovement.id).where(StockMovement.tipus == "dispensacio")))
+    assert len(fets) == 1, res
+    # cada petició o rep la resposta de l'única dispensació o un 409 «s'està registrant»; cap error intern
+    for r in res:
+        assert r == {"id": fets[0]} or (isinstance(r, HTTPException) and r.status_code == 409), res
+    assert {"id": fets[0]} in res

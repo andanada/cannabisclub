@@ -85,6 +85,15 @@ async function guardTots(btns, out, fn) {
   try { await fn(); } catch (e) { out.replaceChildren(msg('err', e.message)); } finally { btns.forEach((b) => { b.disabled = false; }); }
 }
 
+// Referència d'una operació amb diners o producte. Es crea quan es prepara l'operació (no a cada clic): si la petició es
+// repeteix (Intro, segon clic, reintent perquè la resposta s'ha perdut), el servidor no la torna a fer i retorna el mateix resultat.
+function novaRef() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  let r = '';
+  while (r.length < 32) r += Math.floor(Math.random() * 16).toString(16);
+  return r;
+}
+
 const isManager = () => ['admin', 'encarregat'].includes(S.me.role);
 
 // Icones de la navegació (SVG construït amb el DOM: la CSP no permet innerHTML ni estils en línia).

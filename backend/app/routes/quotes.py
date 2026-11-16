@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import ajustos, quotes, service
+from .. import ajustos, idempotencia, quotes, service
 from ..models import Local, User
 
 
@@ -14,11 +14,16 @@ def register(app, db, current_user, need_admin, run, member_or_404):
         metode: str
         mesos: int = Field(default=1, ge=1, le=quotes.MAX_MESOS)
         nota: str | None = Field(default=None, max_length=200)
+        client_ref: str | None = Field(default=None, pattern=idempotencia.REF_PATTERN)  # referència de l'operació: repetida, no es torna a fer
 
     @app.post("/socis/{member_id}/quotes", status_code=201)
     def cobrar_quota(member_id: int, body: QuotaIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        q = run(quotes.charge, s, user, member_or_404(s, user, member_id), body.import_cent, body.metode, body.mesos, None, body.nota)
-        return {"id": q.id, "valid_des": q.valid_des.isoformat(), "valid_fins": q.valid_fins.isoformat(), "apunt": q.cash_entry_id}
+        m = member_or_404(s, user, member_id)
+
+        def fes():
+            q = run(quotes.charge, s, user, m, body.import_cent, body.metode, body.mesos, None, body.nota)
+            return {"id": q.id, "valid_des": q.valid_des.isoformat(), "valid_fins": q.valid_fins.isoformat(), "apunt": q.cash_entry_id}
+        return idempotencia.executa(s, user, f"quotes/{member_id}", body.client_ref, body.model_dump(mode="json"), fes)
 
     @app.get("/socis/{member_id}/quotes")
     def historial_quotes(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):

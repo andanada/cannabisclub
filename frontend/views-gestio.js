@@ -155,10 +155,11 @@ async function expenseForm() {
   const con = h('input');
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Registrar despesa');
   const out = h('div');
+  const ref = novaRef();   // una despesa = una referència: enviar-la dues vegades no la duplica
   return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(btn, out, async () => {
-      await api('/despeses', { method: 'POST', body: { local_id: S.local, cent: parseEur(imp.value), metode: met.value, categoria: cat.value.trim(), concepte: con.value.trim() } });
+      await api('/despeses', { method: 'POST', body: { client_ref: ref, local_id: S.local, cent: parseEur(imp.value), metode: met.value, categoria: cat.value.trim(), concepte: con.value.trim() } });
       toast('Despesa registrada');
       show('caixa');
     });

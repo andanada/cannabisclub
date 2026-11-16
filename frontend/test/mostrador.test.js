@@ -71,3 +71,15 @@ test('l\'entrada amb carnet es pot enviar amb l\'Intro del lector (cal un botó 
 test('assignar un carnet normalitza la lectura igual que la cerca', () => {
   assert.match(text('views-socis.js'), /socis\/\$\{m\.id\}\/carnet`[^\n]*normalizeScan/);
 });
+
+test('dispensació, quota i despesa envien una referència d\'operació (client_ref) creada en preparar el formulari', () => {
+  const d = text('views-dispensar.js'), g = text('views-gestio.js');
+  assert.equal((d.match(/const ref = novaRef\(\)/g) || []).length, 2);
+  assert.match(d, /body = \{ client_ref: ref, member_id/);
+  assert.match(d, /quotes`, \{ method: 'POST', body: \{ client_ref: ref/);
+  assert.match(g, /'\/despeses', \{ method: 'POST', body: \{ client_ref: ref/);
+  const { novaRef } = (() => { const c = { document: { querySelector: () => null }, sessionStorage: { getItem: () => null } }; vm.createContext(c); vm.runInContext(text('util.js') + '\nthis.novaRef = novaRef;', c); return c; })();
+  const a = novaRef(), b = novaRef();
+  assert.match(a, /^[A-Za-z0-9-]{16,64}$/);   // el mateix patró que valida el servidor
+  assert.notEqual(a, b);
+});
