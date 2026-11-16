@@ -1020,6 +1020,7 @@ Object.assign(I18N.en, {
  "Primer cal crear productes.": "Create products first.",
  "Lots per producte": "Batches per product",
  "Lot": "Batch",
+ "Automàtic (lot més antic)": "Automatic (oldest batch)",
  "Proveïdor": "Supplier",
  "Grams que entren en aquest lot": "Grams entering this batch",
  "Traçabilitat": "Traceability",

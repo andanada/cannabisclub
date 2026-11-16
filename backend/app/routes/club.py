@@ -120,6 +120,12 @@ def router(db, current_user) -> APIRouter:
         product_or_404(s, user, product_id)
         return lots.list_batches(s, product_id)
 
+    @r.get("/productes/{product_id}/lots-dispensables")
+    def lots_dispensables(product_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        """Selector de lot de la pantalla Dispensar: qualsevol usuari del local, només lots actius amb existències."""
+        product_or_404(s, user, product_id)
+        return lots.list_dispensable(s, product_id)
+
     def _lot(s: Session, user: User, lot_id: int) -> Batch:
         b = s.get(Batch, lot_id)
         if not b:

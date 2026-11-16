@@ -41,6 +41,14 @@ def list_batches(db: Session, product_id: int) -> list[dict]:
     return [_view(db, b) for b in db.scalars(select(Batch).where(Batch.product_id == product_id).order_by(Batch.data_entrada, Batch.id))]
 
 
+def list_dispensable(db: Session, product_id: int) -> list[dict]:
+    """Lots que es poden triar en dispensar: actius i amb existències. Vista mínima (sense origen, proveïdor ni anàlisi),
+    pensada per al dispensador, que no és encarregat."""
+    vistes = ((b, remaining_mg(db, b.id)) for b in db.scalars(
+        select(Batch).where(Batch.product_id == product_id, Batch.actiu.is_(True)).order_by(Batch.data_entrada, Batch.id)))
+    return [{"id": b.id, "codi": b.codi, "data_entrada": b.data_entrada.isoformat(), "existencies_mg": mg} for b, mg in vistes if mg > 0]
+
+
 def _view(db: Session, b: Batch) -> dict:
     return {"id": b.id, "product_id": b.product_id, "codi": b.codi, "origen": b.origen, "proveidor": b.proveidor, "collita": b.collita,
             "data_entrada": b.data_entrada.isoformat(), "analisi": b.analisi, "actiu": b.actiu, "existencies_mg": remaining_mg(db, b.id)}

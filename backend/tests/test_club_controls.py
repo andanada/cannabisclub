@@ -187,6 +187,33 @@ def test_lot_manual_i_limits(ctx):
     assert client.get("/lots/9999/tracabilitat", headers=enc).status_code == 404
 
 
+def test_selector_de_lot_dispensador_veu_nomes_lots_amb_existencies_i_dispensa_amb_lot(ctx):
+    client, factory, sec = ctx
+    enc, dsp = token(client, sec, "enc"), token(client, sec, "disp")
+    mid, pid = setup_data(client, enc, factory, gprod="0.001")
+    a, b, c = lot(client, enc, pid, "A", data_entrada="2026-01-01"), lot(client, enc, pid, "B", data_entrada="2026-02-01"), lot(client, enc, pid, "C")
+    for lid, g in ((a, "1"), (b, "4")):
+        assert client.post(f"/lots/{lid}/entrada", json={"grams": g}, headers=enc).status_code == 201
+    assert client.post(f"/lots/{a}/tancar", headers=enc).status_code == 200
+    # el dispensador (no encarregat) veu només lots actius amb existències i només camps mínims
+    r = client.get(f"/productes/{pid}/lots-dispensables", headers=dsp)
+    assert r.status_code == 200
+    assert r.json() == [{"id": b, "codi": "B", "data_entrada": "2026-02-01", "existencies_mg": 4000}]
+    assert client.get(f"/productes/{pid}/lots-dispensables", headers={}).status_code == 401
+    assert client.get("/productes/9999/lots-dispensables", headers=dsp).status_code == 404
+    # dispensació normal amb lot triat: surt d'aquell lot i no del FIFO
+    cos = {"member_id": mid, "product_id": pid, "grams": "1.5"}
+    d = client.post("/dispensacions", json={**cos, "batch_id": b}, headers=dsp)
+    assert d.status_code == 201 and "cobrat" in d.json()
+    with factory() as s:
+        assert lots.remaining_mg(s, b) == 2500 and lots.remaining_mg(s, a) == 1000
+    r = client.post("/dispensacions", json={**cos, "grams": "3", "batch_id": b}, headers=dsp)
+    assert r.status_code == 422 and "prou existències" in r.json()["detail"]
+    assert client.post("/dispensacions", json={**cos, "batch_id": c}, headers=dsp).status_code == 422   # sense existències
+    # sense batch_id continua el FIFO de sempre
+    assert client.post("/dispensacions", json=cos, headers=dsp).status_code == 201
+
+
 def test_producte_sense_lots_funciona_com_abans_i_fifo_no_assigna_el_que_falta(ctx):
     client, factory, sec = ctx
     enc = token(client, sec, "enc")

@@ -157,10 +157,24 @@ VIEWS.dispensar = async () => {
       const l = await api(`/locals/${S.local}/descomptes?producte=${p.id}`);
       descSel.replaceChildren(sense(), ...l.map((d) => h('option', { value: d.id }, `${d.nom} (${d.tipus === 'percent' ? d.valor + ' %' : eur(d.valor) + '/g'})`)));
     };
+    // Lots amb existències del producte triat. Sense lots, el camp s'amaga i la dispensació surt pel FIFO com sempre.
+    const lotSel = h('select', { 'aria-label': 'Lot' });
+    const lotField = field('Lot', lotSel);
+    lotField.style.display = 'none';
+    const carregaLots = async (p) => {
+      lotSel.replaceChildren();
+      lotField.style.display = 'none';
+      const l = await api(`/productes/${p.id}/lots-dispensables`);
+      if (chosen !== p || !l.length) return;
+      lotSel.replaceChildren(h('option', { value: '' }, 'Automàtic (lot més antic)'),
+        ...l.map((b) => h('option', { value: b.id }, `${b.codi} · ${mgToG(b.existencies_mg)} g`)));
+      lotField.style.display = '';
+    };
     const list = h('div', { class: 'products' }, productes.map((p) => {
       const b = h('button', { 'aria-pressed': 'false', onclick: () => {
         chosen = p; list.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
         carregaDescomptes(p).catch(() => descSel.replaceChildren(sense()));
+        carregaLots(p).catch(() => { lotSel.replaceChildren(); lotField.style.display = 'none'; });
       } }, productThumb(p, 44), h('strong', null, p.nom), h('span', { class: 'muted' }, p.estoc_g + ' g · ' + eur(p.preu_cent_per_g) + '/g'));
       return b;
     }));
@@ -176,6 +190,7 @@ VIEWS.dispensar = async () => {
       const body = { member_id: m.id, product_id: chosen.id,
         grams: parseGrams(g.value), pes_bascula_g: pes.value.trim() ? parseGrams(pes.value) : null,
         discount_id: descSel.value ? Number(descSel.value) : null };
+      if (lotSel.value) body.batch_id = Number(lotSel.value);
       if (metode) body.metode = metode;
       const r = await api('/dispensacions', { method: 'POST', body });
       if (r.cobrat) {
@@ -189,7 +204,7 @@ VIEWS.dispensar = async () => {
     btnTargeta.onclick = () => envia(btnTargeta, 'targeta');
     return h('form', { class: 'card', onsubmit: (e) => { e.preventDefault(); envia(btnApart, null); } }, h('h3', null, 'Producte'), list,
     scale,
-    h('div', { class: 'row' }, field('Quantitat (g)', g), field('Bàscula (g)', pes), field('Descompte', descSel)),
+    h('div', { class: 'row' }, field('Quantitat (g)', g), field('Bàscula (g)', pes), field('Descompte', descSel), lotField),
     h('div', { class: 'actions' }, btnEfectiu, btnTargeta, btnApart), out);
   }
 

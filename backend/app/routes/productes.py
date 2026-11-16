@@ -32,6 +32,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         pes_bascula_g: Decimal | None = Field(default=None, gt=0, max_digits=9, decimal_places=3)
         discount_id: int | None = None
         metode: str | None = Field(default=None, max_length=20)  # amb mètode es cobra en la mateixa transacció
+        batch_id: int | None = None  # lot triat; buit = FIFO (lot més antic amb existències)
 
     class CorreccioIn(BaseModel):
         nota: str = Field(min_length=3, max_length=300)
@@ -108,7 +109,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.post("/dispensacions", status_code=201)
     def dispensacio(body: DispensacioIn, user: User = Depends(current_user), s: Session = Depends(db)):
         product_or_404(s, user, body.product_id)
-        m = run(stock.dispense, s, user, body.member_id, body.product_id, body.grams, body.pes_bascula_g, None, body.discount_id, body.metode)
+        m = run(stock.dispense, s, user, body.member_id, body.product_id, body.grams, body.pes_bascula_g, None, body.discount_id, body.metode, body.batch_id)
         return {"id": m.id, "import_cent": m.import_cent, "descompte_cent": getattr(m, "descompte_cent", 0), "cobrat": body.metode is not None}
 
     @app.post("/moviments/{movement_id}/correccio", status_code=201)

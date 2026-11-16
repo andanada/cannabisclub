@@ -1020,6 +1020,7 @@ Object.assign(I18N.es, {
  "Primer cal crear productes.": "Primero hay que crear productos.",
  "Lots per producte": "Lotes por producto",
  "Lot": "Lote",
+ "Automàtic (lot més antic)": "Automático (lote más antiguo)",
  "Proveïdor": "Proveedor",
  "Grams que entren en aquest lot": "Gramos que entran en este lote",
  "Traçabilitat": "Trazabilidad",
