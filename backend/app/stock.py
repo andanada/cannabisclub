@@ -309,7 +309,10 @@ def shrink(db: Session, actor: User, product_id: int, grams: Decimal, nota: str)
     m = StockMovement(local_id=p.local_id, product_id=p.id, tipus="merma", delta_mg=-mg, user_id=actor.id, nota=nota)
     db.add(m)
     db.flush()
-    service.audit_append(db, {"accio": "merma", "moviment": m.id, "producte": p.id, "mg": mg, "per": actor.id})
+    from . import lots
+    pla = lots.attach_outflow(db, m, p, mg)
+    service.audit_append(db, {"accio": "merma", "moviment": m.id, "producte": p.id, "mg": mg,
+                              **({"lots": [[b, x] for b, x in pla]} if pla else {}), "per": actor.id})
     db.commit()
     return m
 
@@ -326,7 +329,10 @@ def adjust(db: Session, actor: User, product_id: int, grams_reals: Decimal, nota
     m = StockMovement(local_id=p.local_id, product_id=p.id, tipus="ajust", delta_mg=delta, user_id=actor.id, nota=nota)
     db.add(m)
     db.flush()
-    service.audit_append(db, {"accio": "ajust_inventari", "moviment": m.id, "producte": p.id, "delta_mg": delta, "per": actor.id})
+    from . import lots
+    pla = lots.attach_outflow(db, m, p, -delta) if delta < 0 else []   # a l'alça no se sap de quin lot és: queda sense lot
+    service.audit_append(db, {"accio": "ajust_inventari", "moviment": m.id, "producte": p.id, "delta_mg": delta,
+                              **({"lots": [[b, x] for b, x in pla]} if pla else {}), "per": actor.id})
     db.commit()
     return m
 

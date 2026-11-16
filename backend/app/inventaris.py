@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from . import service, stock, unitats
+from . import lots, service, stock, unitats
 from .races import flush_or_error
 from .models import InventoryCount, InventorySession, Product, StockMovement, User
 
@@ -107,7 +107,9 @@ def tancar(db: Session, actor: User, s: InventorySession) -> dict:
         m = StockMovement(local_id=p.local_id, product_id=p.id, tipus="ajust", delta_mg=delta, user_id=actor.id, nota=f"Inventari #{s.id}")
         db.add(m)
         db.flush()
-        service.audit_append(db, {"accio": "ajust_inventari", "moviment": m.id, "producte": p.id, "delta_mg": delta, "inventari": s.id, "per": actor.id})
+        pla = lots.attach_outflow(db, m, p, -delta) if delta < 0 else []   # la falta també surt dels lots (FIFO)
+        service.audit_append(db, {"accio": "ajust_inventari", "moviment": m.id, "producte": p.id, "delta_mg": delta, "inventari": s.id,
+                                  **({"lots": [[b, x] for b, x in pla]} if pla else {}), "per": actor.id})
         ajustos += 1
     total = db.scalar(select(func.count()).select_from(Product).where(Product.local_id == s.local_id, Product.actiu.is_(True)))
     pendents = total - ajustos - sense

@@ -214,6 +214,54 @@ def test_selector_de_lot_dispensador_veu_nomes_lots_amb_existencies_i_dispensa_a
     assert client.post("/dispensacions", json=cos, headers=dsp).status_code == 201
 
 
+def test_merma_ajust_i_inventari_tambe_baixen_les_existencies_dels_lots(ctx):
+    """Sense això el lot conserva grams que ja no existeixen i el FIFO i el selector els continuen oferint."""
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid, pid = setup_data(client, enc, factory, gprod="0.001")
+    a, b = lot(client, enc, pid, "A", data_entrada="2026-01-01"), lot(client, enc, pid, "B", data_entrada="2026-02-01")
+    client.post(f"/lots/{a}/entrada", json={"grams": "3"}, headers=enc)
+    client.post(f"/lots/{b}/entrada", json={"grams": "4"}, headers=enc)
+
+    def queden():
+        with factory() as s:
+            return lots.remaining_mg(s, a), lots.remaining_mg(s, b)
+
+    # merma de 4 g: 3 del lot més antic i 1 del següent
+    r = client.post("/moviments/merma", json={"product_id": pid, "grams": "4", "nota": "floridura"}, headers=enc)
+    assert r.status_code == 201, r.text
+    assert queden() == (0, 3000)
+    assert [x["codi"] for x in client.get(f"/productes/{pid}/lots-dispensables", headers=enc).json()] == ["B"]
+    # corregir la merma torna els grams als lots
+    assert client.post(f"/moviments/{r.json()['id']}/correccio", json={"nota": "error"}, headers=enc).status_code == 201
+    assert queden() == (3000, 4000)
+    # ajust d'inventari a la baixa (7,001 g -> 5 g): surt del lot més antic
+    assert client.post("/moviments/ajust", json={"product_id": pid, "grams_reals": "5", "nota": "recompte"}, headers=enc).status_code == 201
+    assert queden() == (999, 4000)
+    # ajust a l'alça: no s'assigna a cap lot (no se sap de quin és)
+    assert client.post("/moviments/ajust", json={"product_id": pid, "grams_reals": "6", "nota": "recompte"}, headers=enc).status_code == 201
+    assert queden() == (999, 4000)
+    # inventari: comptats 4 g (teòric 6 g) -> -2 g, primer el que queda d'A i després B
+    sid = client.post("/locals/1/inventaris", json={}, headers=enc).json()["id"]
+    assert client.put(f"/inventaris/{sid}/linies/{pid}", json={"grams": "4"}, headers=enc).status_code == 200
+    assert client.post(f"/inventaris/{sid}/tancar", headers=enc).status_code == 200
+    assert queden() == (0, 2999)
+    # la suma dels lots mai supera l'estoc del producte
+    with factory() as s:
+        from app import stock as _stock
+        assert sum(queden()) <= _stock.stock_mg(s, pid)
+
+
+def test_merma_d_un_producte_sense_lots_no_crea_cap_apunt_de_lot(ctx):
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid, pid = setup_data(client, enc, factory, gprod="10")
+    r = client.post("/moviments/merma", json={"product_id": pid, "grams": "1", "nota": "prova"}, headers=enc)
+    assert r.status_code == 201
+    with factory() as s:
+        assert s.scalar(select(MovementBatch).where(MovementBatch.movement_id == r.json()["id"])) is None
+
+
 def test_producte_sense_lots_funciona_com_abans_i_fifo_no_assigna_el_que_falta(ctx):
     client, factory, sec = ctx
     enc = token(client, sec, "enc")

@@ -2,6 +2,9 @@
 (lot més antic amb existències). El lot d'un moviment viu a `movement_batches` (només d'afegir), amb els mg per lot: una
 dispensació gran pot repartir-se entre diversos lots. Un producte sense lots funciona exactament com abans.
 
+Les sortides que no són dispensacions (merma, ajust a la baixa, inventari) també surten dels lots per FIFO (`attach_outflow`):
+la suma de les existències dels lots mai no supera l'estoc del producte.
+
 Límit conegut: els traspassos entre magatzems no porten lot, així que les existències per lot són orientatives si s'hi
 fan traspassos; el balanç per producte continua sent el de `stock_movements`."""
 import re
@@ -37,21 +40,32 @@ def remaining_mg(db: Session, batch_id: int) -> int:
     return int(db.scalar(select(func.coalesce(func.sum(MovementBatch.mg), 0)).where(MovementBatch.batch_id == batch_id)))
 
 
+def remaining_by_batch(db: Session, product_id: int) -> dict[int, int]:
+    """Existències (mg) de tots els lots d'un producte en UNA consulta (els lots sense moviments no hi surten: 0)."""
+    files = db.execute(select(MovementBatch.batch_id, func.coalesce(func.sum(MovementBatch.mg), 0))
+                       .join(Batch, Batch.id == MovementBatch.batch_id).where(Batch.product_id == product_id)
+                       .group_by(MovementBatch.batch_id))
+    return {bid: int(mg) for bid, mg in files}
+
+
 def list_batches(db: Session, product_id: int) -> list[dict]:
-    return [_view(db, b) for b in db.scalars(select(Batch).where(Batch.product_id == product_id).order_by(Batch.data_entrada, Batch.id))]
+    queden = remaining_by_batch(db, product_id)
+    return [_view(b, queden.get(b.id, 0))
+            for b in db.scalars(select(Batch).where(Batch.product_id == product_id).order_by(Batch.data_entrada, Batch.id))]
 
 
 def list_dispensable(db: Session, product_id: int) -> list[dict]:
     """Lots que es poden triar en dispensar: actius i amb existències. Vista mínima (sense origen, proveïdor ni anàlisi),
     pensada per al dispensador, que no és encarregat."""
-    vistes = ((b, remaining_mg(db, b.id)) for b in db.scalars(
+    queden = remaining_by_batch(db, product_id)
+    vistes = ((b, queden.get(b.id, 0)) for b in db.scalars(
         select(Batch).where(Batch.product_id == product_id, Batch.actiu.is_(True)).order_by(Batch.data_entrada, Batch.id)))
     return [{"id": b.id, "codi": b.codi, "data_entrada": b.data_entrada.isoformat(), "existencies_mg": mg} for b, mg in vistes if mg > 0]
 
 
-def _view(db: Session, b: Batch) -> dict:
+def _view(b: Batch, existencies_mg: int) -> dict:
     return {"id": b.id, "product_id": b.product_id, "codi": b.codi, "origen": b.origen, "proveidor": b.proveidor, "collita": b.collita,
-            "data_entrada": b.data_entrada.isoformat(), "analisi": b.analisi, "actiu": b.actiu, "existencies_mg": remaining_mg(db, b.id)}
+            "data_entrada": b.data_entrada.isoformat(), "analisi": b.analisi, "actiu": b.actiu, "existencies_mg": existencies_mg}
 
 
 # ---------- ganxos de stock.py ----------
@@ -80,15 +94,35 @@ def plan_dispense(db: Session, product: Product, mg: int, batch_id: int | None) 
         if remaining_mg(db, b.id) < mg:
             raise ValueError("El lot triat no té prou existències")
         return [(b.id, mg)]
+    return _fifo(db, product, mg, nomes_actius=True)
+
+
+def _fifo(db: Session, product: Product, mg: int, nomes_actius: bool) -> list[tuple[int, int]]:
+    """Del lot més antic al més nou. Amb `nomes_actius=False`, després dels actius s'esgoten també els tancats."""
+    queden = remaining_by_batch(db, product.id)
+    if not queden:
+        return []
+    q = select(Batch).where(Batch.product_id == product.id)
+    q = q.where(Batch.actiu.is_(True)) if nomes_actius else q
     pla, falta = [], mg
-    for b in db.scalars(select(Batch).where(Batch.product_id == product.id, Batch.actiu.is_(True)).order_by(Batch.data_entrada, Batch.id)):
+    for b in db.scalars(q.order_by(Batch.actiu.desc(), Batch.data_entrada, Batch.id)):
         if falta <= 0:
             break
-        queda = remaining_mg(db, b.id)
+        queda = queden.get(b.id, 0)
         if queda > 0:
             agafa = min(queda, falta)
             pla.append((b.id, agafa))
             falta -= agafa
+    return pla
+
+
+def attach_outflow(db: Session, movement: StockMovement, product: Product, mg: int) -> list[tuple[int, int]]:
+    """Sortida que no és una dispensació (merma, ajust a la baixa, inventari): també surt dels lots, per FIFO, perquè les
+    existències per lot no conservin grams que ja no existeixen. Un lot tancat ja no es dispensa, però el seu producte sí
+    que es pot fer malbé o faltar en un recompte: s'esgoten primer els actius i després els tancats. El que no cobreixin
+    els lots és producte sense lot. Retorna el repartiment [(lot, mg)] per a l'auditoria."""
+    pla = _fifo(db, product, mg, nomes_actius=False)
+    attach_dispense(db, movement, pla)
     return pla
 
 
@@ -119,7 +153,7 @@ def trace(db: Session, batch: Batch) -> dict:
         elif m.tipus == "dispensacio" and m.id not in corregits:
             sortit += -mb.mg
             socis.add(m.member_id)
-    return {"lot": _view(db, batch), "moviments": moviments, "entrat_mg": entrat, "dispensat_mg": sortit,
+    return {"lot": _view(batch, remaining_mg(db, batch.id)), "moviments": moviments, "entrat_mg": entrat, "dispensat_mg": sortit,
             "existencies_mg": remaining_mg(db, batch.id), "socis_afectats": sorted(s for s in socis if s is not None)}
 
 
