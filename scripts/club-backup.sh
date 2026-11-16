@@ -83,7 +83,7 @@ make_keys_package() {
   [ -r "$KEYS_FILE" ] || die "no puc llegir $KEYS_FILE"
   local ts out
   ts="$(date +%Y%m%d-%H%M%S)"; out="$DEST/club-keys-$ts.keys.gpg"
-  grep -E '^(CLUB_FIELD_KEY|CLUB_INDEX_KEY)=' "$KEYS_FILE" \
+  grep -E '^(CLUB_FIELD_KEY|CLUB_INDEX_KEY|CLUB_AUDIT_KEY|CLUB_AUDIT_HMAC_DES_DE)=' "$KEYS_FILE" \
     | gpg --batch --yes --trust-model always -r "$CLUB_BACKUP_KEYS_RECIPIENT" ${CLUB_BACKUP_SIGNER:+-u "$CLUB_BACKUP_SIGNER" --sign} -e -o "$out.part"
   mv -- "$out.part" "$out"
   sha256sum "$out" | sed "s# .*/# #" > "$out.sha256"
@@ -99,7 +99,7 @@ make_keys_package() {
   echo "Paquet de claus: $out"
 }
 
-keys_fingerprint() { grep -E '^(CLUB_FIELD_KEY|CLUB_INDEX_KEY)=' "$KEYS_FILE" | sha256sum | cut -d' ' -f1; }
+keys_fingerprint() { grep -E '^(CLUB_FIELD_KEY|CLUB_INDEX_KEY|CLUB_AUDIT_KEY|CLUB_AUDIT_HMAC_DES_DE)=' "$KEYS_FILE" | sha256sum | cut -d' ' -f1; }
 
 keys_changed() {  # cert si les claus actuals no coincideixen amb l'última empremta registrada (no escriu res)
   local cur last="$DEST/.keys.fingerprint"

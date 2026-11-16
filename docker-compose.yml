@@ -1,8 +1,14 @@
 # PostgreSQL només a localhost. Les credencials vénen de .env (no versionat).
+# Nom fix del projecte: el contenidor es diu sempre «club-gestio-db-1» (el que esperen club-backup.sh i docs/COPIES.md),
+# es digui com es digui la carpeta on és el repositori.
+name: club-gestio
 services:
   db:
     image: postgres:17
     restart: unless-stopped
+    logging:   # sense límit, el registre del contenidor pot omplir el disc
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
     environment:
       POSTGRES_DB: club
       POSTGRES_USER: club

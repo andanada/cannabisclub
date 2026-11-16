@@ -21,7 +21,9 @@ REMOTE="$T/remot"; mkdir -p "$REMOTE"
 
 PW="$(head -c 18 /dev/urandom | base64 | tr -d '/+=')"
 docker run -d --rm --name "$SRC" -e POSTGRES_USER=club -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=club -p 127.0.0.1::5432 postgres:17 >/dev/null
-for _ in $(seq 1 40); do docker exec "$SRC" pg_isready -U club -d club >/dev/null 2>&1 && break; sleep 1; done
+# per TCP: pel socket ja respon el servidor temporal d'inicialitzaciÃ³ de la imatge, que desprÃ©s s'apaga
+for _ in $(seq 1 60); do docker exec "$SRC" pg_isready -h 127.0.0.1 -U club -d club >/dev/null 2>&1 && break; sleep 1; done
+docker exec "$SRC" pg_isready -h 127.0.0.1 -U club -d club >/dev/null 2>&1 || fail "el PostgreSQL de prova no arrenca"
 PORT="$(docker port "$SRC" 5432/tcp | head -1 | sed 's/.*://')"
 APPPW="$(head -c 18 /dev/urandom | base64 | tr -d '/+=')"
 FKEY="$("$PY" -I -c 'from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())')"
@@ -56,45 +58,46 @@ CLUB_INDEX_KEY=clau-index-de-prova
 ENVEOF
 export CLUB_ENV_FILE="$T/env" CLUB_DB_CONTAINER="$SRC" CLUB_BACKUP_DIR="$T/backups" CLUB_BACKUP_GPG_RECIPIENT="volcat@club.local"   CLUB_BACKUP_KEYS_RECIPIENT="claus@club.local" CLUB_BACKUP_SIGNER="torre@club.local" CLUB_BACKUP_SIGNER_FPR="$SIGNER_FPR"   CLUB_BACKUP_REMOTE="$REMOTE"
 
-echo "== 0. sense remot la còpia ha de fallar sorollosament"
+echo "== 0. sense remot la cÃ²pia ha de fallar sorollosament"
 if CLUB_BACKUP_REMOTE="" "$REPO/scripts/club-backup.sh" run >/dev/null 2>&1; then fail "ha acceptat no tenir remot"; fi
 echo "   correcte: es nega"
 
-echo "== 1. còpia"
+echo "== 1. cÃ²pia"
 "$REPO/scripts/club-backup.sh" run 2>&1 | tail -3
 FILE="$(ls "$T"/backups/club-*.dump.gpg | head -1)"
-[ -s "$FILE" ] || fail "no s'ha creat la còpia"
+[ -s "$FILE" ] || fail "no s'ha creat la cÃ²pia"
 [ -s "$REMOTE/$(basename "$FILE")" ] || fail "no s'ha copiat al remot"
 KEYS="$(ls "$T"/backups/club-keys-*.keys.gpg | head -1)"
 [ -s "$KEYS" ] || fail "no hi ha paquet de claus"
-! compgen -G "$T/backups/.work*" >/dev/null || fail "hi ha fitxers intermedis"
+! compgen -G "$T/backups/*.part" >/dev/null || fail "hi ha fitxers intermedis"
+[ -s "$FILE.anchor" ] || fail "no s'ha desat l'ancoratge d'auditoria al costat de la cÃ²pia"
 
 echo "== 2. cap dada ni clau en clar, i claus separades del volcat"
 for f in "$FILE" "$KEYS"; do
   for needle in "Anna Prova" "12345678Z" "anna@example.com" "CLUB_FIELD_KEY" "$FKEY" "PGDMP"; do
-    ! grep -aqF "$needle" "$f" || fail "$f conté «$needle»"
+    ! grep -aqF "$needle" "$f" || fail "$f contÃ© Â«$needleÂ»"
   done
 done
 [ "$(gpg --batch --decrypt "$KEYS" 2>/dev/null | grep -c "^CLUB_FIELD_KEY=")" = 1 ] || fail "el paquet de claus no s'obre amb la seva clau"
-[ "$( { gpg --batch --decrypt "$FILE" 2>/dev/null || true; } | head -c5)" = PGDMP ] || fail "el volcat no és un volcat"
+[ "$( { gpg --batch --decrypt "$FILE" 2>/dev/null || true; } | head -c5)" = PGDMP ] || fail "el volcat no Ã©s un volcat"
 echo "   correcte"
 
-echo "== 3. restauració, signatura i verificació"
+echo "== 3. restauraciÃ³, signatura i verificaciÃ³"
 "$REPO/scripts/club-backup.sh" restore-test "$FILE"
 
 echo "== 4. signatura d'una altra clau: s'ha de rebutjar"
 if CLUB_BACKUP_SIGNER_FPR="0000000000000000000000000000000000000000" "$REPO/scripts/club-backup.sh" restore-test "$FILE" >/dev/null 2>&1; then fail "ha acceptat una empremta equivocada"; fi
 echo "   correcte"
 
-echo "== 5. sense sha256 o còpia alterada: s'ha de detectar"
+echo "== 5. sense sha256 o cÃ²pia alterada: s'ha de detectar"
 cp "$FILE" "$T/tamper.dump.gpg"
-if "$REPO/scripts/club-backup.sh" restore-test "$T/tamper.dump.gpg" >/dev/null 2>&1; then fail "ha acceptat una còpia sense sha256"; fi
+if "$REPO/scripts/club-backup.sh" restore-test "$T/tamper.dump.gpg" >/dev/null 2>&1; then fail "ha acceptat una cÃ²pia sense sha256"; fi
 cp "$FILE.sha256" "$T/tamper.dump.gpg.sha256"; sed -i 's/club-[0-9-]*\.dump\.gpg/tamper.dump.gpg/' "$T/tamper.dump.gpg.sha256"
 ORIG="$(dd if="$T/tamper.dump.gpg" bs=1 skip=200 count=1 2>/dev/null | od -An -tu1 | tr -d " ")"
 # shellcheck disable=SC2059  # intencionat: el format es construeix per escriure un byte arbitrari
 printf "$(printf '\%03o' $(( (ORIG + 1) % 256 )))" | dd of="$T/tamper.dump.gpg" bs=1 seek=200 conv=notrunc 2>/dev/null
 ! cmp -s "$FILE" "$T/tamper.dump.gpg" || fail "la prova no ha alterat la copia"
-if "$REPO/scripts/club-backup.sh" restore-test "$T/tamper.dump.gpg" >/dev/null 2>&1; then fail "una còpia alterada s'ha acceptat"; fi
+if "$REPO/scripts/club-backup.sh" restore-test "$T/tamper.dump.gpg" >/dev/null 2>&1; then fail "una cÃ²pia alterada s'ha acceptat"; fi
 echo "   correcte"
 
 echo "== 6. sense la clau privada no es pot desxifrar"
@@ -102,7 +105,7 @@ export GNUPGHOME="$T/altre"; mkdir -m 700 "$GNUPGHOME"
 if "$REPO/scripts/club-backup.sh" restore-test "$FILE" >/dev/null 2>&1; then fail "s'ha desxifrat sense la clau privada"; fi
 echo "   correcte"
 
-echo "== 7. retenció per capes (diàries 2 en aquesta prova), també al remot"
+echo "== 7. retenciÃ³ per capes (diÃ ries 2 en aquesta prova), tambÃ© al remot"
 export GNUPGHOME="$T/gnupg" CLUB_BACKUP_KEEP_DAILY=2 CLUB_BACKUP_KEEP_WEEKLY=1 CLUB_BACKUP_KEEP_MONTHLY=1
 for d in 20250101 20250102 20250103 20250104; do
   for dir in "$T/backups" "$REMOTE"; do : > "$dir/club-$d-030000.dump.gpg"; : > "$dir/club-$d-030000.dump.gpg.sha256"; done
@@ -110,7 +113,7 @@ done
 "$REPO/scripts/club-backup.sh" prune
 for dir in "$T/backups" "$REMOTE"; do
   N="$(ls "$dir"/club-2025*.dump.gpg 2>/dev/null | wc -l)"
-  [ "$N" -le 2 ] || fail "retenció: a $dir queden $N còpies antigues"
+  [ "$N" -le 2 ] || fail "retenciÃ³: a $dir queden $N cÃ²pies antigues"
 done
 echo "   correcte"
 echo "TOT CORRECTE"

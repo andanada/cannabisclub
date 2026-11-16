@@ -28,6 +28,8 @@ o un suport extern no pugui substituir una còpia per una altra sense que ho det
 3. A la torre: `gpg --import A-publica.asc B-publica.asc` i marca-les fiables (`gpg --edit-key <id> trust`).
 4. A la torre, genera la clau de signatura (sense contrasenya, només per signar): `gpg --batch --passphrase '' --quick-generate-key torre-club@local ed25519 sign 5y`.
    Apunta la seva empremta (`gpg --fingerprint torre-club@local`) i guarda-la **fora de la torre** (és el que s'exigeix a la restauració).
+   Exporta també la **clau pública** de signatura i guarda-la amb l'empremta: `gpg --armor --export torre-club@local > torre-signatura-publica.asc`.
+   Sense ella, si la torre mor, `restore-test` no pot comprovar cap signatura (i una còpia que no passa no s'ha de restaurar).
 5. `~/.config/club-gestio/backup.env`:
 
         CLUB_BACKUP_GPG_RECIPIENT=<id clau A>
@@ -82,13 +84,13 @@ Cal copiar a l'ordinador el volcat des del **remot** (no de la torre): és la c�
 
 ## Recuperar una torre morta (procediment complet)
 
-Material de custòdia necessari (tot fora de la torre): clau privada A (+ contrasenya), clau privada B (+ contrasenya), empremta de signatura, accés al remot de volcats i al de claus, i còpia de `app.env` si no el tens al paquet de claus.
+Material de custòdia necessari (tot fora de la torre): clau privada A (+ contrasenya), clau privada B (+ contrasenya), empremta **i clau pública** de signatura (`torre-signatura-publica.asc`), accés al remot de volcats i al de claus, i còpia de `app.env` si no el tens al paquet de claus.
 
 1. **Maquinari/SO nou.** Instal·la Linux, Docker, Python 3.12, nginx, Tailscale/xarxa. Clona el repositori a `/data/repos/club-gestio`; `python3 -m venv .venv && .venv/bin/pip install --require-hashes -r requirements.lock`.
-2. **Recupera les claus de camp.** En un ordinador de confiança (no a la torre nova encara) importa la clau B i desxifra: `gpg --decrypt club-keys-XXXX.keys.gpg` → `CLUB_FIELD_KEY=` i `CLUB_INDEX_KEY=`. Crea `~/.config/club-gestio/app.env` (mode 600) amb elles. **Sense `CLUB_FIELD_KEY` les dades personals són irrecuperables; sense `CLUB_INDEX_KEY` es perden cerques per document, PIN i carnets (cal reassignar-los).**
-3. **Tria el volcat.** Baixa del remot el més recent (`club-*.dump.gpg` + `.sha256`). Fes `restore-test` al teu ordinador: confirma hash, signatura i auditoria. Si falla, prova el volcat anterior; no restauris mai una còpia que no passi.
+2. **Recupera les claus de camp.** En un ordinador de confiança (no a la torre nova encara) importa la clau B i desxifra: `gpg --decrypt club-keys-XXXX.keys.gpg` → `CLUB_FIELD_KEY=`, `CLUB_INDEX_KEY=` i, si es feien servir, `CLUB_AUDIT_KEY=` i `CLUB_AUDIT_HMAC_DES_DE=`. Crea `~/.config/club-gestio/app.env` (mode 600) amb elles. **Sense `CLUB_FIELD_KEY` les dades personals són irrecuperables; sense `CLUB_INDEX_KEY` es perden cerques per document, PIN i carnets (cal reassignar-los).**
+3. **Tria el volcat.** Baixa del remot el més recent (`club-*.dump.gpg` + `.sha256`). Importa la clau pública de signatura (`gpg --import torre-signatura-publica.asc`) i fes `restore-test` al teu ordinador: confirma hash, signatura i auditoria. Si falla, prova el volcat anterior; no restauris mai una còpia que no passi.
 4. **PostgreSQL nou.** `docker compose up -d db` (amb `CLUB_DB_PASSWORD` nova al `.env`).
-5. **Restaura.** `gpg --decrypt club-XXXX.dump.gpg | docker exec -i club-gestio-db-1 pg_restore -U club -d club --no-owner --exit-on-error` (BD buida).
+5. **Restaura.** `gpg --decrypt club-XXXX.dump.gpg | docker exec -i club-gestio-db-1 pg_restore -U club -d club --no-owner --no-privileges --exit-on-error` (BD buida). `--no-privileges` és imprescindible: el volcat porta els permisos del rol `club_app`, que encara no existeix (es crea al pas 6, que torna a donar els permisos); sense l'opció, `pg_restore` s'atura amb «role club_app does not exist».
 6. **Rol i permisos.** `cd backend && CLUB_DATABASE_URL=<propietari> ../.venv/bin/python -m app.cli preparar-bd ../.env` (crea `club_app` amb contrasenya nova) i, per assegurar triggers/permisos, `actualitzar-bd`. Passa `CLUB_APP_DATABASE_URL` a `app.env` i esborra-la del `.env`.
 7. **Servei.** Instal·la `club-gestio.service` (+ nginx de `scripts/nginx/`, certificat) i arrenca. Comprova `GET /salut`, entra, i **Configuració → Seguretat → Verificar auditoria**.
 8. **Còpies de nou.** Genera una clau de signatura NOVA, importa A i B públiques, actualitza `backup.env`, **actualitza l'empremta de custòdia**, executa `club-backup.sh run` i `restore-test`. Reactiva els timers.
