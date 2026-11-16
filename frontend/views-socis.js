@@ -50,7 +50,7 @@ function cardManager(m, out, reload) {
   const form = h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(assign, out, async () => {
-      await api(`/socis/${m.id}/carnet`, { method: 'POST', body: { codi: codi.value.trim() } });
+      await api(`/socis/${m.id}/carnet`, { method: 'POST', body: { codi: normalizeScan(codi.value, await readerProfile()) } });
       codi.value = '';
       toast('Carnet assignat');
       reload();

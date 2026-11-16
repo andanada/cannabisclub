@@ -57,7 +57,8 @@ function renderLogin() {
       } catch (err) { tornaAlCarnet(); throw err; }
     });
   } }, h('div', { class: 'carnet-icona', 'aria-hidden': 'true' }, '▦'), h('div', { class: 'carnet-text' }, h('strong', null, 'Entra amb el carnet'), h('span', { class: 'muted' }, 'Carnet més PIN: ràpid i segur.')),
-  pasCarnet, pasPin, carnetOut, h('div', { class: 'separador' }, h('span', null, 'o amb usuari i contrasenya')));
+  // Botó d'enviament amagat: amb dos camps de text i cap botó «submit», l'Intro del lector no enviaria el formulari.
+  pasCarnet, pasPin, carnetOut, h('button', { type: 'submit', hidden: true, tabindex: '-1', 'aria-hidden': 'true' }, 'Entrar'), h('div', { class: 'separador' }, h('span', null, 'o amb usuari i contrasenya')));
   // Si el servidor no exigeix el segon factor (servidor de proves), el camp no es mostra; si permet el carnet, es mostra i s'enfoca.
   fetch('/auth/opcions').then((r) => r.json()).then((o) => {
     if (!o.totp) { codeField.hidden = true; code.required = false; }

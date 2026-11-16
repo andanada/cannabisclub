@@ -49,4 +49,12 @@ function validaTelefon(valor) {
   return /^\+?\d{9,15}$/.test(v) ? { ok: true, text: '' } : { ok: false, text: 'El telèfon ha de tenir de 9 a 15 xifres' };
 }
 
-if (typeof module !== 'undefined') module.exports = { validaDocument, edatDe, validaNaixement, validaCorreu, validaTelefon };
+// Cerca de soci al taulell: si s'acaba de passar un carnet, mana el carnet, encara que hagi quedat un document escrit d'abans.
+function triaCerca(docText, carnetText) {
+  const c = String(carnetText || '').trim();
+  if (c) return { per: 'carnet', valor: c };
+  const d = String(docText || '').trim();
+  return d ? { per: 'document', valor: d } : { per: null, valor: '' };
+}
+
+if (typeof module !== 'undefined') module.exports = { validaDocument, edatDe, validaNaixement, validaCorreu, validaTelefon, triaCerca };

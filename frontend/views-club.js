@@ -14,15 +14,15 @@ async function secControls() {
   async function pintaPendents() {
     const l = await api(`/locals/${S.local}/socis?estat=pendent`);
     pend.replaceChildren(h('h3', null, 'Altes pendents d\'aprovació'), taula([['Soci'], ['']], l.map((m) => {
-      // Els camps de text ocupen tota l'amplada per defecte: aquí han de conviure en una fila amb els dos botons.
-      const motiu = h('input', { maxlength: 200, placeholder: 'Motiu del rebuig', 'aria-label': 'Motiu del rebuig', style: 'flex:1 1 220px;width:auto;min-width:160px' });
+      // La fila (botó, motiu, botó) es maqueta amb la classe .fila-accions de style.css: la CSP no permet estils en línia.
+      const motiu = h('input', { maxlength: 200, placeholder: 'Motiu del rebuig', 'aria-label': 'Motiu del rebuig' });
       const aprova = h('button', { type: 'button', class: 'small', onclick: () => guard(aprova, out, async () => { await api(`/socis/${m.id}/aprovar`, { method: 'POST' }); toast('Soci aprovat'); await pintaPendents(); }) }, 'Aprovar');
       const rebutja = h('button', { type: 'button', class: 'small', onclick: () => guard(rebutja, out, async () => {
         if (motiu.value.trim().length < 3) throw new Error('Escriu el motiu del rebuig (mínim 3 caràcters)');
         await api(`/socis/${m.id}/rebutjar`, { method: 'POST', body: { motiu: motiu.value.trim() } });
         toast('Alta rebutjada'); await pintaPendents();
       }) }, 'Rebutjar');
-      return [`${m.nom} (núm. ${m.id})`, h('div', { class: 'actions', style: 'margin-top:0;align-items:center' }, aprova, motiu, rebutja)];
+      return [`${m.nom} (núm. ${m.id})`, h('div', { class: 'actions fila-accions' }, aprova, motiu, rebutja)];
     }), 'Cap alta pendent.'));
   }
   pintaPendents().catch((e) => pend.replaceChildren(msg('err', e.message)));

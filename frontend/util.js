@@ -6,6 +6,8 @@ let idSeq = 0;
 function h(tag, attrs, ...kids) {
   const e = document.createElement(tag);
   if (tag === 'input' || tag === 'select' || tag === 'textarea') e.id = 'i' + (++idSeq);
+  // Un <button> sense «type» dins d'un <form> l'envia: aquí només envia qui ho demana amb type: 'submit'.
+  if (tag === 'button' && !(attrs && attrs.type)) e.setAttribute('type', 'button');
   for (const [k, v] of Object.entries(attrs || {})) {
     if (k === 'class') e.className = v;
     else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
@@ -73,6 +75,14 @@ async function guard(btn, out, fn) {
   btn.disabled = true;
   out.replaceChildren();
   try { await fn(); } catch (e) { out.replaceChildren(msg('err', e.message)); } finally { btn.disabled = false; }
+}
+
+// Igual, però amb diversos botons que fan la mateixa operació (p. ex. tres maneres de dispensar): es bloquegen tots,
+// perquè prémer-ne un altre mentre el primer treballa no la faci dues vegades.
+async function guardTots(btns, out, fn) {
+  btns.forEach((b) => { b.disabled = true; });
+  out.replaceChildren();
+  try { await fn(); } catch (e) { out.replaceChildren(msg('err', e.message)); } finally { btns.forEach((b) => { b.disabled = false; }); }
 }
 
 const isManager = () => ['admin', 'encarregat'].includes(S.me.role);

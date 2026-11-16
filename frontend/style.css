@@ -66,6 +66,10 @@ button.danger { color: var(--danger); border-color: var(--danger); }
 button.small { min-height: 36px; padding: 4px 12px; font-size: .88rem; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+/* Botons i un camp de text en una sola fila dins d'una cel·la de taula (p. ex. aprovar / motiu / rebutjar). */
+.actions.fila-accions { margin-top: 0; align-items: center; flex-wrap: nowrap; }
+.actions.fila-accions input { flex: 1 1 220px; width: auto; min-width: 160px; }
+@media (max-width: 640px) { .actions.fila-accions { flex-wrap: wrap; } }
 .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; border: 1px solid var(--line); background: var(--soft); }
 .pill.ok { color: var(--ok); background: var(--brand-soft); border-color: transparent; }
 .pill.bad { color: var(--danger); background: var(--danger-soft); border-color: transparent; }

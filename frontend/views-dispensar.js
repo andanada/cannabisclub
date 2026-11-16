@@ -67,15 +67,26 @@ function searchBox(onFound) {
   const doc = h('input', { placeholder: 'DNI / NIE / passaport', autocapitalize: 'characters', autocomplete: 'off' });
   const carnet = h('input', { placeholder: 'Passa el carnet pel lector', autocapitalize: 'characters', autocomplete: 'off' });
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Cercar');
+  let torn = 0;   // número de la cerca en curs: una resposta d'una cerca anterior es descarta
   const form = h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
-    const perCarnet = !doc.value.trim() && carnet.value.trim();
+    // El carnet acabat de passar mana sobre un document que hagi quedat escrit (si no, es buscaria el soci anterior).
+    const q = triaCerca(doc.value, carnet.value);
+    if (!q.per) { carnet.focus(); return; }
+    const meva = ++torn;
     guard(btn, out, async () => {
-      const m = perCarnet
-        ? await api(`/locals/${S.local}/socis/carnet`, { method: 'POST', body: { codi: normalizeScan(carnet.value, await readerProfile()) } })
-        : await api(`/locals/${S.local}/socis/cerca`, { method: 'POST', body: { document: doc.value.trim() } });
-      carnet.value = '';
-      onFound(m, out);
+      try {
+        const m = q.per === 'carnet'
+          ? await api(`/locals/${S.local}/socis/carnet`, { method: 'POST', body: { codi: normalizeScan(q.valor, await readerProfile()) } })
+          : await api(`/locals/${S.local}/socis/cerca`, { method: 'POST', body: { document: q.valor } });
+        if (meva !== torn) return;   // ha arribat tard: ja s'ha fet una altra cerca
+        doc.value = '';   // trobat: el document no ha de quedar escrit per a la cerca següent
+        await onFound(m, out);
+      } finally {
+        // El carnet sempre queda buit i amb el focus: la lectura següent no es barreja amb l'anterior.
+        // (Si la cerca per document ha fallat, el document es conserva perquè es pugui corregir.)
+        if (meva === torn) { carnet.value = ''; carnet.focus(); }
+      }
     });
   } }, h('div', { class: 'row' }, field('Document del soci', doc), field('o carnet', carnet)), h('div', { class: 'actions' }, btn), out);
   return form;
@@ -133,9 +144,12 @@ VIEWS.dispensar = async () => {
   const step = h('div');
   const loc = S.me.locals.find((l) => l.id === S.local) || {};
   // Si el local exigeix la quota al dia, es cobra aquí mateix abans de poder dispensar.
+  let tornSoci = 0;
   const showMember = async (m, out) => {
+    const meu = ++tornSoci;
     // Els preus són els del soci: la seva línia de preu, si en té
     const productes = m.estat === 'actiu' ? await api(`/locals/${S.local}/estoc?soci=${m.id}`) : [];
+    if (meu !== tornSoci) return;   // mentre es carregaven els preus s'ha obert un altre soci
     const bloquejat = loc.quota_obligatoria && !(m.quota && m.quota.al_dia);
     step.replaceChildren(...[
       memberCard(m, out, (mm) => showMember(mm, out)),
@@ -155,6 +169,7 @@ VIEWS.dispensar = async () => {
     // Descomptes vigents que es poden aplicar al producte triat (cada un amb el seu import o percentatge).
     const carregaDescomptes = async (p) => {
       const l = await api(`/locals/${S.local}/descomptes?producte=${p.id}`);
+      if (chosen !== p) return;   // resposta d'un producte que ja no és el triat
       descSel.replaceChildren(sense(), ...l.map((d) => h('option', { value: d.id }, `${d.nom} (${d.tipus === 'percent' ? d.valor + ' %' : eur(d.valor) + '/g'})`)));
     };
     // Lots amb existències del producte triat. Sense lots, el camp s'amaga i la dispensació surt pel FIFO com sempre.
@@ -173,7 +188,8 @@ VIEWS.dispensar = async () => {
     const list = h('div', { class: 'products' }, productes.map((p) => {
       const b = h('button', { 'aria-pressed': 'false', onclick: () => {
         chosen = p; list.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-        carregaDescomptes(p).catch(() => descSel.replaceChildren(sense()));
+        descSel.replaceChildren(sense());   // el descompte del producte anterior no val per a aquest
+        carregaDescomptes(p).catch(() => { if (chosen === p) descSel.replaceChildren(sense()); });
         carregaLots(p).catch(() => { lotSel.replaceChildren(); lotField.style.display = 'none'; });
       } }, productThumb(p, 44), h('strong', null, p.nom), h('span', { class: 'muted' }, p.estoc_g + ' g · ' + eur(p.preu_cent_per_g) + '/g'));
       return b;
@@ -185,7 +201,8 @@ VIEWS.dispensar = async () => {
     const btnApart = h('button', { type: 'submit' }, 'Dispensar i cobrar després');
     const scale = scalePanel(g, pes);
     // Amb mètode, la dispensació i el cobrament es fan en una sola operació al servidor (o es fa tot o res).
-    const envia = (btn, metode) => guard(btn, out, async () => {
+    // Els tres botons fan la mateixa dispensació: es bloquegen junts (un Intro o un segon clic no la repeteix).
+    const envia = (btn, metode) => guardTots([btnEfectiu, btnTargeta, btnApart], out, async () => {
       if (!chosen) throw new Error('Tria un producte');
       const body = { member_id: m.id, product_id: chosen.id,
         grams: parseGrams(g.value), pes_bascula_g: pes.value.trim() ? parseGrams(pes.value) : null,
