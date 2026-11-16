@@ -20,6 +20,14 @@ def test_no_es_serveix_la_carpeta_de_proves_del_frontend(ctx):
     assert client.get("/app.js").status_code == 200  # la resta segueix servint-se
 
 
+def test_l_arrel_serveix_index_i_els_ocults_segueixen_bloquejats(ctx):
+    client, _, _ = ctx
+    r = client.get("/")   # Starlette demana el camí «.» per a l'arrel: no s'ha de confondre amb un fitxer ocult
+    assert r.status_code == 200 and "<html" in r.text.lower()
+    for p in ("/.env", "/.git/config", "/a/../.env"):
+        assert client.get(p).status_code == 404
+
+
 def test_el_motor_amaga_els_parametres_sql(monkeypatch, tmp_path):
     e = make_engine(f"sqlite:///{tmp_path / 'x.db'}")
     assert e.hide_parameters is True

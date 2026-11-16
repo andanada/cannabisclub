@@ -77,7 +77,8 @@ class FrontendFiles(StaticFiles):
     BLOQUEJATS = {"test", "tests", "node_modules"}
 
     async def get_response(self, path, scope):
-        parts = [p for p in path.replace("\\", "/").split("/") if p]
+        # «.» és l'arrel (Starlette el demana per a «/»): no és un fitxer ocult. «..» sí que es bloqueja (comença per punt).
+        parts = [p for p in path.replace("\\", "/").split("/") if p and p != "."]
         if any(p in self.BLOQUEJATS or p.startswith(".") for p in parts) or (parts and parts[-1].endswith(".test.js")):
             raise StarletteHTTPException(status_code=404)
         return await super().get_response(path, scope)
