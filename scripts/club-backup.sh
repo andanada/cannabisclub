@@ -23,18 +23,6 @@ DUMP_RE='^club-[0-9]{8}-[0-9]{6}\.dump\.gpg$'
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
-app_credentials() {  # imprimeix contrasenya i usuari de CLUB_APP_DATABASE_URL (en línies separades), sense mostrar-los enlloc més
-  "$PY" -I - "$ENV_FILE" <<'PYEOF'
-import sys
-from sqlalchemy.engine import make_url
-for line in open(sys.argv[1]):
-    if line.startswith("CLUB_APP_DATABASE_URL="):
-        u = make_url(line.split("=", 1)[1].strip())
-        print(u.password or ""); print(u.username or "")
-        break
-PYEOF
-}
-
 # ---------- remot (rsync/ssh «host:ruta», o una ruta local muntada) ----------
 remote_is_ssh() { [[ "${CLUB_BACKUP_REMOTE}" == *:* ]]; }
 remote_host() { echo "${CLUB_BACKUP_REMOTE%%:*}"; }
@@ -151,13 +139,16 @@ cmd_run() {
     [ "${CLUB_BACKUP_ALLOW_UNSIGNED:-0}" = "1" ] || die "Falta CLUB_BACKUP_SIGNER (clau de signatura de la torre). Sense signatura no es pot detectar una còpia substituïda."
   fi
   mkdir -p "$DEST"
-  local creds pw user ts out
-  creds="$(app_credentials)"; pw="$(sed -n 1p <<<"$creds")"; user="$(sed -n 2p <<<"$creds")"
-  [ -n "$pw" ] || die "No trobo CLUB_APP_DATABASE_URL a $ENV_FILE"
+  local dump_user ts out
+  # El volcat el fa el rol PROPIETARI de la base de dades, no el de l'aplicació: aquest no pot llegir club_retencio_cfg ni
+  # club_buida_log (REVOKE ALL a propòsit) i un pg_dump amb ell falla. Per defecte, el POSTGRES_USER del contenidor, pel
+  # socket local de dins (la imatge oficial hi deixa «trust»: no cal cap contrasenya, ni a l'entorn ni a «ps»).
+  dump_user="${CLUB_BACKUP_DB_USER:-$(docker exec "$CONTAINER" printenv POSTGRES_USER 2>/dev/null || true)}"
+  [ -n "$dump_user" ] || die "No sé amb quin rol de PostgreSQL fer el volcat. Defineix CLUB_BACKUP_DB_USER (el propietari de la base de dades; el rol de l'aplicació no pot llegir club_retencio_cfg ni club_buida_log)."
   ts="$(date +%Y%m%d-%H%M%S)"; out="$DEST/club-$ts.dump.gpg"
   OUT_PART="$out.part"; trap 'rm -f -- "$OUT_PART"' EXIT
-  # pg_dump -> gpg directament: el volcat mai toca el disc en clar. La contrasenya va per l'entorn (no surt a «ps»).
-  PGPASSWORD="$pw" docker exec -e PGPASSWORD "$CONTAINER" pg_dump -U "$user" -d "$DBNAME" -Fc \
+  # pg_dump -> gpg directament: el volcat mai toca el disc en clar.
+  docker exec "$CONTAINER" pg_dump -U "$dump_user" -d "$DBNAME" -Fc \
     | gpg --batch --yes --trust-model always -r "$CLUB_BACKUP_GPG_RECIPIENT" ${CLUB_BACKUP_SIGNER:+-u "$CLUB_BACKUP_SIGNER" --sign} -e -o "$out.part"
   [ "$(stat -c %s "$out.part")" -gt 1024 ] || die "El volcat xifrat és sospitosament petit"
   gpg --batch --list-packets "$out.part" >/dev/null 2>&1 || die "La còpia xifrada no és vàlida"
@@ -189,7 +180,11 @@ cmd_restore_test() {
   work="$(mktemp -d)"; status="$work/status"; name="club-restore-test-$$"; pw="$(head -c 18 /dev/urandom | base64 | tr -d '/+=')"
   trap 'docker rm -f "'"$name"'" >/dev/null 2>&1 || true; rm -rf -- "'"$work"'"' EXIT
   docker run -d --rm --name "$name" -e POSTGRES_PASSWORD="$pw" -e POSTGRES_DB=restore -p 127.0.0.1::5432 "$RESTORE_IMAGE" >/dev/null
-  for _ in $(seq 1 40); do docker exec "$name" pg_isready -U postgres -d restore >/dev/null 2>&1 && break; sleep 1; done
+  # La imatge oficial arrenca primer un servidor temporal NOMÉS per socket (per inicialitzar), l'apaga i en llança el definitiu.
+  # Per socket, pg_isready ja diu «llest» en la fase temporal i pg_restore hi entra just quan s'apaga: es comprova per TCP
+  # (127.0.0.1), que només respon el servidor definitiu.
+  for _ in $(seq 1 60); do docker exec "$name" pg_isready -h 127.0.0.1 -U postgres -d restore >/dev/null 2>&1 && break; sleep 1; done
+  docker exec "$name" pg_isready -h 127.0.0.1 -U postgres -d restore >/dev/null 2>&1 || die "El PostgreSQL de la restauració de prova no arrenca"
   # 1) La signatura es comprova ABANS de passar res a pg_restore: una primera passada desxifra i descarta el contingut
   #    (cap fitxer en clar) només per obtenir l'estat de GPG; una còpia no signada per la clau esperada no arriba mai a la BD.
   gpg --batch --status-fd 3 --decrypt "$file" 3>"$status" >/dev/null 2>&1 \
@@ -204,6 +199,12 @@ cmd_restore_test() {
     | docker exec -i "$name" pg_restore -U postgres -d restore --no-owner --no-privileges --exit-on-error \
     || die "No s'ha pogut restaurar la còpia"
   port="$(docker port "$name" 5432/tcp | head -1 | sed 's/.*://')"
+  # La cadena d'auditoria porta HMAC: per verificar-la calen les claus (les de CLUB_KEYS_FILE; en una recuperació real, les del
+  # paquet de claus desxifrat). Es llegeixen línia a línia amb «export» (sense eval): el fitxer no pot executar res.
+  local kline have_keys=0
+  # shellcheck disable=SC2163  # intencionat: «export "VAR=valor"» exporta la parella tal com ve de la línia
+  while IFS= read -r kline; do export "$kline"; have_keys=1; done < <(grep -E '^(CLUB_FIELD_KEY|CLUB_INDEX_KEY|CLUB_AUDIT_KEY)=' "$KEYS_FILE" 2>/dev/null || true)
+  [ "$have_keys" = 1 ] || die "No trobo les claus (CLUB_INDEX_KEY / CLUB_AUDIT_KEY) a $KEYS_FILE: sense elles no es pot verificar l'auditoria. Desxifra el paquet de claus i apunta-hi amb CLUB_KEYS_FILE."
   "$PY" -I - "postgresql+psycopg://postgres:$pw@127.0.0.1:$port/restore" "$REPO/backend" <<'PYEOF'
 import sys
 sys.path.insert(0, sys.argv[2])

@@ -52,6 +52,7 @@ o un suport extern no pugui substituir una còpia per una altra sense que ho det
 | `CLUB_BACKUP_KEEP_DAILY` / `_WEEKLY` / `_MONTHLY` | 14 / 8 / 12 | retenció per capes, local i remota |
 | `CLUB_BACKUP_DIR` | `/data/backups/club` | carpeta local |
 | `CLUB_DB_CONTAINER`, `CLUB_DB_NAME` | `club-gestio-db-1`, `club` | contenidor i base de dades |
+| `CLUB_BACKUP_DB_USER` | `POSTGRES_USER` del contenidor | rol amb què es fa el `pg_dump`. Ha de ser el **propietari** de la base de dades, **no** el rol de l'aplicació: aquest no pot llegir `club_retencio_cfg` ni `club_buida_log` (REVOKE ALL a propòsit) i el volcat fallaria. Va pel socket local de dins del contenidor (`trust` a la imatge oficial), sense contrasenya |
 | `CLUB_ENV_FILE`, `CLUB_KEYS_FILE`, `CLUB_PYTHON` | `.env` del repo, = `CLUB_ENV_FILE`, `.venv/bin/python` | rutes |
 | `CLUB_RESTORE_IMAGE` | `postgres:17` | imatge de la restauració de prova |
 
@@ -69,9 +70,13 @@ Retenció per capes: es conserva la còpia més recent de cada un dels últims 1
 ## Restaurar i comprovar (al teu ordinador, amb la clau privada A)
 
     export CLUB_BACKUP_SIGNER_FPR=<empremta guardada fora de la torre>
+    export CLUB_KEYS_FILE=<fitxer amb CLUB_INDEX_KEY (i CLUB_FIELD_KEY) del paquet de claus desxifrat amb la clau B>
     scripts/club-backup.sh restore-test club-AAAAMMDD-HHMMSS.dump.gpg
 
 Exigeix el `.sha256` al costat, comprova que la signatura és de l'empremta esperada, restaura en un PostgreSQL temporal (Docker) i verifica la cadena d'auditoria.
+La cadena d'auditoria porta HMAC: sense `CLUB_INDEX_KEY` (o `CLUB_AUDIT_KEY`) a `CLUB_KEYS_FILE`, `restore-test` s'atura amb un missatge i no pot verificar-la. Per això una recuperació necessita **A i B**.
+
+Prova de cicle complet (còpia, xifratge, signatura, restauració, manipulació, clau equivocada, retenció) amb claus i PostgreSQL temporals, sense tocar res real: `scripts/test-backup.sh` (cal Docker, `gpg` i el `.venv` del projecte).
 **Fes-ho cada mes** i després de canviar de claus: una còpia que mai s'ha restaurat no és una còpia.
 Cal copiar a l'ordinador el volcat des del **remot** (no de la torre): és la còpia que sobreviu a la torre.
 
