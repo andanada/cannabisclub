@@ -224,3 +224,52 @@ def test_s4_cobrar_quota_bloqueja_el_soci_abans_que_la_sessio_de_caixa(ctx):
         retingut.close()
         fil.join(30)
     assert not fil.is_alive() and not isinstance(resultat[0], Exception), resultat
+
+
+@pg_only
+def test_dispensar_i_cobrar_bloqueja_la_sessio_de_caixa_abans_que_l_auditoria(ctx):
+    """Ordre global: soci -> producte -> sessió de caixa -> auditoria. Tancar la caixa, una despesa o una quota agafen la
+    sessió i després l'auditoria; si «dispensar i cobrar» agafés l'auditoria abans que la sessió, s'interbloquejarien.
+    Mentre l'auditoria la té un altre, dispense(metode=...) ja ha de tenir la sessió bloquejada."""
+    import time
+    from app import service
+    client, factory, sec = ctx
+    enc = token(client, sec, "enc")
+    mid, pid = setup_data(client, enc, factory)
+    assert client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=enc).status_code == 201
+    auditoria = factory()
+    auditoria.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": service.AUDIT_LOCK_KEY})
+    resultat = []
+
+    def dispensa():
+        s = factory()
+        try:
+            user = s.scalar(select(User).where(User.username == "enc"))
+            resultat.append(stock.dispense(s, user, mid, pid, Decimal("1"), None, metode="efectiu"))
+        except Exception as e:  # noqa: BLE001
+            s.rollback()
+            resultat.append(e)
+        finally:
+            s.close()
+
+    fil = threading.Thread(target=dispensa)
+    fil.start()
+    time.sleep(1.5)  # dispense() ja és aturat esperant l'auditoria
+    sessio_bloquejada = False
+    try:
+        assert not resultat, "dispense() no s'hauria d'haver completat"
+        prova = factory()
+        try:
+            prova.scalar(select(CashSession.id).where(CashSession.local_id == 1, CashSession.closed_at.is_(None))
+                         .with_for_update(nowait=True))
+        except DBAPIError:
+            sessio_bloquejada = True
+        finally:
+            prova.rollback()
+            prova.close()
+    finally:
+        auditoria.rollback()
+        auditoria.close()
+        fil.join(30)
+    assert not fil.is_alive() and not isinstance(resultat[0], Exception), resultat
+    assert sessio_bloquejada, "dispense(metode) ha agafat l'auditoria abans de bloquejar la sessió de caixa"

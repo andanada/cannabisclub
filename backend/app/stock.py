@@ -209,6 +209,13 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     p = _lock_product(db, product_id)
     if not member or member.local_id != p.local_id:
         raise ValueError("Soci inexistent o d'un altre local")
+    if metode is not None:
+        # Ordre global de bloquejos: soci -> producte -> sessió de caixa -> auditoria. Tancar la caixa, una despesa o una quota
+        # agafen la sessió i després l'auditoria; si aquí s'escrivís l'auditoria abans de bloquejar la sessió, s'interbloquejarien.
+        from . import cash
+        if metode not in cash.METODES:
+            raise ValueError("Mètode de pagament no vàlid")
+        cash._require_open(db, p.local_id)
     from . import controls
     controls.check_dispense(db, member, p, now)  # espera, aval, pendent d'aprovació (vegeu controls.py)
     if member.estat != "actiu":
