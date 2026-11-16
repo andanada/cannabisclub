@@ -2,6 +2,18 @@
 
 Aquest document és per posar el programa en servei i mantenir-lo. Les còpies de seguretat són a `COPIES.md`.
 
+## 0. Com s'hi accedeix: només per Tailscale (decisió actual)
+
+El club real **no s'exposa a Internet**: només s'hi arriba des de dispositius de la xarxa privada Tailscale (la «tailnet»). El servidor de proves públic (`nip.io` + certbot) és l'excepció i no s'ha de copiar a producció.
+
+- **Servei**: uvicorn només a `127.0.0.1:8099` (mai `0.0.0.0`).
+- **HTTPS**: `tailscale serve --bg https / http://127.0.0.1:8099` (certificat de Tailscale, sense nginx ni certbot, sense port 80/443 públics). Cal HTTPS per a la bàscula i l'NFC.
+- **Entrada amb carnet**: limita-la a la tailnet amb `CLUB_CARNET_XARXES=100.64.0.0/10` (rang de Tailscale). Si no uses el carnet, `CLUB_LOGIN_CARNET=0`.
+  Aquesta comprovació mira la IP del client: **prova-ho des d'un mòbil de la tailnet** abans de donar-ho per bo. Si darrere de `tailscale serve` l'aplicació veiés sempre 127.0.0.1, el carnet quedaria bloquejat; cal confirmar si Tailscale envia `X-Forwarded-For` (i llavors `CLUB_TRUST_PROXY=1`) o deixar el carnet només per a la IP que correspongui. No s'ha pogut verificar en aquest entorn.
+- **Segon factor**: `CLUB_TOTP` **no** a `0`. Cada arrencada escriu al registre un avís `ATENCIÓ` si està desactivat, i la pantalla d'entrada mostra una franja vermella.
+- **Claus**: a la primera arrencada la base de dades desa un «canari» de les claus; si després arrenques amb unes altres, el servei **no arrenca** (missatge clar al registre). Si has perdut el mòbil amb l'app d'autenticació: `python -m app.cli reiniciar-totp <usuari>`.
+- **Bloqueig de login**: amb només la tailnet, qui pot bloquejar un usuari és algú de dins; `python -m app.cli desbloquejar <usuari>` ho resol.
+
 ## 1. Abans del primer ús
 
 - [ ] Python 3.12+ amb `.venv`. Instal·lació reproduïble: `pip install --require-hashes -r requirements.lock` (versions i hashes fixats; es regenera amb `scripts/update-lock.sh`). `requirements.txt` és la llista de partida.

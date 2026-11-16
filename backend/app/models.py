@@ -519,6 +519,22 @@ def _immutable_consent(mapper, connection, target):
     raise ImmutableError("Els consentiments no es poden modificar: registra'n la retirada")
 
 
+class ConfigCanari(Base):
+    """Canari de claus: valors derivats de CLUB_FIELD_KEY, CLUB_INDEX_KEY i la clau d'auditoria, desats la primera vegada que
+    arrenca el servei. Si més endavant les claus de l'entorn no els reprodueixen, el servei no arrenca (vegeu canari.py).
+    Només d'afegir: ningú, ni l'aplicació, pot canviar-los perquè «torni a quadrar»."""
+    __tablename__ = "config_canari"
+    clau: Mapped[str] = mapped_column(String(20), primary_key=True)
+    valor: Mapped[str] = mapped_column(Text)
+    creat: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+@event.listens_for(ConfigCanari, "before_update")
+@event.listens_for(ConfigCanari, "before_delete")
+def _immutable_canari(mapper, connection, target):
+    raise ImmutableError("El canari de claus no es pot modificar")
+
+
 class AuditAnchor(Base):
     """Ancoratges de l'auditoria (seq + hash) desats a la mateixa BD; l'original ha d'anar també fora de l'equip."""
     __tablename__ = "audit_anchors"

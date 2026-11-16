@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from . import schema, security, service
+from . import avisos, canari, schema, security, service
 from .db import make_engine, make_session_factory
 from .http_guard import BodyLimitMiddleware, FrontendFiles
 from .models import ImmutableError, User
@@ -43,7 +43,11 @@ def get_db_factory():
     sense_index = schema.missing_indexes(engine)
     if sense_index:  # no impedeix arrencar, però les consultes anirien lentes
         logging.getLogger("club").warning("Falten índexs (%s). Executa: python -m app.cli actualitzar-bd", ", ".join(sense_index))
-    return make_session_factory(engine)
+    factory = make_session_factory(engine)
+    if canari.comprova(factory) == "creat":
+        logging.getLogger("club").warning("Canari de claus creat: d'ara endavant el servei només arrencarà amb aquestes mateixes "
+                                          "claus (CLUB_FIELD_KEY, CLUB_INDEX_KEY, CLUB_AUDIT_KEY). Guarda'n còpia (docs/COPIES.md).")
+    return factory
 
 
 def _configura_logs() -> None:
@@ -60,6 +64,8 @@ def _configura_logs() -> None:
 
 def create_app(session_factory=None) -> FastAPI:
     _configura_logs()
+    for avis in avisos.configuracio():   # configuració insegura (segon factor desactivat…): queda escrit a cada arrencada
+        log.warning(avis)
     # Sense /docs, /redoc ni /openapi.json: no regalem el mapa complet de l'API a qui no té sessió.
     app = FastAPI(title="club-gestio", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(BodyLimitMiddleware)

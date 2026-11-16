@@ -2,6 +2,7 @@
   python -m app.cli crear-admin <usuari>      (la contrasenya es demana per terminal)
   python -m app.cli preparar-bd <fitxer .env>  (crea el rol de l'aplicació i en desa la contrasenya al fitxer, sense mostrar-la)
   python -m app.cli desbloquejar <usuari>      (treu el bloqueig temporal per intents fallits d'un usuari)
+  python -m app.cli reiniciar-totp <usuari>    (nou secret de l'app d'autenticació per a un usuari que l'ha perdut; el vell deixa de servir)
   python -m app.cli verificar-auditoria [seq:hash]  (cadena d'auditoria i ancoratge; sortida 3 si està trencada)
   python -m app.cli actualitzar-bd             (després d'actualitzar el programa: crea les taules noves, dona permisos i, UNA vegada, marca els productes genètics; es pot repetir)
 Cal CLUB_DATABASE_URL amb l'usuari PROPIETARI per a aquestes ordres; l'aplicació en funcionament fa servir el rol sense privilegis."""
@@ -74,11 +75,42 @@ def unlock(db, username: str) -> int:
     return n
 
 
+def reiniciar_totp(db, username: str) -> str:
+    """Genera un secret nou per al segon factor d'un usuari (mòbil perdut, o creat amb CLUB_TOTP=0 sense desar el secret).
+    El vell deixa de servir, les sessions obertes de l'usuari es tanquen, i queda a l'auditoria (amb l'id, no el nom).
+    Mostra el secret i l'URI només ara: no es desa enlloc en clar."""
+    from sqlalchemy import delete, select
+
+    from . import crypto
+    from .models import SessionToken, User
+    u = db.scalar(select(User).where(User.username == username, User.active.is_(True)))
+    if not u:
+        raise ValueError(f"L'usuari «{username}» no existeix o està donat de baixa")
+    secret = pyotp.random_base32()
+    u.totp_secret_enc = crypto.encrypt(secret)
+    u.last_totp_step = None   # el pas del secret vell no ha de condicionar el nou
+    db.execute(delete(SessionToken).where(SessionToken.user_id == u.id))
+    service.audit_append(db, {"accio": "reinici_totp", "usuari": u.id})
+    db.commit()
+    print("Nou secret per a l'app d'autenticació (només es mostra ara):")
+    print(secret)
+    print(pyotp.TOTP(secret).provisioning_uri(name=username, issuer_name="club-gestio"))
+    return secret
+
+
 def main(argv: list[str]) -> int:
     if len(argv) == 2 and argv[0] == "desbloquejar":
         engine = make_engine()
         with make_session_factory(engine)() as db:
             print(f"Desbloquejat «{argv[1]}»: {unlock(db, argv[1])} intents fallits esborrats.")
+        return 0
+    if len(argv) == 2 and argv[0] == "reiniciar-totp":
+        with make_session_factory(make_engine())() as db:
+            try:
+                reiniciar_totp(db, argv[1])
+            except ValueError as e:
+                print(f"ERROR: {e}")
+                return 1
         return 0
     if len(argv) == 1 and argv[0] == "actualitzar-bd":
         return actualitzar_bd()

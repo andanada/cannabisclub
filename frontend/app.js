@@ -61,7 +61,11 @@ function renderLogin() {
   pasCarnet, pasPin, carnetOut, h('button', { type: 'submit', hidden: true, tabindex: '-1', 'aria-hidden': 'true' }, 'Entrar'), h('div', { class: 'separador' }, h('span', null, 'o amb usuari i contrasenya')));
   // Si el servidor no exigeix el segon factor (servidor de proves), el camp no es mostra; si permet el carnet, es mostra i s'enfoca.
   fetch('/auth/opcions').then((r) => r.json()).then((o) => {
-    if (!o.totp) { codeField.hidden = true; code.required = false; }
+    if (!o.totp) {
+      codeField.hidden = true; code.required = false;
+      // Que ningú ho confongui amb un servidor de producció: aquí només cal usuari i contrasenya.
+      form.prepend(msg('err', "Servidor de proves: no demana el codi de l'app d'autenticació. No hi posis dades reals."));
+    }
     if (o.carnet) { carnetBox.hidden = false; carnet.focus(); }
   }).catch(() => {});
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Entrar');

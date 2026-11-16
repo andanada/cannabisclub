@@ -1024,6 +1024,7 @@ Object.assign(I18N.es, {
  "Primer cal crear productes.": "Primero hay que crear productos.",
  "Lots per producte": "Lotes por producto",
  "Lot": "Lote",
+ "Servidor de proves: no demana el codi de l'app d'autenticació. No hi posis dades reals.": "Servidor de pruebas: no pide el código de la app de autenticación. No metas datos reales.",
  "Hi ha dispensacions sense cobrar de sessions anteriors. Cobra-les aquí: el cobrament entra a la caixa oberta.": "Hay dispensaciones sin cobrar de sesiones anteriores. Cóbralas aquí: el cobro entra en la caja abierta.",
  "Hi ha dispensacions sense cobrar de sessions anteriors. Obre la caixa per poder cobrar-les.": "Hay dispensaciones sin cobrar de sesiones anteriores. Abre la caja para poder cobrarlas.",
  "Efectiu": "Efectivo",
