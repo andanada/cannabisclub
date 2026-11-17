@@ -60,6 +60,18 @@ Una base de dades sense cap local mostra a l'administrador un formulari per crea
 
 ## 3. Actualitzar el programa
 
+**Forma recomanada: `scripts/deploy.sh`** (des del teu ordinador, amb el commit que vols desplegar ja fet):
+
+    scripts/deploy.sh --host usuari@servidor            # el servidor també es pot posar a CLUB_DEPLOY_HOST
+    scripts/deploy.sh --host usuari@servidor --deps     # la primera vegada, i quan requirements.lock hagi canviat sense que ho detecti
+    scripts/deploy.sh --host usuari@servidor --dry-run  # només diu què faria
+
+Fa, en aquest ordre: puja el commit (sempre amb finals de línia LF), desa la base de dades i el codi actual a `~/club-backups`, canvia `backend/app`, `frontend`, `scripts` i `docs` (**el que ja no és al repositori desapareix del servidor**), instal·la `requirements.lock` amb hashes si ha canviat, executa `actualitzar-bd`, reinicia el servei i espera que `/salut` respongui amb **la versió nova** (`"versio"`). Si alguna cosa falla, **torna sola al codi anterior** i surt amb error; la base de dades només ha rebut canvis additius, així que tornar enrere el codi és segur. No toca `.env`, `.venv` ni les dades. Es guarden els 5 desplegaments més recents a `.releases/` (el codi anterior de cada un és a `<desplegament>.prev`). `--prova-rollback` força un error de salut per comprovar la tornada enrere.
+
+Requisits al servidor: `ssh` sense contrasenya, `sudo -n systemctl restart club-gestio`, Docker (per a la còpia de la BD) i el servei amb `/salut`. Per desplegar un commit concret: `--ref <commit>`.
+
+**Pas a pas, a mà** (el que fa el script, per si cal fer-ho sense ell):
+
 1. Còpia de seguretat de la base de dades.
 2. Actualitza el codi i `pip install --require-hashes -r requirements.lock`.
 3. Amb l'usuari propietari: `python -m app.cli actualitzar-bd` (crea taules, **columnes** noves amb valor per defecte i **índexs**, dona permisos i fa la migració única dels productes genètics, vegeu § 3.1; es pot repetir).
