@@ -1,5 +1,5 @@
 from datetime import date, datetime, timezone
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, false, func
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, false, func, true
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -87,6 +87,10 @@ class Product(Base):
     preu_cent_per_g: Mapped[int] = mapped_column(Integer, default=0)
     actiu: Mapped[bool] = mapped_column(Boolean, default=True)
     regalable: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # es pot dispensar com a regal
+    # Unitat de venda: «g» (grams) o «u» (unitats). Internament la quantitat és sempre en milers de la unitat (1 u = 1000), així
+    # tota l'aritmètica d'estoc, lots i preus és la mateixa. El preu (preu_cent_per_g) és per gram o per unitat segons la unitat.
+    unitat: Mapped[str] = mapped_column(String(1), default="g", server_default="g")
+    granel: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())  # a granel = es pot dispensar qualsevol quantitat; si no, només enters
     es_genetic: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # genètic (flor, clons…) o no (accessoris, begudes)
 
 
@@ -120,6 +124,27 @@ def _no_update(mapper, connection, target):
 @event.listens_for(StockMovement, "before_delete")
 def _no_delete(mapper, connection, target):
     raise ImmutableError("Els moviments d'estoc no es poden esborrar: crea una correcció")
+
+
+class ProductCategory(Base):
+    """Aspecte d'una categoria de producte (icona i color). La categoria d'un producte continua sent el seu text; aquí només s'hi enganxa l'aspecte."""
+    __tablename__ = "product_categories"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    icona: Mapped[str] = mapped_column(String(8), default="")
+    color: Mapped[str] = mapped_column(String(10), default="")
+
+
+class Currency(Base):
+    """Monedes del club (p. ex. Euro EUR, o una moneda interna de crèdits CR). Catàleg informatiu."""
+    __tablename__ = "currencies"
+    __table_args__ = (UniqueConstraint("local_id", "codi"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    codi: Mapped[str] = mapped_column(String(8))
 
 
 class CashRegister(Base):

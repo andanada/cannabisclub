@@ -19,6 +19,8 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         preu_cent_per_g: int = Field(ge=0, le=10_000_000)
         es_genetic: bool = False
         regalable: bool = False
+        unitat: str = Field(default="g", max_length=1)
+        granel: bool = True
 
     class EntradaIn(BaseModel):
         product_id: int
@@ -45,7 +47,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         if user.role not in CAN_CREATE_MEMBER:
             raise HTTPException(403, "El teu rol no pot crear productes")
         check_local(s, user, body.local_id)
-        p = run(stock.add_product, s, user, body.local_id, body.nom, body.categoria, body.preu_cent_per_g, body.es_genetic, body.regalable)
+        p = run(stock.add_product, s, user, body.local_id, body.nom, body.categoria, body.preu_cent_per_g, body.es_genetic, body.regalable, body.unitat, body.granel)
         return {"id": p.id}
 
     class ProductUpdateIn(BaseModel):
@@ -55,13 +57,15 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         actiu: bool | None = None
         es_genetic: bool | None = None
         regalable: bool | None = None
+        unitat: str | None = Field(default=None, max_length=1)
+        granel: bool | None = None
 
     @app.patch("/productes/{product_id}")
     def edita_producte(product_id: int, body: ProductUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
         if user.role not in CAN_CREATE_MEMBER:
             raise HTTPException(403, "El teu rol no pot editar productes")
         product_or_404(s, user, product_id)
-        run(stock.update_product, s, user, product_id, body.nom, body.categoria, body.preu_cent_per_g, body.actiu, body.es_genetic, body.regalable)
+        run(stock.update_product, s, user, product_id, body.nom, body.categoria, body.preu_cent_per_g, body.actiu, body.es_genetic, body.regalable, body.unitat, body.granel)
         return {"ok": True}
 
     class ImatgeIn(BaseModel):
@@ -88,7 +92,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         prods = s.scalars(select(Product).where(Product.local_id == local_id).order_by(Product.actiu.desc(), Product.nom)).all()
         mg = stock.stock_by_product(s, [p.id for p in prods])
         imatges = stock.images_for(s, [p.id for p in prods])
-        return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": p.preu_cent_per_g, "actiu": p.actiu, "es_genetic": p.es_genetic, "regalable": p.regalable,
+        return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": p.preu_cent_per_g, "actiu": p.actiu, "es_genetic": p.es_genetic, "regalable": p.regalable, "unitat": p.unitat, "granel": p.granel,
                  "estoc_g": str(Decimal(mg[p.id]) / 1000), "imatge": imatges.get(p.id)} for p in prods]
 
     @app.get("/locals/{local_id}/estoc")
@@ -99,7 +103,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         imatges = stock.images_for(s, [p.id for p in prods])
         # Amb ?soci= els preus són els que paga aquest soci (la seva línia de preu, si en té)
         preus = linies_preu.effective_prices(s, member_or_404(s, user, soci).id, prods) if soci else {p.id: p.preu_cent_per_g for p in prods}
-        return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": preus[p.id], "regalable": p.regalable,
+        return [{"id": p.id, "nom": p.nom, "categoria": p.categoria, "preu_cent_per_g": preus[p.id], "regalable": p.regalable, "unitat": p.unitat, "granel": p.granel,
                  "estoc_g": str(Decimal(mg[p.id]) / 1000), "imatge": imatges.get(p.id)} for p in prods]
 
     @app.post("/moviments/entrada", status_code=201)

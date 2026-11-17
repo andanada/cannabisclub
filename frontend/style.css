@@ -392,3 +392,16 @@ ul.resum li.ok .marca { background: var(--brand-soft); color: var(--brand); }
 .barra-fons { fill: var(--soft); }
 .barra { fill: var(--brand); }
 .barra.negatiu { fill: var(--danger); }
+
+/* Categories de producte: icona i color (classes, per la CSP) */
+.cat-badge { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; font-size: .8rem; background: var(--soft); color: var(--muted); }
+.cat-badge.cat-verd { background: #d9f0e3; color: #11613f; } .cat-badge.cat-blau { background: #dbe9fb; color: #1a4f9c; }
+.cat-badge.cat-roig { background: #fbe0dd; color: #a4281f; } .cat-badge.cat-groc { background: #fbefc9; color: #7a5a00; }
+.cat-badge.cat-lila { background: #e9defa; color: #5b2fa6; } .cat-badge.cat-taronja { background: #fde5cf; color: #9a4a06; }
+.cat-badge.cat-rosa { background: #fbdcec; color: #a1295f; } .cat-badge.cat-gris { background: #e3e7e5; color: #3f4b46; }
+@media (prefers-color-scheme: dark) {
+  .cat-badge.cat-verd { background: #173a2b; color: #7fe0b3; } .cat-badge.cat-blau { background: #16304f; color: #8db9f5; }
+  .cat-badge.cat-roig { background: #4a1f1b; color: #ff9d94; } .cat-badge.cat-groc { background: #43390f; color: #f4d06a; }
+  .cat-badge.cat-lila { background: #33204f; color: #c6a8f5; } .cat-badge.cat-taronja { background: #4a2c10; color: #f6b985; }
+  .cat-badge.cat-rosa { background: #4a1f36; color: #f5a3c9; } .cat-badge.cat-gris { background: #2b3732; color: #b4c3bc; }
+}

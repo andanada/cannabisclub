@@ -183,6 +183,7 @@ VIEWS.dispensar = async () => {
     const meu = ++tornSoci;
     // Els preus són els del soci: la seva línia de preu, si en té
     const productes = m.estat === 'actiu' ? await api(`/locals/${S.local}/estoc?soci=${m.id}`) : [];
+    await carregaMetaCat();
     if (meu !== tornSoci) return;   // mentre es carregaven els preus s'ha obert un altre soci
     const bloquejat = loc.quota_obligatoria && !(m.quota && m.quota.al_dia);
     step.replaceChildren(...[
@@ -223,11 +224,11 @@ VIEWS.dispensar = async () => {
     };
     const list = h('div', { class: 'products' }, productes.map((p) => {
       const b = h('button', { 'aria-pressed': 'false', onclick: () => {
-        chosen = p; btnRegal.hidden = !p.regalable; list.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        chosen = p; btnRegal.hidden = !p.regalable; qLabel.textContent = p.unitat === 'u' ? 'Quantitat (unitats)' : 'Quantitat (g)'; list.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
         descSel.replaceChildren(sense());   // el descompte del producte anterior no val per a aquest
         carregaDescomptes(p).catch(() => { if (chosen === p) descSel.replaceChildren(sense()); });
         carregaLots(p).catch(() => { lotSel.replaceChildren(); lotField.style.display = 'none'; });
-      } }, productThumb(p, 44), h('strong', null, p.nom), h('span', { class: 'muted' }, p.estoc_g + ' g · ' + eur(p.preu_cent_per_g) + '/g'));
+      } }, productThumb(p, 44), h('strong', null, catBadge(p.categoria), ' ', p.nom), h('span', { class: 'muted' }, p.estoc_g + ' ' + unitTxt(p) + ' · ' + eur(p.preu_cent_per_g) + '/' + unitTxt(p)));
       return b;
     }));
     const g = h('input', { inputmode: 'decimal', placeholder: '0,000' });
@@ -240,6 +241,8 @@ VIEWS.dispensar = async () => {
     const btnRegal = h('button', { type: 'button' }, 'Dispensar com a regal');
     const btnApart = h('button', { type: 'submit' }, 'Dispensar i cobrar després');
     const scale = scalePanel(g, pes);
+    const qField = field('Quantitat (g)', g);
+    const qLabel = qField.querySelector('label');
     // Amb mètode, la dispensació i el cobrament es fan en una sola operació al servidor (o es fa tot o res).
     // Els tres botons fan la mateixa dispensació: es bloquegen junts (un Intro o un segon clic no la repeteix).
     const envia = (btn, metode) => guardTots([btnEfectiu, btnTargeta, btnBizum, btnMoneder, btnRegal, btnApart], out, async () => {
@@ -268,7 +271,7 @@ VIEWS.dispensar = async () => {
     btnRegal.hidden = true;   // només per als productes marcats com a regalables
     return h('form', { class: 'card', onsubmit: (e) => { e.preventDefault(); envia(btnApart, null); } }, h('h3', null, 'Producte'), list,
     scale,
-    h('div', { class: 'row' }, field('Quantitat (g)', g), field('Bàscula (g)', pes), field('Descompte', descSel), lotField),
+    h('div', { class: 'row' }, qField, field('Bàscula (g)', pes), field('Descompte', descSel), lotField),
     h('div', { class: 'actions' }, btnEfectiu, btnTargeta, btnBizum, btnMoneder, btnRegal, btnApart), out);
   }
 

@@ -130,14 +130,26 @@ def movements_list(db: Session, local_id: int, des: date, fins: date, limit: int
             for m, nom in db.execute(q)]
 
 
+UNITATS = {"g", "u"}
+
+
+def _valida_unitat(unitat: str, es_genetic: bool) -> None:
+    if unitat not in UNITATS:
+        raise ValueError("La unitat ha de ser g (grams) o u (unitats)")
+    if unitat == "u" and es_genetic:
+        raise ValueError("Un producte genètic es dispensa en grams (els límits per soci són de pes)")
+
+
 def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: str, preu_cent_per_g: int, es_genetic: bool = False,
-                regalable: bool = False) -> Product:
+                regalable: bool = False, unitat: str = "g", granel: bool = True) -> Product:
+    _valida_unitat(unitat, es_genetic)
     nom = nom.strip()
     if not nom:
         raise ValueError("El nom del producte no pot estar buit")
     if not _nom_lliure(db, local_id, nom):
         raise ValueError("Ja existeix un producte amb aquest nom en aquest local")
-    p = Product(local_id=local_id, nom=nom, categoria=categoria, preu_cent_per_g=preu_cent_per_g, es_genetic=es_genetic, regalable=regalable)
+    p = Product(local_id=local_id, nom=nom, categoria=categoria, preu_cent_per_g=preu_cent_per_g, es_genetic=es_genetic, regalable=regalable,
+                unitat=unitat, granel=granel)
     db.add(p)
     flush_or_error(db, "Ja existeix un producte amb aquest nom en aquest local")
     service.audit_append(db, {"accio": "alta_producte", "producte": p.id, "local": local_id, "per": actor.id})
@@ -147,7 +159,7 @@ def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: st
 
 def update_product(db: Session, actor: User, product_id: int, nom: str | None = None, categoria: str | None = None,
                    preu_cent_per_g: int | None = None, actiu: bool | None = None, es_genetic: bool | None = None,
-                   regalable: bool | None = None) -> Product:
+                   regalable: bool | None = None, unitat: str | None = None, granel: bool | None = None) -> Product:
     """Canvia el nom, la categoria, el preu o l'estat d'un producte. El preu només afecta les dispensacions
     noves: les antigues guarden el seu import. Per desactivar, l'estoc ha de ser zero (sinó quedaria encallat)."""
     p = db.scalar(select(Product).where(Product.id == product_id).with_for_update())
@@ -169,6 +181,15 @@ def update_product(db: Session, actor: User, product_id: int, nom: str | None = 
         canvis["preu_cent_per_g"] = [p.preu_cent_per_g, preu_cent_per_g]
     if es_genetic is not None and es_genetic != p.es_genetic:
         canvis["es_genetic"] = [p.es_genetic, es_genetic]
+    if unitat is not None and unitat != p.unitat:
+        _valida_unitat(unitat, es_genetic if es_genetic is not None else p.es_genetic)
+        if db.scalar(select(StockMovement.id).where(StockMovement.product_id == p.id).limit(1)):
+            raise ValueError("No es pot canviar la unitat d'un producte que ja té moviments d'estoc: crea'n un de nou")
+        canvis["unitat"] = [p.unitat, unitat]
+    elif es_genetic and p.unitat == "u":
+        raise ValueError("Un producte en unitats no pot ser genètic")
+    if granel is not None and granel != p.granel:
+        canvis["granel"] = [p.granel, granel]
     if regalable is not None and regalable != p.regalable:
         canvis["regalable"] = [p.regalable, regalable]
     if actiu is not None and actiu != p.actiu:
@@ -240,9 +261,9 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     from . import ajustos, quotes  # import local: quotes depèn d'aquest mòdul
     if ajustos.get(db, p.local_id)["quota_obligatoria"] and not quotes.status(db, member_id, now.astimezone(TZ).date())["al_dia"]:
         raise ValueError("La quota del soci no està al dia: cal cobrar-la abans de dispensar")
-    decimals = ajustos.get(db, p.local_id)["decimals_dispensacio"]
+    decimals = 0 if (p.unitat == "u" or not p.granel) else ajustos.get(db, p.local_id)["decimals_dispensacio"]
     if -Decimal(grams).normalize().as_tuple().exponent > decimals:
-        raise ValueError("La quantitat admet com a màxim " + (f"{decimals} decimals" if decimals else "grams sencers"))
+        raise ValueError("La quantitat admet com a màxim " + (f"{decimals} decimals" if decimals else ("unitats senceres" if p.unitat == "u" else "grams sencers")))
     mg = grams_to_mg(grams)
     # Caixa registradora amb magatzem propi: la dispensació en descompta l'estoc d'aquell magatzem (no del principal).
     from . import cash as _cash

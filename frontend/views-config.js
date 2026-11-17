@@ -41,6 +41,19 @@ function localSection() {
   return h('div', null, limits, nou);
 }
 
+// Monedes del club (p. ex. Euro EUR, o una moneda interna de crèdits). Catàleg informatiu.
+async function monedesSection() {
+  const l = await api(`/locals/${S.local}/monedes`);
+  const out = h('div');
+  const nom = h('input', { maxlength: 60, required: true }), codi = h('input', { maxlength: 8, required: true, autocapitalize: 'characters' });
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Afegir moneda');
+  return h('div', null, h('form', { class: 'card', onsubmit: (e) => {
+    e.preventDefault();
+    guard(btn, out, async () => { await api(`/locals/${S.local}/monedes`, { method: 'POST', body: { nom: nom.value.trim(), codi: codi.value.trim() } }); toast('Moneda creada'); show('config'); });
+  } }, h('h3', null, 'Nova moneda'), h('div', { class: 'row' }, field('Nom', nom), field('Codi', codi)), h('div', { class: 'actions' }, btn), out),
+  taula([['Nom'], ['Codi']], l.map((m) => [m.nom, m.codi]), 'Encara no hi ha cap moneda.'));
+}
+
 // Normes del club: edat mínima, alerta d'inactivitat, decimals de la dispensació i pèrdua màxima tolerada en un inventari.
 function normesSection() {
   const loc = localActual();
@@ -173,6 +186,7 @@ VIEWS.config = async () => {
     ['local', 'Local i límits', async () => localSection()],
     ['quotes', 'Quotes', async () => quotesSection()],
     ['normes', 'Normes del club', async () => normesSection()],
+    ['monedes', 'Monedes', monedesSection],
     ['usuaris', 'Usuaris', usersSection],
     ['bascules', 'Bàscules', async () => deviceSection('bascula')],
     ['signatura', 'Tauletes de signatura', async () => deviceSection('signatura')],

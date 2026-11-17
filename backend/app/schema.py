@@ -118,7 +118,9 @@ def missing_indexes(engine) -> list[str]:
 # Columnes afegides després de crear la taula. create_all no les afegeix a taules que ja existeixen, així que
 # s'afegeixen amb ALTER TABLE (sempre amb valor per defecte: les files existents continuen valent).
 COLUMNES_NOVES = {"products": [("es_genetic", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"}),
-                               ("regalable", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"})],
+                               ("regalable", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"}),
+                               ("unitat", {"default": "VARCHAR(1) NOT NULL DEFAULT 'g'"}),
+                               ("granel", {"postgresql": "BOOLEAN NOT NULL DEFAULT TRUE", "default": "BOOLEAN NOT NULL DEFAULT 1"})],
                   "checkins": [("tipus", {"default": "VARCHAR(8) NOT NULL DEFAULT 'entrada'"}), ("via", {"default": "VARCHAR(8) NOT NULL DEFAULT 'manual'"})],
                   "cash_sessions": [("register_id", {"default": "INTEGER REFERENCES cash_registers(id)"}),
                                     ("assigned_to", {"default": "INTEGER REFERENCES users(id)"}),

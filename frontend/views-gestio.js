@@ -4,6 +4,24 @@
 const preuText = (c) => (c / 100).toFixed(2).replace('.', ',');
 
 // Miniatura d'un producte (o una inicial si encara no té foto).
+// Unitat d'un producte («g» o «u») i aspecte (icona i color) de la seva categoria. El color és una classe CSS (la CSP no permet estils en línia).
+const unitTxt = (p) => (p && p.unitat === 'u' ? 'u' : 'g');
+const metaCat = { local: null, mapa: new Map() };
+async function carregaMetaCat() {
+  if (metaCat.local === S.local) return metaCat.mapa;
+  try {
+    const r = await api(`/locals/${S.local}/categories`);
+    metaCat.mapa = new Map(r.categories.map((c) => [c.nom, c]));
+    metaCat.local = S.local;
+  } catch (_) { metaCat.mapa = new Map(); }
+  return metaCat.mapa;
+}
+function catBadge(nom) {
+  const m = metaCat.mapa.get(nom);
+  if (!m || (!m.icona && !m.color)) return null;
+  return h('span', { class: 'cat-badge' + (m.color ? ' cat-' + m.color : ''), title: nom }, m.icona || '●');
+}
+
 function productThumb(p, size) {
   if (p.imatge) return h('img', { class: 'thumb', src: `data:${p.imatge.mime};base64,${p.imatge.image_base64}`, alt: '', width: size, height: size });
   return h('div', { class: 'thumb vacia', 'aria-hidden': 'true' }, (p.nom || '?').slice(0, 1).toUpperCase());
@@ -36,6 +54,8 @@ function productCard(p) {
   const nom = h('input', { value: p.nom }), cat = h('input', { value: p.categoria }), preu = h('input', { inputmode: 'decimal', value: preuText(p.preu_cent_per_g) });
   const gen = h('input', { type: 'checkbox', checked: !!p.es_genetic });
   const reg = h('input', { type: 'checkbox', checked: !!p.regalable });
+  const uni = h('select', { 'aria-label': 'Unitat' }, [['g', 'Grams'], ['u', 'Unitats']].map(([v, t]) => h('option', { value: v, selected: v === unitTxt(p) }, t)));
+  const gra = h('input', { type: 'checkbox', checked: p.granel !== false });
   const patch = (btn, body, ok) => guard(btn, out, async () => {
     await api(`/productes/${p.id}`, { method: 'PATCH', body });
     toast(ok);
@@ -50,6 +70,8 @@ function productCard(p) {
     if (c !== p.preu_cent_per_g) body.preu_cent_per_g = c;
     if (gen.checked !== !!p.es_genetic) body.es_genetic = gen.checked;
     if (reg.checked !== !!p.regalable) body.regalable = reg.checked;
+    if (uni.value !== unitTxt(p)) body.unitat = uni.value;
+    if (gra.checked !== (p.granel !== false)) body.granel = gra.checked;
     if (!Object.keys(body).length) throw new Error('No hi ha cap canvi');
     await api(`/productes/${p.id}`, { method: 'PATCH', body });
     toast('Producte actualitzat');
@@ -59,10 +81,10 @@ function productCard(p) {
   toggle.addEventListener('click', () => patch(toggle, { actiu: !p.actiu }, p.actiu ? 'Producte desactivat' : 'Producte reactivat'));
   return h('div', { class: 'card' },
     h('div', null, h('strong', null, p.nom), ' ', h('span', { class: 'pill ' + (p.actiu ? 'ok' : 'warn') }, p.actiu ? 'actiu' : 'inactiu'),
-      ' ', h('span', { class: 'muted' }, 'Estoc: ' + p.estoc_g + ' g')),
+      ' ', h('span', { class: 'muted' }, 'Estoc: ' + p.estoc_g + ' ' + unitTxt(p))),
     imageRow(p, out),
-    h('div', { class: 'row' }, field('Nom', nom), field('Categoria', cat), field('Preu per gram (€)', preu)),
-    h('label', null, gen, ' És genètic'), ' ', h('label', null, reg, ' Es pot regalar'),
+    h('div', { class: 'row' }, field('Nom', nom), field('Categoria', cat), field('Preu per gram o unitat (€)', preu), field('Unitat de venda', uni)),
+    h('label', null, gen, ' És genètic'), ' ', h('label', null, reg, ' Es pot regalar'), ' ', h('label', null, gra, ' Dispensació a granel (qualsevol quantitat)'),
     h('div', { class: 'actions' }, save, toggle), out);
 }
 
@@ -70,10 +92,11 @@ function productCard(p) {
 
 async function stockTable() {
   const prods = await api(`/locals/${S.local}/estoc`);
+  await carregaMetaCat();
   return h('div', { class: 'card table-wrap' }, h('table', null,
-    h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Producte'), h('th', null, 'Categoria'), h('th', { class: 'num' }, 'Preu/g'), h('th', { class: 'num' }, 'Estoc'))),
-    h('tbody', null, prods.length ? prods.map((p) => h('tr', null, h('td', null, productThumb(p, 36)), h('td', null, p.nom), h('td', { class: 'muted' }, p.categoria),
-      h('td', { class: 'num' }, eur(p.preu_cent_per_g)), h('td', { class: 'num' }, p.estoc_g + ' g')))
+    h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Producte'), h('th', null, 'Categoria'), h('th', { class: 'num' }, 'Preu'), h('th', { class: 'num' }, 'Estoc'))),
+    h('tbody', null, prods.length ? prods.map((p) => h('tr', null, h('td', null, productThumb(p, 36)), h('td', null, p.nom), h('td', { class: 'muted' }, catBadge(p.categoria), ' ', p.categoria),
+      h('td', { class: 'num' }, eur(p.preu_cent_per_g) + '/' + unitTxt(p)), h('td', { class: 'num' }, p.estoc_g + ' ' + unitTxt(p))))
       : h('tr', null, h('td', { colspan: 5, class: 'empty' }, 'Encara no hi ha productes.')))));
 }
 
@@ -106,17 +129,19 @@ async function productsSection() {
   const n = h('input'), c = h('input'), p = h('input', { inputmode: 'decimal', placeholder: '8,00' });
   // Elecció explícita (sense valor per defecte): un producte nou no genètic queda fora dels límits per soci sense que ningú ho hagi decidit.
   const regNou = h('input', { type: 'checkbox' });
+  const uniNou = h('select', { 'aria-label': 'Unitat' }, [['g', 'Grams'], ['u', 'Unitats']].map(([v, t]) => h('option', { value: v }, t)));
+  const graNou = h('input', { type: 'checkbox', checked: true });
   const genNou = h('select', null, h('option', { value: '' }, 'Tria…'), h('option', { value: 'si' }, 'Sí: compta per als límits per soci'), h('option', { value: 'no' }, 'No: no compta per als límits'));
   const b2 = h('button', { class: 'primary', type: 'submit' }, 'Crear producte');
   const nou = h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(b2, out2, async () => {
       if (!genNou.value) throw new Error('Indica si el producte és genètic (flor, hash, extractes, clons…): decideix si compta per als límits per soci');
-      await api('/productes', { method: 'POST', body: { local_id: S.local, nom: n.value.trim(), categoria: c.value.trim(), preu_cent_per_g: parseEur(p.value), es_genetic: genNou.value === 'si', regalable: regNou.checked } });
+      await api('/productes', { method: 'POST', body: { local_id: S.local, nom: n.value.trim(), categoria: c.value.trim(), preu_cent_per_g: parseEur(p.value), es_genetic: genNou.value === 'si', regalable: regNou.checked, unitat: uniNou.value, granel: graNou.checked } });
       toast('Producte creat');
       show('estoc');
     });
-  } }, h('h3', null, 'Nou producte'), h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)), field('És genètic?', genNou), h('label', null, regNou, ' Es pot regalar'), h('div', { class: 'actions' }, b2), out2);
+  } }, h('h3', null, 'Nou producte'), h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)), field('És genètic?', genNou), field('Unitat de venda', uniNou), h('label', null, regNou, ' Es pot regalar'), ' ', h('label', null, graNou, ' Dispensació a granel (qualsevol quantitat)'), h('div', { class: 'actions' }, b2), out2);
   // Els límits per soci només compten productes marcats com a genètics: sense cap, els límits no s'apliquen a res.
   const lloc = (S.me.locals || []).find((l) => l.id === S.local) || {};
   const amLimits = lloc.limit_diari_mg != null || lloc.limit_mensual_mg != null;
@@ -130,8 +155,24 @@ async function productsSection() {
 // Un dispensador amb el privilegi «pot editar descomptes» hi arriba des d'un menú propi (no té el d'Estoc).
 VIEWS.descomptes = async () => h('div', null, pageHead('Descomptes', 'Descomptes vigents i alta de nous.'), await discountsSection());
 
+// Aspecte de les categories de producte (icona i color): es veu a la pantalla de dispensar i a les existències.
+async function secCategories() {
+  const r = await api(`/locals/${S.local}/categories`);
+  metaCat.local = null;   // es tornarà a carregar amb els canvis
+  const out = h('div');
+  const files = r.categories.map((c) => {
+    const ic = h('select', { 'aria-label': 'Icona' }, h('option', { value: '' }, '—'), ...r.icones.map((i) => h('option', { value: i, selected: i === c.icona }, i)));
+    const co = h('select', { 'aria-label': 'Color' }, h('option', { value: '' }, '—'), ...r.colors.map((k) => h('option', { value: k, selected: k === c.color }, k)));
+    const b = h('button', { type: 'button', class: 'small primary' }, 'Desar');
+    b.addEventListener('click', () => guard(b, out, async () => { await api(`/locals/${S.local}/categories`, { method: 'PUT', body: { nom: c.nom, icona: ic.value, color: co.value } }); toast('Categoria desada'); }));
+    return [h('span', { class: 'cat-badge' + (c.color ? ' cat-' + c.color : '') }, c.icona || '●'), c.nom, String(c.productes), ic, co, b];
+  });
+  return h('div', null, h('p', { class: 'muted' }, 'Les categories surten dels productes (camp «Categoria»). Aquí els hi poses icona i color.'),
+    taula([[''], ['Categoria'], ['Productes', true], ['Icona'], ['Color'], ['']], files, 'Encara no hi ha categories: escriu-ne una en un producte.'), out);
+}
+
 VIEWS.estoc = async () => {
-  const items = [['existencies', 'Existències', stockTable], ['moviment', 'Moviments', stockMoveForm], ['productes', 'Productes', productsSection], ['descomptes', 'Descomptes', discountsSection], ['linies', 'Línies de preu', priceLinesSection], ['magatzems', 'Magatzems', warehousesSection], ['contenidors', 'Contenidors', containersSection], ['tipus-contenidor', 'Tipus de contenidor', containerTypesSection], ['regles', 'Regles', rulesSection], ['inventari', 'Inventari', inventorySection],
+  const items = [['existencies', 'Existències', stockTable], ['moviment', 'Moviments', stockMoveForm], ['productes', 'Productes', productsSection], ['categories', 'Categories', secCategories], ['descomptes', 'Descomptes', discountsSection], ['linies', 'Línies de preu', priceLinesSection], ['magatzems', 'Magatzems', warehousesSection], ['contenidors', 'Contenidors', containersSection], ['tipus-contenidor', 'Tipus de contenidor', containerTypesSection], ['regles', 'Regles', rulesSection], ['inventari', 'Inventari', inventorySection],
     ['historial', 'Historial', () => stockHistory(() => show('estoc'))]];
   return h('div', null, pageHead('Estoc', 'Existències, entrades i mermes, catàleg de productes i historial amb correccions.'), sections('estoc', items));
 };
