@@ -5,8 +5,8 @@ from fastapi import Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import quotes, service, socis
-from ..models import Member, User
+from .. import incidencies, quotes, service, socis
+from ..models import Member, MemberIncident, User
 from .comu import CAN_CREATE_MEMBER
 
 
@@ -51,6 +51,33 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     class EstatIn(BaseModel):
         estat: str
+
+    class IncidenciaIn(BaseModel):
+        descripcio: str = Field(min_length=3, max_length=incidencies.MAX_DESCRIPCIO)
+
+    @app.get("/socis/{member_id}/incidencies")
+    def llista_incidencies(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        return incidencies.llista(s, user, member_or_404(s, user, member_id))
+
+    @app.post("/socis/{member_id}/incidencies", status_code=201)
+    def alta_incidencia(member_id: int, body: IncidenciaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        return {"id": run(incidencies.crea, s, user, member_or_404(s, user, member_id), body.descripcio).id}
+
+    @app.post("/incidencies/{incident_id}/tanca")
+    def tanca_incidencia(incident_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        i = s.get(MemberIncident, incident_id)
+        if not i:
+            raise HTTPException(404, "No existeix")
+        check_local(s, user, i.local_id)
+        run(incidencies.tanca, s, user, i)
+        return {"ok": True}
+
+    @app.get("/socis/{member_id}/avalats")
+    def llista_avalats(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        return incidencies.avalats(s, user, member_or_404(s, user, member_id))
 
     class SignaturaIn(BaseModel):
         png_base64: str = Field(max_length=300_000)

@@ -117,6 +117,36 @@ function editForm(m, out, reload) {
   h('div', { class: 'actions' }, btn));
 }
 
+// Incidències del soci: llista (oberta/tancada), alta i tancament. El text és lliure i es desa xifrat.
+function memberIncidents(m) {
+  const box = h('div', { class: 'card' });
+  const out = h('div');
+  const text = h('textarea', { rows: 3, maxlength: 1000, 'aria-label': "Descripció de la incidència", placeholder: 'Descriu la incidència' });
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Registrar incidència');
+  const pinta = async () => {
+    const l = await api(`/socis/${m.id}/incidencies`);
+    box.replaceChildren(h('h3', null, 'Incidències'),
+      h('form', { onsubmit: (e) => {
+        e.preventDefault();
+        guard(btn, out, async () => { await api(`/socis/${m.id}/incidencies`, { method: 'POST', body: { descripcio: text.value.trim() } }); text.value = ''; toast('Incidència registrada'); await pinta(); });
+      } }, field('Nova incidència', text), h('div', { class: 'actions' }, btn)), out,
+      taula([['Descripció'], ['Estat'], ['Creada'], ['Creada per'], ['']], l.map((i) => {
+        const b = h('button', { type: 'button', class: 'small' }, 'Tancar');
+        b.addEventListener('click', () => guard(b, out, async () => { await api(`/incidencies/${i.id}/tanca`, { method: 'POST' }); await pinta(); }));
+        return [i.descripcio, h('span', { class: 'pill ' + (i.estat === 'oberta' ? 'warn' : 'ok') }, i.estat), new Date(i.creat).toLocaleString(loc()), i.creat_per, i.estat === 'oberta' ? b : ''];
+      }), 'Cap incidència.'));
+  };
+  pinta().catch((e) => box.replaceChildren(msg('err', e.message)));
+  return box;
+}
+
+// Socis que aquest soci ha avalat.
+function memberAvalats(m) {
+  const box = h('div', { class: 'card' }, h('h3', null, 'Avalats'));
+  api(`/socis/${m.id}/avalats`).then((l) => box.append(taula([['Soci'], ['Tipus'], ['Estat'], ['Alta']], l.map((x) => [x.nom, x.tipus, x.estat, new Date(x.creat).toLocaleDateString(loc())]), "No ha avalat cap soci."))).catch((e) => box.append(msg('err', e.message)));
+  return box;
+}
+
 // Eines de la fitxa per als responsables: foto, carnet i edició (plegables per no ocupar la pantalla).
 function memberTools(m, out, onChange) {
   const reload = async () => onChange(await api(`/socis/${m.id}`));
@@ -133,7 +163,7 @@ function memberTools(m, out, onChange) {
     return b;
   };
   return { bar: [...photoUploader(m, out, reload), toggle('Carnet', () => cardManager(m, out, reload)), toggle('Editar dades', () => editForm(m, out, reload)),
-    ...(isManager() ? [toggle('Historial de consum', () => memberConsumption(m)), toggle('Línia de preu', () => { const box = h('div'); memberPriceLine(m, out, reload).then((f) => box.replaceChildren(f)).catch((e) => box.replaceChildren(msg('err', e.message))); return box; })] : [])], panel };
+    ...(isManager() ? [toggle('Historial de consum', () => memberConsumption(m)), toggle('Incidències', () => memberIncidents(m)), toggle('Avalats', () => memberAvalats(m)), toggle('Línia de preu', () => { const box = h('div'); memberPriceLine(m, out, reload).then((f) => box.replaceChildren(f)).catch((e) => box.replaceChildren(msg('err', e.message))); return box; })] : [])], panel };
 }
 
 // Llistat de socis del local amb filtre per nom i estat (només responsables).

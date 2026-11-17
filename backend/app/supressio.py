@@ -24,7 +24,7 @@ from sqlalchemy import delete, select, text, update
 from sqlalchemy.orm import Session
 
 from . import crypto, service
-from .models import AuditLog, Member, MemberCard, MemberPhoto, Signature
+from .models import AuditLog, Member, MemberCard, MemberIncident, MemberPhoto, Signature
 
 MIN_DIES_DEFECTE = 365
 TOKEN_NOM = "Soci suprimit"
@@ -112,6 +112,8 @@ def pseudonymize(db: Session, actor_id: int | None, member: Member, motiu: str =
     member.naixement_enc = crypto.encrypt("1900-01-01")
     member.telefon_enc = None
     member.perfil_enc = None
+    for inc in db.scalars(select(MemberIncident).where(MemberIncident.member_id == member.id)):
+        inc.descripcio_enc = crypto.encrypt("[suprimit]")  # text lliure: pot contenir dades personals
     member.email_enc = None
     member.avalador_id = None
     member.suprimit_en = datetime.now(timezone.utc)

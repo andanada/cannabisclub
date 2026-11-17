@@ -151,6 +151,23 @@ class CashEntry(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
 
+class MemberIncident(Base):
+    """Incidència d'un soci (conflicte, avís…). La descripció és text lliure i pot contenir dades personals: va xifrada."""
+    __tablename__ = "member_incidents"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
+    descripcio_enc: Mapped[str] = mapped_column(Text)
+    estat: Mapped[str] = mapped_column(String(10), default="oberta")  # oberta | tancada
+    creat: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    creat_per: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    tancada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tancada_per: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
+Index("ix_incidents_member", MemberIncident.member_id)
+
+
 class ExpenseCategory(Base):
     __tablename__ = "expense_categories"
     __table_args__ = (UniqueConstraint("local_id", "nom"),)
