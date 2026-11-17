@@ -52,7 +52,7 @@ test('la cerca de soci dona prioritat al carnet acabat de passar sobre un docume
 
 test('Dispensar: els tres botons es bloquegen junts i la cerca buida els dos camps', () => {
   const v = text('views-dispensar.js');
-  assert.match(v, /guardTots\(\[btnEfectiu, btnTargeta, btnBizum, btnRegal, btnApart\]/);
+  assert.match(v, /guardTots\(\[btnEfectiu, btnTargeta, btnBizum, btnMoneder, btnRegal, btnApart\]/);
   assert.match(v, /triaCerca\(doc\.value, carnet\.value\)/);
   assert.match(v, /doc\.value = ''/);
 });

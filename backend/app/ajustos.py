@@ -7,8 +7,9 @@ from . import service
 from .models import LocalSetting, User
 
 DEFECTES = {"quota_obligatoria": False, "quota_cent": None, "quota_mesos": 1,
-            "espera_dies": 0, "aval": "no", "alta_pendent": False}  # els tres últims: controls de club (controls.py)
-BOOLEANS = {"quota_obligatoria", "alta_pendent"}
+            "espera_dies": 0, "aval": "no", "alta_pendent": False,
+            "moneder_actiu": False, "moneder_limit_cent": 0}  # monedero: activat i límit de saldo negatiu (cèntims)  # els tres últims: controls de club (controls.py)
+BOOLEANS = {"quota_obligatoria", "alta_pendent", "moneder_actiu"}
 AVALS = {"no", "opcional", "obligatori"}
 MAX_QUOTA_CENT = 1_000_000
 
@@ -36,6 +37,8 @@ def _validate(clau: str, valor) -> None:
         raise ValueError("Els mesos de la quota han d'estar entre 1 i 24")
     if clau == "espera_dies" and not 0 <= valor <= 365:
         raise ValueError("El període d'espera ha d'estar entre 0 i 365 dies")
+    if clau == "moneder_limit_cent" and not 0 <= valor <= MAX_QUOTA_CENT:
+        raise ValueError("El límit negatiu del monedero ha d'estar entre 0 i 10.000 €")
     if clau == "aval" and valor not in AVALS:
         raise ValueError("Avalador: no, opcional o obligatori")
 

@@ -11,7 +11,8 @@ from .csvutil import to_csv
 from .models import CashEntry, CashSession, Product, StockMovement, User
 from .stock import TZ
 
-METODES = {"efectiu", "targeta", "bizum"}
+METODES = {"efectiu", "targeta", "bizum"}  # entra diner a la caixa
+COBRAMENTS = METODES | {"monedero"}  # formes de pagar una dispensació
 
 
 def open_session(db: Session, actor: User, local_id: int, opening_cent: int) -> CashSession:
@@ -98,7 +99,7 @@ def _live_charge(db: Session, movement_id: int) -> CashEntry | None:
 
 def charge_in_tx(db: Session, actor: User, mv: StockMovement, metode: str) -> CashEntry:
     """Cobra una dispensació SENSE fer commit (el cridador tanca la transacció)."""
-    if metode not in METODES:
+    if metode not in COBRAMENTS:
         raise ValueError("Mètode de pagament no vàlid")
     if mv.tipus != "dispensacio":
         raise ValueError("Només es poden cobrar dispensacions")
@@ -114,12 +115,15 @@ def charge_in_tx(db: Session, actor: User, mv: StockMovement, metode: str) -> Ca
                   import_cent=mv.import_cent or 0, movement_id=mv.id, user_id=actor.id)
     db.add(e)
     db.flush()
+    if metode == "monedero":
+        from . import moneder
+        moneder.pay(db, actor, mv.member_id, e)
     service.audit_append(db, {"accio": "cobrament", "apunt": e.id, "moviment": mv.id, "cent": e.import_cent, "metode": metode, "per": actor.id})
     return e
 
 
 def charge(db: Session, actor: User, movement_id: int, metode: str) -> CashEntry:
-    if metode not in METODES:
+    if metode not in COBRAMENTS:
         raise ValueError("Mètode de pagament no vàlid")
     mv = db.get(StockMovement, movement_id)
     if not mv or mv.tipus != "dispensacio":
@@ -152,6 +156,10 @@ def correct_entry(db: Session, actor: User, entry_id: int, concepte: str, commit
         raise ValueError("Una correcció no es pot corregir")
     if db.scalar(select(CashEntry.id).where(CashEntry.corregeix_id == orig.id)):
         raise ValueError("Aquest apunt ja està corregit")
+    from . import moneder, stock
+    soci_moneder = moneder.member_of_entry(db, orig.id)
+    if soci_moneder is not None:
+        stock._lock_member(db, soci_moneder)  # ordre global: soci -> sessió de caixa -> auditoria
     cs = _require_open(db, orig.local_id)  # sessió bloquejada
     if db.scalar(select(CashEntry.id).where(CashEntry.corregeix_id == orig.id)):
         raise ValueError("Aquest apunt ja està corregit")
@@ -164,6 +172,7 @@ def correct_entry(db: Session, actor: User, entry_id: int, concepte: str, commit
     except IntegrityError:
         db.rollback()
         raise ValueError("Aquest apunt ja està corregit")
+    moneder.reverse_for_entry(db, actor, orig, e)
     service.audit_append(db, {"accio": "correccio_caixa", "apunt": e.id, "corregeix": orig.id, "per": actor.id})
     if commit:
         db.commit()
@@ -187,6 +196,8 @@ def report(db: Session, local_id: int, des: date, fins: date, usuari: int | None
     ingressos = despeses_total = 0
     for e in entries:
         dia = e.ts.replace(tzinfo=e.ts.tzinfo or timezone.utc).astimezone(TZ).date().isoformat()
+        if e.metode == "monedero":  # gastar saldo no és un ingrés nou: ja es va comptar en recarregar el monedero
+            continue
         if e.categoria is None:  # cobrament, o correcció d'un cobrament (import negatiu)
             per_dia[dia]["ingressos_cent"] += e.import_cent
             ingressos += e.import_cent

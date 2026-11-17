@@ -5,7 +5,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import consentiments, informes_socis, quotes, service, socis
+from . import consentiments, informes_socis, moneder, quotes, service, socis
 from .auditoria_consulta import entrades_del_soci
 from .csvutil import to_csv
 from .models import CheckIn, Member, MemberCard, MemberPhoto, Signature, User
@@ -24,6 +24,7 @@ def export_member(db: Session, actor: User, member: Member) -> dict:
         "consentiments": consentiments.history(db, member.id),
         "consentiments_vigents": consentiments.status(db, member.id),
         "quotes": quotes.history(db, member.id),
+        "monedero": {"saldo_cent": moneder.saldo(db, member.id), "moviments": moneder.history(db, member.id, limit=100000)},
         "entrades": [{"id": c.id, "ts": _ts(c.ts)} for c in db.scalars(select(CheckIn).where(CheckIn.member_id == member.id).order_by(CheckIn.id))],
         "dispensacions": informes_socis.consumption(db, member, date(1970, 1, 1), date(2999, 12, 31)),
         "carnets": [{"id": c.id, "actiu": c.active, "creat": _ts(c.creat)} for c in db.scalars(select(MemberCard).where(MemberCard.member_id == member.id))],

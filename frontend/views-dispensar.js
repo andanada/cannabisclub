@@ -32,6 +32,39 @@ function quotaForm(m, out, onDone) {
   h('div', { class: 'actions' }, btn), res);
 }
 
+// Monedero del soci: saldo, recàrrega (entra a la caixa oberta) i darrers moviments. Només si el local el té activat.
+function walletPanel(m) {
+  const lc = S.me.locals.find((l) => l.id === S.local) || {};
+  if (!lc.moneder_actiu) return null;
+  const box = h('div', { class: 'card' });
+  const out = h('div');
+  const imp = h('input', { inputmode: 'decimal', placeholder: '0,00', 'aria-label': 'Import a recarregar' });
+  const met = h('select', { 'aria-label': 'Mètode de pagament' }, ['efectiu', 'targeta', 'bizum'].map((x) => h('option', { value: x }, x)));
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Recarregar');
+  const ref = { v: novaRef() };   // una recàrrega = una referència; es renova quan s'ha fet
+  const pinta = async () => {
+    const w = await api(`/socis/${m.id}/moneder`);
+    m.saldo_cent = w.saldo_cent;
+    const tipus = { recarrega: 'Recàrrega', pagament: 'Pagament', correccio: 'Correcció' };
+    box.replaceChildren(h('h3', null, 'Monedero'),
+      h('div', { class: 'big' }, eur(w.saldo_cent)),
+      h('form', { onsubmit: (e) => {
+        e.preventDefault();
+        guard(btn, out, async () => {
+          await api(`/socis/${m.id}/moneder/recarrega`, { method: 'POST', body: { client_ref: ref.v, import_cent: parseEur(imp.value), metode: met.value } });
+          ref.v = novaRef();
+          imp.value = '';
+          toast('Monedero recarregat');
+          await pinta();
+        });
+      } }, h('div', { class: 'row' }, field('Import (€)', imp), field('Mètode', met)), h('div', { class: 'actions' }, btn)),
+      out,
+      w.historial.length ? h('table', null, h('tbody', null, w.historial.slice(0, 5).map((x) => h('tr', null,
+        h('td', null, new Date(x.ts).toLocaleString(loc())), h('td', null, tipus[x.tipus] || x.tipus), h('td', { class: 'num' }, eur(x.import_cent)))))) : null);
+  };
+  pinta().catch((e) => box.replaceChildren(msg('err', e.message)));
+  return box;
+}
 function memberCard(m, out, onChange) {
   const pill = h('span', { class: 'pill ' + (m.estat === 'actiu' ? 'ok' : 'bad') }, m.estat);
   const card = h('div', { class: 'card' }, h('div', { class: 'member' }, memberPhoto(m), h('div', null,
@@ -154,6 +187,7 @@ VIEWS.dispensar = async () => {
     const bloquejat = loc.quota_obligatoria && !(m.quota && m.quota.al_dia);
     step.replaceChildren(...[
       memberCard(m, out, (mm) => showMember(mm, out)),
+      m.estat !== 'baixa' ? walletPanel(m) : null,
       m.estat !== 'actiu' ? msg('err', 'El soci no està actiu: no es pot dispensar.') : null,
       m.estat === 'actiu' && bloquejat ? msg('err', 'La quota del soci no està al dia: cal cobrar-la abans de dispensar.') : null,
       m.estat !== 'baixa' && bloquejat ? quotaForm(m, out, (mm) => showMember(mm, out)) : null,
@@ -201,12 +235,14 @@ VIEWS.dispensar = async () => {
     const btnEfectiu = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar en efectiu');
     const btnTargeta = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar amb targeta');
     const btnBizum = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar amb Bizum');
+    const btnMoneder = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar amb el monedero');
+    btnMoneder.hidden = !loc.moneder_actiu;
     const btnRegal = h('button', { type: 'button' }, 'Dispensar com a regal');
     const btnApart = h('button', { type: 'submit' }, 'Dispensar i cobrar després');
     const scale = scalePanel(g, pes);
     // Amb mètode, la dispensació i el cobrament es fan en una sola operació al servidor (o es fa tot o res).
     // Els tres botons fan la mateixa dispensació: es bloquegen junts (un Intro o un segon clic no la repeteix).
-    const envia = (btn, metode) => guardTots([btnEfectiu, btnTargeta, btnBizum, btnRegal, btnApart], out, async () => {
+    const envia = (btn, metode) => guardTots([btnEfectiu, btnTargeta, btnBizum, btnMoneder, btnRegal, btnApart], out, async () => {
       if (!chosen) throw new Error('Tria un producte');
       const body = { client_ref: ref, member_id: m.id, product_id: chosen.id,
         grams: parseGrams(g.value), pes_bascula_g: pes.value.trim() ? parseGrams(pes.value) : null,
@@ -227,18 +263,19 @@ VIEWS.dispensar = async () => {
     btnEfectiu.onclick = () => envia(btnEfectiu, 'efectiu');
     btnTargeta.onclick = () => envia(btnTargeta, 'targeta');
     btnBizum.onclick = () => envia(btnBizum, 'bizum');
+    btnMoneder.onclick = () => envia(btnMoneder, 'monedero');
     btnRegal.onclick = () => envia(btnRegal, 'regal');
     btnRegal.hidden = true;   // només per als productes marcats com a regalables
     return h('form', { class: 'card', onsubmit: (e) => { e.preventDefault(); envia(btnApart, null); } }, h('h3', null, 'Producte'), list,
     scale,
     h('div', { class: 'row' }, field('Quantitat (g)', g), field('Bàscula (g)', pes), field('Descompte', descSel), lotField),
-    h('div', { class: 'actions' }, btnEfectiu, btnTargeta, btnBizum, btnRegal, btnApart), out);
+    h('div', { class: 'actions' }, btnEfectiu, btnTargeta, btnBizum, btnMoneder, btnRegal, btnApart), out);
   }
 
   function chargeStep(m, r) {
     const out = h('div');
     const pay = (metode) => {
-      const b = { efectiu: cash, targeta: card, bizum: bizum }[metode];
+      const b = { efectiu: cash, targeta: card, bizum: bizum, monedero: moneder }[metode];
       return guard(b, out, async () => {
         await api('/cobraments', { method: 'POST', body: { movement_id: r.id, metode } });
         step.replaceChildren(msg('ok', `Cobrat ${eur(r.import_cent)} (${metode}) a ${m.nom}`),
@@ -248,9 +285,11 @@ VIEWS.dispensar = async () => {
     const cash = h('button', { class: 'primary', onclick: () => pay('efectiu') }, 'Cobrar en efectiu');
     const card = h('button', { onclick: () => pay('targeta') }, 'Cobrar amb targeta');
     const bizum = h('button', { onclick: () => pay('bizum') }, 'Cobrar amb Bizum');
+    const moneder = h('button', { onclick: () => pay('monedero') }, 'Cobrar amb el monedero');
+    moneder.hidden = !loc.moneder_actiu;
     return h('div', { class: 'card' }, h('h2', null, 'Dispensació registrada'),
       h('div', { class: 'big' }, eur(r.import_cent)), r.descompte_cent > 0 ? h('p', { class: 'muted' }, 'Descompte aplicat: -' + eur(r.descompte_cent)) : null, h('p', { class: 'muted' }, 'Falta cobrar-la.'),
-      h('div', { class: 'actions' }, cash, card, bizum), out);
+      h('div', { class: 'actions' }, cash, card, bizum, moneder), out);
   }
 
   box.append(search, step);

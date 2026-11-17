@@ -139,8 +139,8 @@ class CashEntry(Base):
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
     session_id: Mapped[int] = mapped_column(ForeignKey("cash_sessions.id"))
-    tipus: Mapped[str] = mapped_column(String(20))  # cobrament | despesa | correccio
-    metode: Mapped[str] = mapped_column(String(10))  # efectiu | targeta | bizum
+    tipus: Mapped[str] = mapped_column(String(20))  # cobrament | despesa | correccio | quota | recarrega
+    metode: Mapped[str] = mapped_column(String(10))  # efectiu | targeta | bizum | monedero
     import_cent: Mapped[int] = mapped_column(Integer)
     categoria: Mapped[str | None] = mapped_column(String(60), nullable=True)
     concepte: Mapped[str | None] = mapped_column(String(300), nullable=True)
@@ -149,6 +149,34 @@ class CashEntry(Base):
     movement_id: Mapped[int | None] = mapped_column(ForeignKey("stock_movements.id"), nullable=True)
     corregeix_id: Mapped[int | None] = mapped_column(ForeignKey("cash_entries.id"), nullable=True, unique=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
+class WalletMovement(Base):
+    """Moviments del monedero d'un soci (només d'afegir). El saldo és la suma d'import_cent: + recàrrega, - pagament,
+    i una correcció té el signe contrari del moviment que desfà."""
+    __tablename__ = "wallet_movements"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
+    tipus: Mapped[str] = mapped_column(String(12))  # recarrega | pagament | correccio
+    import_cent: Mapped[int] = mapped_column(Integer)
+    cash_entry_id: Mapped[int] = mapped_column(ForeignKey("cash_entries.id"), unique=True)
+    movement_id: Mapped[int | None] = mapped_column(ForeignKey("stock_movements.id"), nullable=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
+Index("ix_wallet_member", WalletMovement.member_id)
+
+
+@event.listens_for(WalletMovement, "before_update")
+def _no_update_wallet(mapper, connection, target):
+    raise ImmutableError("Els moviments del monedero no es poden modificar: crea una correcció")
+
+
+@event.listens_for(WalletMovement, "before_delete")
+def _no_delete_wallet(mapper, connection, target):
+    raise ImmutableError("Els moviments del monedero no es poden esborrar: crea una correcció")
 
 
 @event.listens_for(CashEntry, "before_update")

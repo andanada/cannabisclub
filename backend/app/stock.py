@@ -230,7 +230,7 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
         # Ordre global de bloquejos: soci -> producte -> sessió de caixa -> auditoria. Tancar la caixa, una despesa o una quota
         # agafen la sessió i després l'auditoria; si aquí s'escrivís l'auditoria abans de bloquejar la sessió, s'interbloquejarien.
         from . import cash
-        if metode not in cash.METODES:
+        if metode not in cash.COBRAMENTS:
             raise ValueError("Mètode de pagament no vàlid")
         cash._require_open(db, p.local_id)
     from . import controls
