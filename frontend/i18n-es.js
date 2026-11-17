@@ -707,6 +707,24 @@ Object.assign(I18N.es, {
  "Dades personals": "Datos personales",
  "Contacte": "Contacto",
  "Cognoms": "Apellidos",
+ "Accés": "Acceso",
+ "Accés manual": "Acceso manual",
+ "Quiosc RFID": "Quiosco RFID",
+ "Visites de socis": "Visitas de socios",
+ "Socis sense check-in": "Socios sin check-in",
+ "Socis amb check-in": "Socios con check-in",
+ "Sortir-ne tots": "Sacar a todos",
+ "Buscar soci": "Buscar socio",
+ "Ningú": "Nadie",
+ "Entrades i sortides dels socis al local.": "Entradas y salidas de los socios en el local.",
+ "Accés per carnet": "Acceso por carnet",
+ "Posa el carnet al lector": "Pon el carnet en el lector",
+ "Benvingut/da. Entrada registrada.": "Bienvenido/a. Entrada registrada.",
+ "Fins aviat. Sortida registrada.": "Hasta pronto. Salida registrada.",
+ "La quota no està al dia": "La cuota no está al día",
+ "Pantalla completa": "Pantalla completa",
+ "Visites": "Visitas",
+ "dins": "dentro",
  "Monedero": "Monedero",
  "monedero": "monedero",
  "Recarregar": "Recargar",
@@ -1139,3 +1157,7 @@ I18N.pat.es.push([new RegExp("^Coincideix\\ amb\\ (.*)\\ exportació\\(ns\\)\\ r
 I18N.pat.es.push([new RegExp("^El\\ soci\\ encara\\ està\\ en\\ el\\ període\\ d'espera\\ \\((.*)\\ dies\\ des\\ de\\ l'alta\\)$"), "El socio todavía está en el periodo de espera ($1 días desde el alta)"]);
 I18N.pat.es.push([new RegExp("^Regal\\ dispensat\\ a\\ (.*)$"), "Regalo dispensado a $1"]);
 I18N.pat.es.push([new RegExp("^Devolució\\ feta:\\ (.*)\\ surten\\ de\\ la\\ caixa$"), "Devolución hecha: $1 salen de la caja"]);
+I18N.pat.es.push([new RegExp("^(.*):\\ entrada\\ registrada$"), "$1: entrada registrada"]);
+I18N.pat.es.push([new RegExp("^(.*):\\ sortida\\ registrada$"), "$1: salida registrada"]);
+I18N.pat.es.push([new RegExp("^(.*)\\ socis\\ han\\ sortit$"), "$1 socios han salido"]);
+I18N.pat.es.push([new RegExp("^entrada\\ (.*)$"), "entrada $1"]);

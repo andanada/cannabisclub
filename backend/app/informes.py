@@ -87,7 +87,7 @@ def attendance(db: Session, local_id: int, des: date, fins: date, usuari: int | 
     a, b = _range(des, fins)
     per_dia = defaultdict(lambda: {"entrades": 0, "socis": set()})
     tots = set()
-    q = select(CheckIn).where(CheckIn.local_id == local_id, CheckIn.ts >= a, CheckIn.ts < b)
+    q = select(CheckIn).where(CheckIn.local_id == local_id, CheckIn.ts >= a, CheckIn.ts < b, CheckIn.tipus == "entrada")
     if usuari is not None:
         q = q.where(CheckIn.user_id == usuari)
     for c in db.scalars(q):
@@ -98,6 +98,40 @@ def attendance(db: Session, local_id: int, des: date, fins: date, usuari: int | 
     return {"des": des.isoformat(), "fins": fins.isoformat(),
             "per_dia": [{"dia": d, "entrades": v["entrades"], "socis": len(v["socis"])} for d, v in sorted(per_dia.items())],
             "total_entrades": sum(v["entrades"] for v in per_dia.values()), "socis_diferents": len(tots)}
+
+
+def visits(db: Session, local_id: int, des: date, fins: date, usuari: int | None = None) -> dict:
+    """Visites de socis del rang: cada entrada amb el nom, el tipus de membre i la sortida (la marca següent del mateix soci).
+    Les entrades sense sortida surten amb `sortida` buida. Els noms es desxifren aquí; la consulta queda a l'auditoria."""
+    from . import crypto, service
+    from .models import Member
+    a, b = _range(des, fins)
+    q = select(CheckIn).where(CheckIn.local_id == local_id, CheckIn.ts >= a, CheckIn.ts < b).order_by(CheckIn.id)
+    if usuari is not None:
+        q = q.where(CheckIn.user_id == usuari)
+    marques = list(db.scalars(q))
+    oberta, files = {}, []
+    for c in marques:
+        ts = c.ts.replace(tzinfo=c.ts.tzinfo or timezone.utc)
+        if c.tipus == "entrada":
+            fila = {"soci_id": c.member_id, "entrada": ts, "sortida": None, "via": c.via}
+            files.append(fila)
+            oberta[c.member_id] = fila
+        elif oberta.get(c.member_id) is not None:
+            oberta.pop(c.member_id)["sortida"] = ts
+    ids = {f["soci_id"] for f in files}
+    socis = {m.id: m for m in db.scalars(select(Member).where(Member.id.in_(ids)))} if ids else {}
+    out = [{"soci_id": f["soci_id"], "nom": crypto.decrypt(socis[f["soci_id"]].nom_enc), "tipus": socis[f["soci_id"]].tipus,
+            "entrada": f["entrada"].isoformat(), "sortida": f["sortida"].isoformat() if f["sortida"] else None, "via": f["via"]}
+           for f in files]
+    service.audit_append(db, {"accio": "consulta_visites", "local": local_id, "n": len(out), "des": des.isoformat(), "fins": fins.isoformat()})
+    db.commit()
+    return {"des": des.isoformat(), "fins": fins.isoformat(), "visites": out}
+
+
+def visits_csv(r: dict) -> str:
+    return to_csv(["soci_id", "nom", "tipus", "entrada", "sortida", "via"],
+                  [[v["soci_id"], v["nom"], v["tipus"], v["entrada"], v["sortida"] or "", v["via"]] for v in r["visites"]])
 
 
 def attendance_csv(r: dict) -> str:

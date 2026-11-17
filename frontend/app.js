@@ -98,13 +98,14 @@ function renderLogin() {
 const TABS = [
   ['dispensar', 'Dispensar', () => true],
   ['socis', 'Socis', () => true],
+  ['acces', 'Accés', () => true, [['manual', 'Accés manual'], ['quiosc', 'Quiosc RFID']]],
   ['estoc', 'Estoc', isManager, [
     ['existencies', 'Existències'], ['magatzems', 'Magatzems'], ['linies', 'Línies de preu'], ['contenidors', 'Contenidors'],
     ['tipus-contenidor', 'Tipus de contenidors'], ['moviment', 'Moviments'], ['inventari', 'Inventaris'], ['descomptes', 'Descomptes'],
     ['regles', 'Regles'], ['productes', 'Productes'], ['historial', 'Historial']]],
   ['caixa', 'Caixa', () => true],
   ['fitxatge', 'Fitxatge', () => true],
-  ['informe', 'Informes', isManager, [['vendes', 'Vendes'], ['dispensacions', 'Dispensacions'], ['evolucio', 'Evolució del club'], ['demografia', 'Demografia'], ['caixa', 'Caixa'], ['estoc', 'Estoc valorat'], ['assistencia', 'Assistència'], ['hores', 'Hores']]],
+  ['informe', 'Informes', isManager, [['vendes', 'Vendes'], ['dispensacions', 'Dispensacions'], ['evolucio', 'Evolució del club'], ['demografia', 'Demografia'], ['caixa', 'Caixa'], ['estoc', 'Estoc valorat'], ['assistencia', 'Assistència'], ['visites', 'Visites de socis'], ['hores', 'Hores']]],
   ['rgpd', 'Privacitat', isManager, () => (S.me.role === 'admin' ? [['soci', "Dades d'un soci"], ['auditoria', "Registre d'accessos"], ['retencio', 'Retenció de dades']] : [['soci', "Dades d'un soci"]])],
   ['club', 'Controls del club', isManager, [['controls', 'Controls'], ['limits', 'Límits per soci'], ['lots', 'Lots i traçabilitat'], ['llibres', 'Llibres']]],
   ['config', 'Configuració', isManager, () => (S.me.role === 'admin'

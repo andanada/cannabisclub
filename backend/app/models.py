@@ -206,6 +206,8 @@ class CheckIn(Base):
     local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
     member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    tipus: Mapped[str] = mapped_column(String(8), default="entrada", server_default="entrada")  # entrada | sortida (via: manual | rfid)
+    via: Mapped[str] = mapped_column(String(8), default="manual", server_default="manual")
 
 
 @event.listens_for(TimeEvent, "before_update")

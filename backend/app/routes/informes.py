@@ -79,6 +79,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     registra_informe("vendes", informes.sales, informes.sales_csv, True)
     registra_informe("estoc", informes.valued_stock, informes.stock_csv, False)
     registra_informe("assistencia", informes.attendance, informes.attendance_csv, True)
+    registra_informe("visites", informes.visits, informes.visits_csv, True)
     registra_informe("evolucio", informes_socis.evolution, informes_socis.evolution_csv, True)
     registra_informe("demografia", informes_socis.demographics, informes_socis.demographics_csv, False)
 

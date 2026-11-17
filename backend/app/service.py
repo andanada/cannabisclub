@@ -349,16 +349,69 @@ def set_member_status(db: Session, actor: User, member: Member, estat: str, moti
     db.commit()
 
 
-def check_in(db: Session, actor: User, member: Member):
+def check_in(db: Session, actor: User, member: Member, via: str = "manual"):
     from .models import CheckIn
     if member.estat != "actiu":
         raise ValueError("El soci no està actiu")
-    c = CheckIn(local_id=member.local_id, member_id=member.id, user_id=actor.id)
+    c = CheckIn(local_id=member.local_id, member_id=member.id, user_id=actor.id, tipus="entrada", via=via)
     db.add(c)
     db.flush()
-    audit_append(db, {"accio": "entrada_soci", "soci": member.id, "per": actor.id})
+    audit_append(db, {"accio": "entrada_soci", "soci": member.id, "via": via, "per": actor.id})
     db.commit()
     return c
+
+
+DINS_MAX_HORES = 24  # una entrada sense sortida de fa més d'això ja no compta com «dins» (s'han oblidat de fitxar la sortida)
+
+
+def _dins_ids(db: Session, local_id: int) -> dict[int, datetime]:
+    """Socis que ara són dins: la seva darrera marca (entrada o sortida) és una entrada de fa menys de 24 h. {soci: hora d'entrada}"""
+    from .models import CheckIn
+    limit = datetime.now(timezone.utc) - timedelta(hours=DINS_MAX_HORES)
+    darrera = {}
+    for c in db.scalars(select(CheckIn).where(CheckIn.local_id == local_id, CheckIn.ts >= limit).order_by(CheckIn.id)):
+        darrera[c.member_id] = c
+    return {m: c.ts for m, c in darrera.items() if c.tipus == "entrada"}
+
+
+def check_out(db: Session, actor: User, member: Member, via: str = "manual"):
+    from .models import CheckIn
+    if member.id not in _dins_ids(db, member.local_id):
+        raise ValueError("El soci no té cap entrada oberta")
+    c = CheckIn(local_id=member.local_id, member_id=member.id, user_id=actor.id, tipus="sortida", via=via)
+    db.add(c)
+    db.flush()
+    audit_append(db, {"accio": "sortida_soci", "soci": member.id, "via": via, "per": actor.id})
+    db.commit()
+    return c
+
+
+def check_out_all(db: Session, actor: User, local_id: int) -> int:
+    """«Sacar tots»: tanca el dia amb una sortida per a cada soci que és dins. Torna quants n'ha sortit."""
+    from .models import CheckIn
+    dins = _dins_ids(db, local_id)
+    for mid in dins:
+        db.add(CheckIn(local_id=local_id, member_id=mid, user_id=actor.id, tipus="sortida", via="manual"))
+    audit_append(db, {"accio": "sortida_tots", "local": local_id, "n": len(dins), "per": actor.id})
+    db.commit()
+    return len(dins)
+
+
+def access_state(db: Session, actor: User, local_id: int) -> dict:
+    """Pantalla d'accés manual: socis actius dins (amb hora d'entrada) i fora. Els noms es desxifren aquí (una consulta)."""
+    dins = _dins_ids(db, local_id)
+    out_dins, out_fora = [], []
+    for m in db.scalars(select(Member).where(Member.local_id == local_id, Member.estat == "actiu")):
+        nom = crypto.decrypt(m.nom_enc)
+        if m.id in dins:
+            out_dins.append({"id": m.id, "nom": nom, "entrada": dins[m.id].isoformat()})
+        else:
+            out_fora.append({"id": m.id, "nom": nom})
+    out_dins.sort(key=lambda x: x["entrada"])
+    out_fora.sort(key=lambda x: x["nom"].casefold())
+    audit_append(db, {"accio": "consulta_acces", "local": local_id, "per": actor.id})
+    db.commit()
+    return {"dins": out_dins, "fora": out_fora}
 
 
 def find_member_by_document(db: Session, local_id: int, document: str) -> Member | None:

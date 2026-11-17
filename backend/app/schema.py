@@ -119,6 +119,7 @@ def missing_indexes(engine) -> list[str]:
 # s'afegeixen amb ALTER TABLE (sempre amb valor per defecte: les files existents continuen valent).
 COLUMNES_NOVES = {"products": [("es_genetic", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"}),
                                ("regalable", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"})],
+                  "checkins": [("tipus", {"default": "VARCHAR(8) NOT NULL DEFAULT 'entrada'"}), ("via", {"default": "VARCHAR(8) NOT NULL DEFAULT 'manual'"})],
                   "stock_movements": [("regal", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"})],
                   "inventory_counts": [("expected_mg", {"default": "INTEGER"})],
                   "user_cards": [("pin_hash", {"default": "TEXT"})],

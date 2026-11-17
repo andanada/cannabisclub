@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import service, socis
+from .. import quotes, service, socis
 from ..models import Member, User
 from .comu import CAN_CREATE_MEMBER
 
@@ -80,6 +80,39 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     def entrada_soci(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
         c = run(service.check_in, s, user, member_or_404(s, user, member_id))
         return {"id": c.id}
+
+    @app.post("/socis/{member_id}/sortida", status_code=201)
+    def sortida_soci(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        c = run(service.check_out, s, user, member_or_404(s, user, member_id))
+        return {"id": c.id}
+
+    @app.get("/locals/{local_id}/acces")
+    def estat_acces(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        check_local(s, user, local_id)
+        return service.access_state(s, user, local_id)
+
+    @app.post("/locals/{local_id}/acces/sortir-tots")
+    def sortir_tots(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return {"sortits": service.check_out_all(s, user, local_id)}
+
+    class AccesCarnetIn(BaseModel):
+        codi: str = Field(min_length=1, max_length=100)
+
+    @app.post("/locals/{local_id}/acces/carnet")
+    def acces_per_carnet(local_id: int, body: AccesCarnetIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        """Mode quiosc: el lector passa el carnet i s'alterna entrada/sortida. Torna el nom i què ha fet."""
+        check_local(s, user, local_id)
+        m = socis.find_by_card(s, local_id, body.codi)
+        service.audit_append(s, {"accio": "acces_carnet", "local": local_id, "trobat": bool(m), "per": user.id})
+        s.commit()
+        if not m:
+            raise HTTPException(404, "Carnet desconegut")
+        dins = m.id in service._dins_ids(s, local_id)
+        run(service.check_out if dins else service.check_in, s, user, m, "rfid")
+        return {"soci_id": m.id, "nom": service.member_name(m), "accio": "sortida" if dins else "entrada",
+                "quota": quotes.status(s, m.id), "te_foto": socis.has_photo(s, m.id)}
 
     class CercaDocumentIn(BaseModel):
         document: str = Field(min_length=1, max_length=30)

@@ -371,3 +371,15 @@ ul.resum li.ok .marca { background: var(--brand-soft); color: var(--brand); }
 .carnet-print > div:nth-child(3) { padding-right: 13mm; }
 @media (max-width: 880px) { .auth-logo { width: 150px; margin: 0; } }
 .text-informatiu { white-space: pre-wrap; background: var(--card-2, #f5f5f5); padding: 10px; border-radius: 8px; max-height: 240px; overflow: auto; font: inherit; font-size: 0.9em; }
+
+/* Accés: dues columnes (fora / dins) i mode quiosc */
+.acces-cols { align-items: start; }
+.llista-acces { list-style: none; margin: 10px 0 0; padding: 0; max-height: 60vh; overflow: auto; display: grid; gap: 6px; }
+.llista-acces .fila-acces { width: 100%; min-height: 44px; display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: left; }
+.quiosc { text-align: center; padding: 28px 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.quiosc .card-input { max-width: 420px; margin: 8px auto 20px; font-size: 1.2rem; text-align: center; }
+.quiosc-resultat { min-height: 180px; display: grid; place-items: center; }
+.quiosc-ok { padding: 12px; }
+.quiosc-ok.entra .gran-marca { background: var(--brand-soft); color: var(--brand); }
+.quiosc-ok.surt .gran-marca { background: var(--warn-soft); color: var(--warn); }
+.quiosc-ok.error .gran-marca { background: var(--danger-soft); color: var(--danger); }

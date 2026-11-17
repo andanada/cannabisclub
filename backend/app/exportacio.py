@@ -25,7 +25,7 @@ def export_member(db: Session, actor: User, member: Member) -> dict:
         "consentiments_vigents": consentiments.status(db, member.id),
         "quotes": quotes.history(db, member.id),
         "monedero": {"saldo_cent": moneder.saldo(db, member.id), "moviments": moneder.history(db, member.id, limit=100000)},
-        "entrades": [{"id": c.id, "ts": _ts(c.ts)} for c in db.scalars(select(CheckIn).where(CheckIn.member_id == member.id).order_by(CheckIn.id))],
+        "entrades": [{"id": c.id, "ts": _ts(c.ts), "tipus": c.tipus, "via": c.via} for c in db.scalars(select(CheckIn).where(CheckIn.member_id == member.id).order_by(CheckIn.id))],
         "dispensacions": informes_socis.consumption(db, member, date(1970, 1, 1), date(2999, 12, 31)),
         "carnets": [{"id": c.id, "actiu": c.active, "creat": _ts(c.creat)} for c in db.scalars(select(MemberCard).where(MemberCard.member_id == member.id))],
         "fotos": [{"id": f.id, "ts": _ts(f.ts), "mime": f.mime, "sha256": f.sha256, "buidada": f.img_enc == "",
