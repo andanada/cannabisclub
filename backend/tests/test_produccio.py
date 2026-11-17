@@ -13,7 +13,7 @@ from tests.test_stock import setup_data
 def test_salut_respon_sense_autenticacio_i_comprova_la_bd(ctx):
     client, factory, sec = ctx
     r = client.get("/salut")
-    assert r.status_code == 200 and r.json() == {"ok": True}
+    assert r.status_code == 200 and r.json()["ok"] is True and isinstance(r.json()["versio"], str)
     assert "no-store" in r.headers["cache-control"]
 
 

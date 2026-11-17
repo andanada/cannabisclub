@@ -1,5 +1,5 @@
 // Només emmagatzema l'estructura de l'aplicació. Mai desa respostes de l'API (hi ha dades de socis).
-const CACHE = 'club-shell-v33';
+const CACHE = 'club-shell-v34';
 const SHELL = ['/', '/i18n-es.js', '/i18n-en.js', '/i18n.js', '/util.js', '/bascula.js', '/app.js', '/views-dispensar.js', '/views-gestio.js', '/views-socis.js', '/validacio.js', '/views-alta.js', '/views-descomptes.js', '/views-regles.js', '/views-linies-preu.js', '/views-contenidors.js', '/views-magatzems.js', '/views-inventari.js', '/views-informes.js', '/views-historial.js', '/views-config.js', '/diagnostic.js', '/views-dispositius.js', '/views-diagnostic.js', '/views-carnets.js', '/views-admin.js', '/views-rgpd.js', '/views-club.js', '/style.css', '/logo.png', '/logo-petit.png', '/favicon.png', '/icon-192.png', '/icon-512.png', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));
@@ -9,8 +9,11 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin || !SHELL.includes(url.pathname)) return;
   e.respondWith(fetch(e.request).then((r) => {
-    const copy = r.clone();
-    caches.open(CACHE).then((c) => c.put(e.request, copy));
+    // Només es guarden respostes bones: un 404/500 puntual no ha de quedar com a «còpia fora de línia» de l'aplicació.
+    if (r.ok && r.type === 'basic') {
+      const copy = r.clone();
+      caches.open(CACHE).then((c) => c.put(e.request, copy));
+    }
     return r;
   }).catch(() => caches.match(e.request)));
 });

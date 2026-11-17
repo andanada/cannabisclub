@@ -3,3 +3,12 @@ __pycache__/
 .env
 *.key
 .pytest_cache/
+.env.*
+*.env
+!*.env.example
+*.db
+*.sqlite
+*.gpg
+*.dump
+*.anchor
+docs/captures-bascula/

@@ -67,6 +67,8 @@ button.small { min-height: 36px; padding: 4px 12px; font-size: .88rem; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 /* Botons i un camp de text en una sola fila dins d'una cel·la de taula (p. ex. aprovar / motiu / rebutjar). */
+.avis-versio { position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 50; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px 16px; border-radius: 12px; background: var(--ink); color: var(--card); box-shadow: 0 8px 30px rgba(0, 0, 0, .25); }
+.avis-versio button { background: var(--card); color: var(--ink); }
 .actions.fila-accions { margin-top: 0; align-items: center; flex-wrap: nowrap; }
 .actions.fila-accions input { flex: 1 1 220px; width: auto; min-width: 160px; }
 @media (max-width: 640px) { .actions.fila-accions { flex-wrap: wrap; } }

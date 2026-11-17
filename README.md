@@ -5,7 +5,7 @@
 Programa propi de gestió d'un club (socis, estoc, caixa, personal, multi-local). Els requisits són a `REQUISITS.md`.
 Backend FastAPI + SQLAlchemy (PostgreSQL en producció, SQLite per a proves) i una PWA sense dependències a `frontend/`.
 
-Secrets: `CLUB_FIELD_KEY`, `CLUB_INDEX_KEY` i `CLUB_DB_PASSWORD` van a `.env` (fora de git). No s'exposa a Internet; només per Tailscale.
+Secrets: `CLUB_DB_PASSWORD` va a `.env`; `CLUB_FIELD_KEY`, `CLUB_INDEX_KEY` i `CLUB_APP_DATABASE_URL` van **només** a `~/.config/club-gestio/app.env` (plantilla amb totes les variables: `app.env.example`). Res d'això s'ha de versionar. No s'exposa a Internet; només per Tailscale.
 
 ## Instal·lació
 
@@ -136,4 +136,4 @@ Els lectors USB funcionen com un teclat: «escriuen» el codi i prem Intro. Per 
 Tots els apartats de `REQUISITS.md` estan implementats. El que no es pot garantir encara:
 - **Maquinari real**: la bàscula OHAUS no s'ha provat amb cap dispositiu; el lector de carnets s'ha provat com a teclat simulat; el pad de signatura és el llenç tàctil de la pantalla.
 - **Bloqueig de login**: protegeix contra endevinar contrasenyes, però algú que conegui un nom d'usuari pot bloquejar-lo 15 minuts amb intents fallits; en una xarxa privada (Tailscale) es considera un risc acceptable.
-- **Producció**: no s'ha desplegat cap versió nova a un servidor real des d'aquest repositori; segueix el procediment «Actualitzar el programa».
+- **Producció**: hi ha un servidor de PROVES desplegat amb `scripts/deploy.sh` (accés públic, segon factor desactivat). Cap club real l'usa encara; el club real anirà només per Tailscale (`docs/PRODUCCIO.md` § 0). Actualitza amb «Actualitzar el programa».

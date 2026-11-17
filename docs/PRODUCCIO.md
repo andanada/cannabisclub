@@ -100,7 +100,7 @@ Totes van al fitxer d'entorn del servei (`app.env`), llevat que s'indiqui.
 | `CLUB_LOGIN_IP_LIMIT` | `60` | Intents de `/auth/login` i `/auth/login-carnet` per adreça IP i minut (429 si se supera). Darrere nginx cal `CLUB_TRUST_PROXY=1` perquè sigui la IP real. |
 | `CLUB_ARGON_CONCURRENCY` | `4` | Quantes verificacions Argon2 (contrasenya/PIN) poden córrer alhora; les altres esperen i, si el servidor va saturat, reben 503 amb `Retry-After`. Ajusta-ho als nuclis i a la memòria. |
 | `CLUB_MAX_BODY_BYTES` | `1048576` | Mida màxima del cos d'una petició (413 si es supera). El cos legítim més gran és la foto/signatura en base64 (~400 KB); no el pugis sense motiu i alinea'l amb `client_max_body_size` de nginx. |
-| `CLUB_TOTP_REPLAY` | `1` | Un codi TOTP només serveix una vegada per usuari. `0` ho desactiva (**només per a proves**). El registre és en memòria: es perd en reiniciar. |
+| `CLUB_TOTP_REPLAY` | `1` | Un codi TOTP només serveix una vegada per usuari. `0` ho desactiva (**només per a proves**). El registre es desa a la base de dades (`users.last_totp_step`, actualització atòmica): sobreviu als reinicis i a diversos processos. |
 
 ### 3.3 Canvis que cal conèixer en actualitzar
 

@@ -1024,6 +1024,8 @@ Object.assign(I18N.en, {
  "Primer cal crear productes.": "Create products first.",
  "Lots per producte": "Batches per product",
  "Lot": "Batch",
+ "Hi ha una versió nova del programa. Recarrega la pàgina quan hagis acabat l'operació en curs.": "There is a new version of the program. Reload the page when you have finished the current operation.",
+ "Recarregar ara": "Reload now",
  "Servidor de proves: no demana el codi de l'app d'autenticació. No hi posis dades reals.": "Test server: it does not ask for the authenticator app code. Do not enter real data.",
  "Hi ha dispensacions sense cobrar de sessions anteriors. Cobra-les aquí: el cobrament entra a la caixa oberta.": "There are unpaid dispensings from earlier sessions. Collect them here: the payment goes into the open till.",
  "Hi ha dispensacions sense cobrar de sessions anteriors. Obre la caixa per poder cobrar-les.": "There are unpaid dispensings from earlier sessions. Open the till to collect them.",

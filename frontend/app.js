@@ -188,5 +188,17 @@ async function boot() {
   show(S.view);
 }
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+// Versió nova: el service worker nou pren el control (skipWaiting + claim) però la pàgina oberta continua amb el JS vell fins
+// que es recarrega. Això ho diu amb un avís que no desapareix sol, i NO recarrega: pot haver-hi una dispensació a mig fer.
+function avisaNovaVersio() {
+  if ($('#avis-versio')) return;
+  const b = h('button', { class: 'small', onclick: () => location.reload() }, 'Recarregar ara');
+  document.body.append(h('div', { id: 'avis-versio', class: 'avis-versio', role: 'status' },
+    h('span', null, "Hi ha una versió nova del programa. Recarrega la pàgina quan hagis acabat l'operació en curs."), b));
+}
+if ('serviceWorker' in navigator) {
+  const jaTeControlador = !!navigator.serviceWorker.controller;   // si no en tenia, és la primera instal·lació: res a avisar
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (jaTeControlador) avisaNovaVersio(); });
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
 if (S.token) boot().then(() => { if (!S.me) renderLogin(); }); else renderLogin();

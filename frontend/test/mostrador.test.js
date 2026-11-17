@@ -83,3 +83,21 @@ test('dispensació, quota i despesa envien una referència d\'operació (client_
   assert.match(a, /^[A-Za-z0-9-]{16,64}$/);   // el mateix patró que valida el servidor
   assert.notEqual(a, b);
 });
+
+test('el service worker: totes les pàgines i fitxers de l\'aplicació hi són, no n\'hi ha de fantasma, i no desa errors', () => {
+  const sw = text('sw.js');
+  const shell = [...sw.match(/const SHELL = \[([^\]]*)\]/)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  const idx = text('index.html');
+  const usats = [...idx.matchAll(/(?:src|href)="(\/[^"#?]+)"/g)].map((m) => m[1]);
+  for (const u of usats) assert.ok(shell.includes(u), `index.html usa ${u} i no és a la SHELL de sw.js`);
+  for (const u of shell) assert.ok(u === '/' || fs.existsSync(path.join(dir, u.slice(1))), `sw.js llista ${u} i no existeix`);
+  assert.match(sw, /if \(r\.ok && r\.type === 'basic'\)/);
+});
+
+test('hi ha avís de versió nova quan canvia el service worker, i només es recarrega si ho demana l usuari', () => {
+  const a = text('app.js');
+  assert.match(a, /controllerchange/);
+  assert.match(a, /jaTeControlador/);
+  assert.equal((a.match(/location\.reload\(\)/g) || []).length, 1);                  // l'únic reload és el del botó
+  assert.match(a, /onclick: \(\) => location\.reload\(\)/);
+});

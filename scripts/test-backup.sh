@@ -82,8 +82,17 @@ done
 [ "$( { gpg --batch --decrypt "$FILE" 2>/dev/null || true; } | head -c5)" = PGDMP ] || fail "el volcat no és un volcat"
 echo "   correcte"
 
-echo "== 3. restauració, signatura i verificació"
-"$REPO/scripts/club-backup.sh" restore-test "$FILE"
+echo "== 3. restauració, signatura i verificació (amb l'ancoratge d'auditoria de la còpia)"
+SORTIDA="$("$REPO/scripts/club-backup.sh" restore-test "$FILE")"
+echo "$SORTIDA"
+grep -q "Auditoria íntegra: True (amb ancoratge)" <<<"$SORTIDA" || fail "la restauració no ha verificat l'auditoria contra l'ancoratge"
+
+echo "== 3b. un ancoratge manipulat s'ha de detectar"
+cp "$FILE" "$T/ancora.dump.gpg"; cp "$FILE.sha256" "$T/ancora.dump.gpg.sha256"
+sed -i 's/club-[0-9-]*\.dump\.gpg/ancora.dump.gpg/' "$T/ancora.dump.gpg.sha256"
+sed 's/[0-9a-f]\{64\}/0000000000000000000000000000000000000000000000000000000000000000/' "$FILE.anchor" > "$T/ancora.dump.gpg.anchor"
+if "$REPO/scripts/club-backup.sh" restore-test "$T/ancora.dump.gpg" >/dev/null 2>&1; then fail "ha acceptat un ancoratge amb un hash que no és el de la cadena"; fi
+echo "   correcte"
 
 echo "== 4. signatura d'una altra clau: s'ha de rebutjar"
 if CLUB_BACKUP_SIGNER_FPR="0000000000000000000000000000000000000000" "$REPO/scripts/club-backup.sh" restore-test "$FILE" >/dev/null 2>&1; then fail "ha acceptat una empremta equivocada"; fi

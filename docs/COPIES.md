@@ -36,6 +36,7 @@ o un suport extern no pugui substituir una còpia per una altra sense que ho det
         CLUB_BACKUP_KEYS_RECIPIENT=<id clau B>
         CLUB_BACKUP_SIGNER=torre-club@local
         CLUB_KEYS_FILE=/home/<usuari>/.config/club-gestio/app.env
+        CLUB_ENV_FILE=/home/<usuari>/.config/club-gestio/app.env     # d'aquí treu l'ancoratge d'auditoria (CLUB_APP_DATABASE_URL i les claus)
         CLUB_BACKUP_REMOTE=usuari@hostremot:/ruta/volcats          # OBLIGATORI (vegeu sota)
         CLUB_BACKUP_KEYS_REMOTE=usuari@altrehost:/ruta/claus       # recomanat: un lloc diferent del dels volcats
 
@@ -58,7 +59,7 @@ o un suport extern no pugui substituir una còpia per una altra sense que ho det
 | `CLUB_ENV_FILE`, `CLUB_KEYS_FILE`, `CLUB_PYTHON` | `.env` del repo, = `CLUB_ENV_FILE`, `.venv/bin/python` | rutes |
 | `CLUB_RESTORE_IMAGE` | `postgres:17` | imatge de la restauració de prova |
 
-Ancoratge de l'auditoria: després de cada còpia, `club-backup.sh run` desa `club-….dump.gpg.anchor` (`seq:hash`, `python -m app.audit_cli ancora`) al costat de la còpia i al remot, amb la mateixa retenció. No és secret però sí la prova que ningú no ha retallat la cadena: en restaurar, verifica-la amb `python -m app.cli verificar-auditoria "$(cat el-fitxer.anchor)"`. Cal l'entorn del servei (`CLUB_APP_DATABASE_URL` i les claus) a `CLUB_ENV_FILE`; si falla, la còpia continua i el script avisa.
+Ancoratge de l'auditoria: **abans** de cada volcat (així l'entrada ancorada és dins del volcat), `club-backup.sh run` obté `seq:hash` i el desa a `club-….dump.gpg.anchor` (`seq:hash`, `python -m app.audit_cli ancora`) al costat de la còpia i al remot, amb la mateixa retenció. No és secret però sí la prova que ningú no ha retallat la cadena: en restaurar, verifica-la amb `python -m app.cli verificar-auditoria "$(cat el-fitxer.anchor)"`. Cal l'entorn del servei (`CLUB_APP_DATABASE_URL` i les claus) a `CLUB_ENV_FILE`; si falla, la còpia continua i el script avisa.
 
 Retenció per capes: es conserva la còpia més recent de cada un dels últims 14 dies, 8 setmanes ISO i 12 mesos amb còpia.
 `scripts/club-backup.sh prune` l'aplica sense fer còpia.

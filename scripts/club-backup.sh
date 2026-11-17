@@ -110,15 +110,23 @@ keys_changed() {  # cert si les claus actuals no coincideixen amb l'última empr
 
 cmd_keys() { mkdir -p "$DEST"; make_keys_package; }
 
-# Ancoratge de l'auditoria («seq:hash») desat al costat de la còpia i al remot: permet detectar que algú hagi retallat
-# el final de la cadena. Si no es pot obtenir NO s'atura la còpia (ja és feta i verificada), però es avisa.
-save_anchor() {
-  local out="$1" anchor
+# Ancoratge de l'auditoria («seq:hash») desat al costat de la còpia i al remot: permet detectar que algú hagi retallat el final
+# de la cadena. S'OBTÉ ABANS DEL pg_dump: l'entrada ancorada és així dins del volcat (si s'agafés després, una dispensació feta
+# entre mig faria que el volcat «no arribés» a l'ancoratge i restore-test el donaria per retallat sense ser-ho).
+obte_ancoratge() {   # imprimeix «seq:hash», «buida» (BD sense auditoria) o res si falla
   # shellcheck source=/dev/null
-  anchor="$(set -a; [ -r "$ENV_FILE" ] && . "$ENV_FILE"; set +a; cd "$REPO/backend" && "$PY" -m app.audit_cli ancora 2>/dev/null)" || anchor=""
+  ( set -a; [ -r "$ENV_FILE" ] && . "$ENV_FILE"; set +a; cd "$REPO/backend" && "$PY" -m app.audit_cli ancora 2>/dev/null ) || true
+}
+
+# Retorna 1 si no s'ha pogut desar. Sense ancoratge la còpia és vàlida, però no queda la prova contra el retall de la cadena:
+# per això es considera un FALLO (surt amb error i l'avís del servei salta). CLUB_BACKUP_ALLOW_NO_ANCHOR=1 ho accepta.
+desa_ancoratge() {
+  local out="$1" anchor="$2"
+  if [ "$anchor" = "buida" ]; then echo "Auditoria encara buida: sense ancoratge (res a ancorar)."; return 0; fi
   if ! [[ "$anchor" =~ ^[0-9]+:[0-9a-f]{64}$ ]]; then
-    echo "AVÍS: no s'ha pogut obtenir l'ancoratge de l'auditoria (${anchor:-buit}); la còpia és vàlida igualment." >&2
-    return 0
+    echo "ERROR: no s'ha pogut obtenir l'ancoratge de l'auditoria (${anchor:-buit}). Cal CLUB_ENV_FILE amb CLUB_APP_DATABASE_URL i les claus (docs/COPIES.md)." >&2
+    [ "${CLUB_BACKUP_ALLOW_NO_ANCHOR:-0}" = "1" ] && return 0
+    return 1
   fi
   echo "$anchor" > "$out.anchor"
   if [ -n "${CLUB_BACKUP_REMOTE:-}" ]; then
@@ -147,6 +155,7 @@ cmd_run() {
   [ -n "$dump_user" ] || die "No sé amb quin rol de PostgreSQL fer el volcat. Defineix CLUB_BACKUP_DB_USER (el propietari de la base de dades; el rol de l'aplicació no pot llegir club_retencio_cfg ni club_buida_log)."
   ts="$(date +%Y%m%d-%H%M%S)"; out="$DEST/club-$ts.dump.gpg"
   OUT_PART="$out.part"; trap 'rm -f -- "$OUT_PART"' EXIT
+  local ancoratge; ancoratge="$(obte_ancoratge)"   # ABANS del volcat (vegeu obte_ancoratge)
   # pg_dump -> gpg directament: el volcat mai toca el disc en clar.
   docker exec "$CONTAINER" pg_dump -U "$dump_user" -d "$DBNAME" -Fc \
     | gpg --batch --yes --trust-model always -r "$CLUB_BACKUP_GPG_RECIPIENT" ${CLUB_BACKUP_SIGNER:+-u "$CLUB_BACKUP_SIGNER" --sign} -e -o "$out.part"
@@ -166,9 +175,11 @@ cmd_run() {
   else
     echo "AVÍS: només còpia local (CLUB_BACKUP_ALLOW_LOCAL_ONLY=1)." >&2
   fi
-  save_anchor "$out"
+  local sense_ancoratge=0
+  desa_ancoratge "$out" "$ancoratge" || sense_ancoratge=1
   date +%s > "$DEST/.last-ok"
   echo "OK $out ($(stat -c %s "$out") bytes)"
+  [ "$sense_ancoratge" = 0 ] || die "La còpia s'ha fet, però SENSE ancoratge d'auditoria: no es podrà detectar un retall de la cadena. Revisa CLUB_ENV_FILE."
 }
 
 cmd_restore_test() {
@@ -205,7 +216,16 @@ cmd_restore_test() {
   # shellcheck disable=SC2163  # intencionat: «export "VAR=valor"» exporta la parella tal com ve de la línia
   while IFS= read -r kline; do export "$kline"; have_keys=1; done < <(grep -E '^(CLUB_FIELD_KEY|CLUB_INDEX_KEY|CLUB_AUDIT_KEY)=' "$KEYS_FILE" 2>/dev/null || true)
   [ "$have_keys" = 1 ] || die "No trobo les claus (CLUB_INDEX_KEY / CLUB_AUDIT_KEY) a $KEYS_FILE: sense elles no es pot verificar l'auditoria. Desxifra el paquet de claus i apunta-hi amb CLUB_KEYS_FILE."
-  "$PY" -I - "postgresql+psycopg://postgres:$pw@127.0.0.1:$port/restore" "$REPO/backend" <<'PYEOF'
+  # Ancoratge de la còpia (si hi és): la cadena restaurada ha d'arribar a aquesta entrada amb aquest hash.
+  local ancora_fitxer=""
+  if [ -f "$file.anchor" ]; then
+    ancora_fitxer="$(head -n1 "$file.anchor")"
+    [[ "$ancora_fitxer" =~ ^[0-9]+:[0-9a-f]{64}$ ]] || die "El fitxer $file.anchor no té el format seq:hash"
+  else
+    echo "AVÍS: no hi ha $file.anchor: només es verifica la integritat interna de la cadena, no que estigui sencera."
+  fi
+  CLUB_RESTORE_ANCHOR="$ancora_fitxer" "$PY" -I - "postgresql+psycopg://postgres:$pw@127.0.0.1:$port/restore" "$REPO/backend" <<'PYEOF'
+import os
 import sys
 sys.path.insert(0, sys.argv[2])
 from sqlalchemy import create_engine, select, func
@@ -214,8 +234,10 @@ from app import service
 from app.models import AuditLog, Member, StockMovement, CashEntry
 e = create_engine(sys.argv[1])
 with Session(e) as s:
-    ok, bad = service.audit_verify(s)
-    print("Auditoria íntegra:", ok, "" if ok else f"(primera alterada: {bad})")
+    a = os.environ.get("CLUB_RESTORE_ANCHOR", "")
+    ancora = {"seq": int(a.split(":")[0]), "hash": a.split(":")[1]} if a else None
+    ok, bad = service.audit_verify(s, ancora)
+    print("Auditoria íntegra:", ok, "(amb ancoratge)" if ancora else "(SENSE ancoratge)", "" if ok else f"(primera alterada: {bad})")
     for m in (AuditLog, Member, StockMovement, CashEntry):
         print(f"  {m.__tablename__}: {s.scalar(select(func.count()).select_from(m))} files")
     sys.exit(0 if ok else 3)
