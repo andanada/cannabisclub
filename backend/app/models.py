@@ -151,6 +151,78 @@ class CashEntry(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
 
+class ExpenseCategory(Base):
+    __tablename__ = "expense_categories"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    descripcio: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ExpenseType(Base):
+    __tablename__ = "expense_types"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    descripcio: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class AccountType(Base):
+    """Tipus de compte comptable: l'operació (suma o resta) marca com compta una despesa sobre el saldo del compte."""
+    __tablename__ = "account_types"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    descripcio: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    operacio: Mapped[str] = mapped_column(String(5))  # suma | resta
+    es_despesa: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class Account(Base):
+    __tablename__ = "accounts"
+    __table_args__ = (UniqueConstraint("local_id", "numero"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    numero: Mapped[str] = mapped_column(String(20))
+    descripcio: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    tipus_id: Mapped[int] = mapped_column(ForeignKey("account_types.id"))
+
+
+class Expense(Base):
+    """Despeses (només d'afegir). Una anul·lació és una fila nova amb `corregeix_id` cap a l'original."""
+    __tablename__ = "expenses"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    data: Mapped[date] = mapped_column(Date)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    type_id: Mapped[int] = mapped_column(ForeignKey("expense_types.id"))
+    category_id: Mapped[int] = mapped_column(ForeignKey("expense_categories.id"))
+    account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
+    import_cent: Mapped[int] = mapped_column(Integer)
+    cash_entry_id: Mapped[int | None] = mapped_column(ForeignKey("cash_entries.id"), nullable=True, unique=True)
+    corregeix_id: Mapped[int | None] = mapped_column(ForeignKey("expenses.id"), nullable=True, unique=True)
+    comentaris: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+
+Index("ix_expenses_local_data", Expense.local_id, Expense.data)
+
+
+@event.listens_for(Expense, "before_update")
+def _no_update_expense(mapper, connection, target):
+    raise ImmutableError("Les despeses no es poden modificar: anul·la-les")
+
+
+@event.listens_for(Expense, "before_delete")
+def _no_delete_expense(mapper, connection, target):
+    raise ImmutableError("Les despeses no es poden esborrar: anul·la-les")
+
+
 class WalletMovement(Base):
     """Moviments del monedero d'un soci (només d'afegir). El saldo és la suma d'import_cent: + recàrrega, - pagament,
     i una correcció té el signe contrari del moviment que desfà."""

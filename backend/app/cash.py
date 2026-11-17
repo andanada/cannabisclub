@@ -133,7 +133,7 @@ def charge(db: Session, actor: User, movement_id: int, metode: str) -> CashEntry
     return e
 
 
-def expense(db: Session, actor: User, local_id: int, cent: int, metode: str, categoria: str, concepte: str) -> CashEntry:
+def expense(db: Session, actor: User, local_id: int, cent: int, metode: str, categoria: str, concepte: str, commit: bool = True) -> CashEntry:
     if cent <= 0:
         raise ValueError("L'import de la despesa ha de ser positiu")
     if metode not in METODES:
@@ -144,7 +144,8 @@ def expense(db: Session, actor: User, local_id: int, cent: int, metode: str, cat
     db.add(e)
     db.flush()
     service.audit_append(db, {"accio": "despesa", "apunt": e.id, "cent": cent, "categoria": categoria, "per": actor.id})
-    db.commit()
+    if commit:
+        db.commit()
     return e
 
 

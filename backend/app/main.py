@@ -19,6 +19,7 @@ from .routes import auditoria, caixa, club, productes, rgpd, sessio
 from .routes import contenidors as routes_contenidors
 from .routes import descomptes as routes_descomptes
 from .routes import dispositius as routes_dispositius
+from .routes import gastos as routes_gastos
 from .routes import informes as informes_r
 from .routes import inventaris as routes_inventaris
 from .routes import linies_preu as routes_linies_preu
@@ -138,7 +139,7 @@ def create_app(session_factory=None) -> FastAPI:
                        product_or_404=product_or_404, usuari_or_404=usuari_or_404, empleat_valid=empleat_valid,
                        personal_del_local=personal_del_local, rang=rang)
     for modul in (sessio, socis_r, auditoria, productes, caixa, informes_r, usuaris_r, quotes_r, routes_dispositius, routes_descomptes,
-                  routes_magatzems, routes_contenidors, routes_linies_preu, routes_inventaris, routes_regles):
+                  routes_magatzems, routes_contenidors, routes_linies_preu, routes_inventaris, routes_regles, routes_gastos):
         demanats = inspect.signature(modul.register).parameters
         modul.register(app, **{k: v for k, v in disponibles.items() if k in demanats})
     for _r in (rgpd, club): app.include_router(_r.router(db, current_user))  # RGPD i controls de club (routes/rgpd.py, club.py)
