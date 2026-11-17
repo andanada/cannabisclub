@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import cash, informes, informes_socis, personal, service, stock
+from .. import cash, estadistiques, informes, informes_socis, personal, service, stock
 from ..models import User
 
 
@@ -89,6 +89,22 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         rang(des, fins)
         return informes_socis.consumption(s, member_or_404(s, user, member_id), des, fins, actor=user)
     registra_informe("hores", informes.staff_hours, informes.hours_csv, True)
+
+    for _nom, _fn in (("membres", estadistiques.membres), ("dispensari", estadistiques.dispensari)):
+        def _registra(nom, fn):
+            @app.get(f"/locals/{{local_id}}/estadistiques/{nom}", name=f"estadistiques_{nom}")
+            def estadistica(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+                need_manager(user)
+                check_local(s, user, local_id)
+                return fn(s, user, local_id)
+        _registra(_nom, _fn)
+
+    @app.get("/locals/{local_id}/estadistiques/finances")
+    def estadistica_finances(local_id: int, any: int | None = Query(default=None, ge=2000, le=2100),
+                             user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        check_local(s, user, local_id)
+        return estadistiques.finances(s, user, local_id, any)
 
     class FitxatgeIn(BaseModel):
         local_id: int

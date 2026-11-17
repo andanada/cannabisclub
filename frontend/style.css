@@ -383,3 +383,12 @@ ul.resum li.ok .marca { background: var(--brand-soft); color: var(--brand); }
 .quiosc-ok.entra .gran-marca { background: var(--brand-soft); color: var(--brand); }
 .quiosc-ok.surt .gran-marca { background: var(--warn-soft); color: var(--warn); }
 .quiosc-ok.error .gran-marca { background: var(--danger-soft); color: var(--danger); }
+
+/* Estadístiques: barres SVG (el color va a CSS: la CSP no permet estils en línia) */
+.graf-barres { display: grid; gap: 8px; }
+.graf-fila { display: grid; grid-template-columns: minmax(70px, 120px) 1fr minmax(60px, auto); gap: 10px; align-items: center; }
+.graf-text { color: var(--muted); font-size: .9rem; }
+.graf-valor { text-align: right; font-variant-numeric: tabular-nums; }
+.barra-fons { fill: var(--soft); }
+.barra { fill: var(--brand); }
+.barra.negatiu { fill: var(--danger); }

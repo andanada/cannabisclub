@@ -106,6 +106,7 @@ const TABS = [
   ['caixa', 'Caixa', () => true],
   ['fitxatge', 'Fitxatge', () => true],
   ['gastos', 'Despeses', isManager, [['despeses', 'Despeses'], ['categories', 'Categories'], ['tipus', 'Tipus de despesa'], ['comptabilitat', 'Comptabilitat']]],
+  ['estadistiques', 'Estadístiques', isManager, [['membres', 'Socis'], ['dispensari', 'Dispensari i bar'], ['finances', 'Finances']]],
   ['informe', 'Informes', isManager, [['vendes', 'Vendes'], ['dispensacions', 'Dispensacions'], ['evolucio', 'Evolució del club'], ['demografia', 'Demografia'], ['caixa', 'Caixa'], ['estoc', 'Estoc valorat'], ['assistencia', 'Assistència'], ['visites', 'Visites de socis'], ['hores', 'Hores']]],
   ['rgpd', 'Privacitat', isManager, () => (S.me.role === 'admin' ? [['soci', "Dades d'un soci"], ['auditoria', "Registre d'accessos"], ['retencio', 'Retenció de dades']] : [['soci', "Dades d'un soci"]])],
   ['club', 'Controls del club', isManager, [['controls', 'Controls'], ['limits', 'Límits per soci'], ['lots', 'Lots i traçabilitat'], ['llibres', 'Llibres']]],
