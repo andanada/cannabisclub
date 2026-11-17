@@ -112,7 +112,7 @@ const TABS = [
   ['rgpd', 'Privacitat', isManager, () => (S.me.role === 'admin' ? [['soci', "Dades d'un soci"], ['auditoria', "Registre d'accessos"], ['retencio', 'Retenció de dades']] : [['soci', "Dades d'un soci"]])],
   ['club', 'Controls del club', isManager, [['controls', 'Controls'], ['limits', 'Límits per soci'], ['lots', 'Lots i traçabilitat'], ['llibres', 'Llibres']]],
   ['config', 'Configuració', isManager, () => (S.me.role === 'admin'
-    ? [['local', 'Local i límits'], ['quotes', 'Quotes'], ['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura'], ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ['seguretat', 'Seguretat']]
+    ? [['local', 'Local i límits'], ['quotes', 'Quotes'], ['normes', 'Normes del club'], ['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura'], ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ['seguretat', 'Seguretat']]
     : [['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic']])],
   ['compte', 'Compte', () => true],
 ];
