@@ -130,13 +130,14 @@ def movements_list(db: Session, local_id: int, des: date, fins: date, limit: int
             for m, nom in db.execute(q)]
 
 
-def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: str, preu_cent_per_g: int, es_genetic: bool = False) -> Product:
+def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: str, preu_cent_per_g: int, es_genetic: bool = False,
+                regalable: bool = False) -> Product:
     nom = nom.strip()
     if not nom:
         raise ValueError("El nom del producte no pot estar buit")
     if not _nom_lliure(db, local_id, nom):
         raise ValueError("Ja existeix un producte amb aquest nom en aquest local")
-    p = Product(local_id=local_id, nom=nom, categoria=categoria, preu_cent_per_g=preu_cent_per_g, es_genetic=es_genetic)
+    p = Product(local_id=local_id, nom=nom, categoria=categoria, preu_cent_per_g=preu_cent_per_g, es_genetic=es_genetic, regalable=regalable)
     db.add(p)
     flush_or_error(db, "Ja existeix un producte amb aquest nom en aquest local")
     service.audit_append(db, {"accio": "alta_producte", "producte": p.id, "local": local_id, "per": actor.id})
@@ -145,7 +146,8 @@ def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: st
 
 
 def update_product(db: Session, actor: User, product_id: int, nom: str | None = None, categoria: str | None = None,
-                   preu_cent_per_g: int | None = None, actiu: bool | None = None, es_genetic: bool | None = None) -> Product:
+                   preu_cent_per_g: int | None = None, actiu: bool | None = None, es_genetic: bool | None = None,
+                   regalable: bool | None = None) -> Product:
     """Canvia el nom, la categoria, el preu o l'estat d'un producte. El preu només afecta les dispensacions
     noves: les antigues guarden el seu import. Per desactivar, l'estoc ha de ser zero (sinó quedaria encallat)."""
     p = db.scalar(select(Product).where(Product.id == product_id).with_for_update())
@@ -167,6 +169,8 @@ def update_product(db: Session, actor: User, product_id: int, nom: str | None = 
         canvis["preu_cent_per_g"] = [p.preu_cent_per_g, preu_cent_per_g]
     if es_genetic is not None and es_genetic != p.es_genetic:
         canvis["es_genetic"] = [p.es_genetic, es_genetic]
+    if regalable is not None and regalable != p.regalable:
+        canvis["regalable"] = [p.regalable, regalable]
     if actiu is not None and actiu != p.actiu:
         if not actiu and stock_total_mg(db, p.id) != 0:
             raise ValueError("Per desactivar el producte l'estoc ha de ser zero: registra una merma o un ajust d'inventari")
@@ -210,13 +214,18 @@ def receive(db: Session, actor: User, product_id: int, grams: Decimal, nota: str
 
 def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: Decimal,
              pes_bascula_g: Decimal | None, now: datetime | None = None, discount_id: int | None = None,
-             metode: str | None = None, batch_id: int | None = None) -> StockMovement:
-    """Dispensa. Amb `metode` (efectiu/targeta) també cobra en la mateixa transacció: o es fa tot o res."""
+             metode: str | None = None, batch_id: int | None = None, regal: bool = False) -> StockMovement:
+    """Dispensa. Amb `metode` (efectiu/targeta/bizum) també cobra en la mateixa transacció: o es fa tot o res.
+    Amb `regal` l'import és 0 (cal que el producte sigui regalable); no es pot combinar amb cobrament ni descompte."""
+    if regal and (metode is not None or discount_id is not None):
+        raise ValueError("Un regal no es cobra ni porta descompte")
     now = now or datetime.now(timezone.utc)
     member = _lock_member(db, member_id)  # primer el soci, després el producte (ordre fix, evita interbloqueigs)
     p = _lock_product(db, product_id)
     if not member or member.local_id != p.local_id:
         raise ValueError("Soci inexistent o d'un altre local")
+    if regal and not p.regalable:
+        raise ValueError("Aquest producte no es pot dispensar com a regal")
     if metode is not None:
         # Ordre global de bloquejos: soci -> producte -> sessió de caixa -> auditoria. Tancar la caixa, una despesa o una quota
         # agafen la sessió i després l'auditoria; si aquí s'escrivís l'auditoria abans de bloquejar la sessió, s'interbloquejarien.
@@ -255,7 +264,7 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     m = StockMovement(
         ts=now, local_id=p.local_id, product_id=p.id, tipus="dispensacio", delta_mg=-mg, member_id=member_id,
         pes_bascula_mg=grams_to_mg(pes_bascula_g) if pes_bascula_g is not None else None,
-        import_cent=original - rebaixa, user_id=actor.id)
+        import_cent=0 if regal else original - rebaixa, user_id=actor.id, regal=regal)
     db.add(m)
     db.flush()
     if descompte is not None:
@@ -265,6 +274,7 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     lots.attach_dispense(db, m, pla_lots)
     service.audit_append(db, {"accio": "dispensacio", "moviment": m.id, "soci": member_id, "producte": p.id,
                               "mg": mg, "import_cent": m.import_cent, "descompte": descompte.id if descompte else None,
+                              **({"regal": True} if regal else {}),
                               **({"lots": [[b, x] for b, x in pla_lots]} if pla_lots else {}), "per": actor.id})
     if metode is not None:
         from . import cash
@@ -273,7 +283,7 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     return m
 
 
-def correct(db: Session, actor: User, movement_id: int, nota: str) -> StockMovement:
+def correct(db: Session, actor: User, movement_id: int, nota: str, commit: bool = True) -> StockMovement:
     orig = db.get(StockMovement, movement_id)
     if not orig:
         raise ValueError("Moviment inexistent")
@@ -305,8 +315,29 @@ def correct(db: Session, actor: User, movement_id: int, nota: str) -> StockMovem
     from . import lots
     lots.mirror_correction(db, orig, m)
     service.audit_append(db, {"accio": "correccio", "moviment": m.id, "corregeix": orig.id, "per": actor.id})
-    db.commit()
+    if commit:
+        db.commit()
     return m
+
+
+def refund(db: Session, actor: User, movement_id: int, nota: str) -> dict:
+    """Devolució d'una dispensació, tot o res: anul·la el cobrament vigent (si n'hi ha, cal caixa oberta: surt de la caixa
+    pel mètode amb què es va cobrar), torna el producte a l'estoc (al mateix lot i magatzem) i ho deixa a l'auditoria."""
+    orig = db.get(StockMovement, movement_id)
+    if not orig or orig.tipus != "dispensacio":
+        raise ValueError("Només es poden retornar dispensacions")
+    _lock_member(db, orig.member_id)  # ordre fix: soci -> producte -> sessió de caixa -> auditoria
+    _lock_product(db, orig.product_id)
+    from . import cash
+    cobrament = cash._live_charge(db, orig.id)
+    if cobrament is not None:
+        cash._require_open(db, orig.local_id)
+        cash.correct_entry(db, actor, cobrament.id, "Devolució: " + nota, commit=False)
+    corr = correct(db, actor, movement_id, nota, commit=False)
+    service.audit_append(db, {"accio": "devolucio", "moviment": orig.id, "correccio": corr.id,
+                              "cent": orig.import_cent or 0, "cobrada": cobrament is not None, "per": actor.id})
+    db.commit()
+    return {"correccio": corr.id, "retornat_cent": (orig.import_cent or 0) if cobrament is not None else 0}
 
 
 def shrink(db: Session, actor: User, product_id: int, grams: Decimal, nota: str) -> StockMovement:

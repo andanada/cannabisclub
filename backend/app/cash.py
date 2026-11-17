@@ -11,7 +11,7 @@ from .csvutil import to_csv
 from .models import CashEntry, CashSession, Product, StockMovement, User
 from .stock import TZ
 
-METODES = {"efectiu", "targeta"}
+METODES = {"efectiu", "targeta", "bizum"}
 
 
 def open_session(db: Session, actor: User, local_id: int, opening_cent: int) -> CashSession:
@@ -144,7 +144,7 @@ def expense(db: Session, actor: User, local_id: int, cent: int, metode: str, cat
     return e
 
 
-def correct_entry(db: Session, actor: User, entry_id: int, concepte: str) -> CashEntry:
+def correct_entry(db: Session, actor: User, entry_id: int, concepte: str, commit: bool = True) -> CashEntry:
     orig = db.get(CashEntry, entry_id)
     if not orig:
         raise ValueError("Apunt inexistent")
@@ -165,7 +165,8 @@ def correct_entry(db: Session, actor: User, entry_id: int, concepte: str) -> Cas
         db.rollback()
         raise ValueError("Aquest apunt ja està corregit")
     service.audit_append(db, {"accio": "correccio_caixa", "apunt": e.id, "corregeix": orig.id, "per": actor.id})
-    db.commit()
+    if commit:
+        db.commit()
     return e
 
 

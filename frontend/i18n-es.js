@@ -707,6 +707,17 @@ Object.assign(I18N.es, {
  "Dades personals": "Datos personales",
  "Contacte": "Contacto",
  "Cognoms": "Apellidos",
+ "bizum": "bizum",
+ "Bizum": "Bizum",
+ "Dispensar i cobrar amb Bizum": "Dispensar y cobrar con Bizum",
+ "Dispensar com a regal": "Dispensar como regalo",
+ "Cobrar amb Bizum": "Cobrar con Bizum",
+ "Es pot regalar": "Se puede regalar",
+ "Motiu de la devolució (obligatori)": "Motivo de la devolución (obligatorio)",
+ "Motiu per a devolucions": "Motivo para devoluciones",
+ "Devolució": "Devolución",
+ "Escriu el motiu de la devolució": "Escribe el motivo de la devolución",
+ "Devolució feta": "Devolución hecha",
  "Adreça i tipus de membre": "Dirección y tipo de miembro",
  "Tipus de membre": "Tipo de miembro",
  "Gènere": "Género",
@@ -1112,3 +1123,5 @@ I18N.pat.es.push([new RegExp("^Entrat\\ (.*)\\ ·\\ dispensat\\ (.*)\\ ·\\ exis
 I18N.pat.es.push([new RegExp("^SHA\\-256\\ del\\ fitxer\\ \\(queda\\ a\\ l'auditoria\\):\\ (.*)$"), "SHA-256 del archivo (queda en la auditoría): $1"]);
 I18N.pat.es.push([new RegExp("^Coincideix\\ amb\\ (.*)\\ exportació\\(ns\\)\\ registrada\\(es\\),\\ l'última\\ el\\ (.*)\\.$"), "Coincide con $1 exportación(es) registrada(s), la última el $2."]);
 I18N.pat.es.push([new RegExp("^El\\ soci\\ encara\\ està\\ en\\ el\\ període\\ d'espera\\ \\((.*)\\ dies\\ des\\ de\\ l'alta\\)$"), "El socio todavía está en el periodo de espera ($1 días desde el alta)"]);
+I18N.pat.es.push([new RegExp("^Regal\\ dispensat\\ a\\ (.*)$"), "Regalo dispensado a $1"]);
+I18N.pat.es.push([new RegExp("^Devolució\\ feta:\\ (.*)\\ surten\\ de\\ la\\ caixa$"), "Devolución hecha: $1 salen de la caja"]);

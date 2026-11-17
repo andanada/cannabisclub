@@ -35,6 +35,7 @@ function productCard(p) {
   const out = h('div');
   const nom = h('input', { value: p.nom }), cat = h('input', { value: p.categoria }), preu = h('input', { inputmode: 'decimal', value: preuText(p.preu_cent_per_g) });
   const gen = h('input', { type: 'checkbox', checked: !!p.es_genetic });
+  const reg = h('input', { type: 'checkbox', checked: !!p.regalable });
   const patch = (btn, body, ok) => guard(btn, out, async () => {
     await api(`/productes/${p.id}`, { method: 'PATCH', body });
     toast(ok);
@@ -48,6 +49,7 @@ function productCard(p) {
     const c = parseEur(preu.value);
     if (c !== p.preu_cent_per_g) body.preu_cent_per_g = c;
     if (gen.checked !== !!p.es_genetic) body.es_genetic = gen.checked;
+    if (reg.checked !== !!p.regalable) body.regalable = reg.checked;
     if (!Object.keys(body).length) throw new Error('No hi ha cap canvi');
     await api(`/productes/${p.id}`, { method: 'PATCH', body });
     toast('Producte actualitzat');
@@ -60,7 +62,7 @@ function productCard(p) {
       ' ', h('span', { class: 'muted' }, 'Estoc: ' + p.estoc_g + ' g')),
     imageRow(p, out),
     h('div', { class: 'row' }, field('Nom', nom), field('Categoria', cat), field('Preu per gram (€)', preu)),
-    h('label', null, gen, ' És genètic'),
+    h('label', null, gen, ' És genètic'), ' ', h('label', null, reg, ' Es pot regalar'),
     h('div', { class: 'actions' }, save, toggle), out);
 }
 
@@ -103,17 +105,18 @@ async function productsSection() {
   const out2 = h('div');
   const n = h('input'), c = h('input'), p = h('input', { inputmode: 'decimal', placeholder: '8,00' });
   // Elecció explícita (sense valor per defecte): un producte nou no genètic queda fora dels límits per soci sense que ningú ho hagi decidit.
+  const regNou = h('input', { type: 'checkbox' });
   const genNou = h('select', null, h('option', { value: '' }, 'Tria…'), h('option', { value: 'si' }, 'Sí: compta per als límits per soci'), h('option', { value: 'no' }, 'No: no compta per als límits'));
   const b2 = h('button', { class: 'primary', type: 'submit' }, 'Crear producte');
   const nou = h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(b2, out2, async () => {
       if (!genNou.value) throw new Error('Indica si el producte és genètic (flor, hash, extractes, clons…): decideix si compta per als límits per soci');
-      await api('/productes', { method: 'POST', body: { local_id: S.local, nom: n.value.trim(), categoria: c.value.trim(), preu_cent_per_g: parseEur(p.value), es_genetic: genNou.value === 'si' } });
+      await api('/productes', { method: 'POST', body: { local_id: S.local, nom: n.value.trim(), categoria: c.value.trim(), preu_cent_per_g: parseEur(p.value), es_genetic: genNou.value === 'si', regalable: regNou.checked } });
       toast('Producte creat');
       show('estoc');
     });
-  } }, h('h3', null, 'Nou producte'), h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)), field('És genètic?', genNou), h('div', { class: 'actions' }, b2), out2);
+  } }, h('h3', null, 'Nou producte'), h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)), field('És genètic?', genNou), h('label', null, regNou, ' Es pot regalar'), h('div', { class: 'actions' }, b2), out2);
   // Els límits per soci només compten productes marcats com a genètics: sense cap, els límits no s'apliquen a res.
   const lloc = (S.me.locals || []).find((l) => l.id === S.local) || {};
   const amLimits = lloc.limit_diari_mg != null || lloc.limit_mensual_mg != null;
@@ -153,7 +156,7 @@ async function cashState() {
 
 async function expenseForm() {
   const imp = h('input', { inputmode: 'decimal', placeholder: '0,00' });
-  const met = h('select', null, ['efectiu', 'targeta'].map((m) => h('option', { value: m }, m)));
+  const met = h('select', null, ['efectiu', 'targeta', 'bizum'].map((m) => h('option', { value: m }, m)));
   const cat = h('input', { placeholder: 'neteja, compres, nòmines…' });
   const con = h('input');
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Registrar despesa');
@@ -184,9 +187,11 @@ function senseCobrar(llista, centTotal, tancada, anteriors, cobrables) {
     if (!anteriors || !cobrables) return null;
     const e = h('button', { class: 'small' }, 'Efectiu');
     const t = h('button', { class: 'small' }, 'Targeta');
+    const z = h('button', { class: 'small' }, 'Bizum');
     e.addEventListener('click', () => cobra(d, 'efectiu', e));
     t.addEventListener('click', () => cobra(d, 'targeta', t));
-    return h('span', { class: 'actions fila-accions' }, e, t);
+    z.addEventListener('click', () => cobra(d, 'bizum', z));
+    return h('span', { class: 'actions fila-accions' }, e, t, z);
   };
   const avis = anteriors ? (cobrables ? 'Hi ha dispensacions sense cobrar de sessions anteriors. Cobra-les aquí: el cobrament entra a la caixa oberta.'
     : 'Hi ha dispensacions sense cobrar de sessions anteriors. Obre la caixa per poder cobrar-les.')

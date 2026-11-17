@@ -14,7 +14,7 @@ function quotaForm(m, out, onDone) {
   const loc = S.me.locals.find((l) => l.id === S.local) || {};
   const imp = h('input', { inputmode: 'decimal', placeholder: '0,00', value: loc.quota_cent ? (loc.quota_cent / 100).toFixed(2).replace('.', ',') : '' });
   const mesos = h('input', { type: 'number', min: 1, max: 24, value: loc.quota_mesos || 1 });
-  const met = h('select', null, ['efectiu', 'targeta'].map((x) => h('option', { value: x }, x)));
+  const met = h('select', null, ['efectiu', 'targeta', 'bizum'].map((x) => h('option', { value: x }, x)));
   const nota = isManager() ? h('input', { maxlength: 200, placeholder: "Només si l'import no és la tarifa del local" }) : null;
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Cobrar quota');
   const res = h('div');
@@ -189,7 +189,7 @@ VIEWS.dispensar = async () => {
     };
     const list = h('div', { class: 'products' }, productes.map((p) => {
       const b = h('button', { 'aria-pressed': 'false', onclick: () => {
-        chosen = p; list.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        chosen = p; btnRegal.hidden = !p.regalable; list.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
         descSel.replaceChildren(sense());   // el descompte del producte anterior no val per a aquest
         carregaDescomptes(p).catch(() => { if (chosen === p) descSel.replaceChildren(sense()); });
         carregaLots(p).catch(() => { lotSel.replaceChildren(); lotField.style.display = 'none'; });
@@ -200,19 +200,24 @@ VIEWS.dispensar = async () => {
     const pes = h('input', { inputmode: 'decimal', placeholder: 'Pes de la bàscula (opcional)' });
     const btnEfectiu = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar en efectiu');
     const btnTargeta = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar amb targeta');
+    const btnBizum = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar amb Bizum');
+    const btnRegal = h('button', { type: 'button' }, 'Dispensar com a regal');
     const btnApart = h('button', { type: 'submit' }, 'Dispensar i cobrar després');
     const scale = scalePanel(g, pes);
     // Amb mètode, la dispensació i el cobrament es fan en una sola operació al servidor (o es fa tot o res).
     // Els tres botons fan la mateixa dispensació: es bloquegen junts (un Intro o un segon clic no la repeteix).
-    const envia = (btn, metode) => guardTots([btnEfectiu, btnTargeta, btnApart], out, async () => {
+    const envia = (btn, metode) => guardTots([btnEfectiu, btnTargeta, btnBizum, btnRegal, btnApart], out, async () => {
       if (!chosen) throw new Error('Tria un producte');
       const body = { client_ref: ref, member_id: m.id, product_id: chosen.id,
         grams: parseGrams(g.value), pes_bascula_g: pes.value.trim() ? parseGrams(pes.value) : null,
         discount_id: descSel.value ? Number(descSel.value) : null };
       if (lotSel.value) body.batch_id = Number(lotSel.value);
-      if (metode) body.metode = metode;
+      if (metode === 'regal') { body.regal = true; body.discount_id = null; } else if (metode) body.metode = metode;
       const r = await api('/dispensacions', { method: 'POST', body });
-      if (r.cobrat) {
+      if (r.regal) {
+        step.replaceChildren(msg('ok', `Regal dispensat a ${m.nom}`),
+          h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => show('dispensar') }, 'Nova dispensació')));
+      } else if (r.cobrat) {
         step.replaceChildren(msg('ok', `Cobrat ${eur(r.import_cent)} (${metode}) a ${m.nom}`),
           h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => show('dispensar') }, 'Nova dispensació')));
       } else {
@@ -221,16 +226,19 @@ VIEWS.dispensar = async () => {
     });
     btnEfectiu.onclick = () => envia(btnEfectiu, 'efectiu');
     btnTargeta.onclick = () => envia(btnTargeta, 'targeta');
+    btnBizum.onclick = () => envia(btnBizum, 'bizum');
+    btnRegal.onclick = () => envia(btnRegal, 'regal');
+    btnRegal.hidden = true;   // només per als productes marcats com a regalables
     return h('form', { class: 'card', onsubmit: (e) => { e.preventDefault(); envia(btnApart, null); } }, h('h3', null, 'Producte'), list,
     scale,
     h('div', { class: 'row' }, field('Quantitat (g)', g), field('Bàscula (g)', pes), field('Descompte', descSel), lotField),
-    h('div', { class: 'actions' }, btnEfectiu, btnTargeta, btnApart), out);
+    h('div', { class: 'actions' }, btnEfectiu, btnTargeta, btnBizum, btnRegal, btnApart), out);
   }
 
   function chargeStep(m, r) {
     const out = h('div');
     const pay = (metode) => {
-      const b = metode === 'efectiu' ? cash : card;
+      const b = { efectiu: cash, targeta: card, bizum: bizum }[metode];
       return guard(b, out, async () => {
         await api('/cobraments', { method: 'POST', body: { movement_id: r.id, metode } });
         step.replaceChildren(msg('ok', `Cobrat ${eur(r.import_cent)} (${metode}) a ${m.nom}`),
@@ -239,9 +247,10 @@ VIEWS.dispensar = async () => {
     };
     const cash = h('button', { class: 'primary', onclick: () => pay('efectiu') }, 'Cobrar en efectiu');
     const card = h('button', { onclick: () => pay('targeta') }, 'Cobrar amb targeta');
+    const bizum = h('button', { onclick: () => pay('bizum') }, 'Cobrar amb Bizum');
     return h('div', { class: 'card' }, h('h2', null, 'Dispensació registrada'),
       h('div', { class: 'big' }, eur(r.import_cent)), r.descompte_cent > 0 ? h('p', { class: 'muted' }, 'Descompte aplicat: -' + eur(r.descompte_cent)) : null, h('p', { class: 'muted' }, 'Falta cobrar-la.'),
-      h('div', { class: 'actions' }, cash, card), out);
+      h('div', { class: 'actions' }, cash, card, bizum), out);
   }
 
   box.append(search, step);

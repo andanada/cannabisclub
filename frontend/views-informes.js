@@ -110,6 +110,7 @@ function memberConsumption(m) {
   const iso = (d) => d.toLocaleDateString('sv-SE');
   const des = h('input', { type: 'date', value: iso(fa90) }), fins = h('input', { type: 'date', value: iso(avui) });
   const out = h('div'), res = h('div');
+  const motiu = h('input', { placeholder: 'Motiu de la devolució (obligatori)', maxlength: 300, 'aria-label': 'Motiu de la devolució' });
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Veure consum');
   return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
@@ -118,7 +119,19 @@ function memberConsumption(m) {
       res.replaceChildren(h('div', { class: 'row' }, kpi('Dispensat', gText(r.total.grams)), kpi('Import', eur(r.total.import_cent)), kpi('Dispensacions', String(r.total.dispensacions))),
         r.productes.length ? taula([['Producte'], ['Grams', true], ['Import', true]], r.productes.map((p) => [p.producte, gText(p.grams), eur(p.import_cent)])) : h('p', { class: 'muted' }, 'Cap dispensació en aquest període.'),
         r.dispensacions.length ? h('div', null, h('h3', null, 'Detall'), taula([['Data'], ['Producte'], ['Grams', true], ['Import', true], ['']],
-          r.dispensacions.map((d) => [new Date(d.ts).toLocaleString(loc()), d.producte, gText(d.grams), eur(d.import_cent), d.corregida ? 'corregida' : '']))) : null);
+          r.dispensacions.map((d) => [new Date(d.ts).toLocaleString(loc()), d.producte, gText(d.grams), eur(d.import_cent), d.corregida ? 'corregida' : devolucio(d, motiu, out, () => btn.click())]))) : null);
     });
-  } }, h('div', { class: 'row' }, field('Des de', des), field('Fins a', fins)), h('div', { class: 'actions' }, btn), out, res);
+  } }, h('div', { class: 'row' }, field('Des de', des), field('Fins a', fins)), field('Motiu per a devolucions', motiu), h('div', { class: 'actions' }, btn), out, res);
+}
+
+// Botó «Devolució» d'una fila: torna el producte a l'estoc i el cobrament surt de la caixa oberta (tot o res al servidor).
+function devolucio(d, motiu, out, recarrega) {
+  const b = h('button', { type: 'button', class: 'small danger' }, 'Devolució');
+  b.addEventListener('click', () => guard(b, out, async () => {
+    if (motiu.value.trim().length < 3) throw new Error('Escriu el motiu de la devolució');
+    const r = await api(`/dispensacions/${d.id}/devolucio`, { method: 'POST', body: { nota: motiu.value.trim() } });
+    toast(r.retornat_cent ? 'Devolució feta: ' + eur(r.retornat_cent) + ' surten de la caixa' : 'Devolució feta');
+    recarrega();
+  }));
+  return b;
 }

@@ -128,7 +128,7 @@ def consumption(db: Session, member: Member, des: date, fins: date, actor=None) 
         if m.tipus == "dispensacio":
             corregida = m.id in corregides
             llista.append({"id": m.id, "ts": m.ts.replace(tzinfo=m.ts.tzinfo or timezone.utc).isoformat(), "producte": nom,
-                           "grams": _g(-m.delta_mg), "import_cent": m.import_cent or 0, "corregida": corregida})
+                           "grams": _g(-m.delta_mg), "import_cent": m.import_cent or 0, "corregida": corregida, "regal": bool(m.regal)})
             if not corregida:
                 per_producte[nom]["mg"] += -m.delta_mg
                 per_producte[nom]["cent"] += m.import_cent or 0

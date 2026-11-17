@@ -707,6 +707,17 @@ Object.assign(I18N.en, {
  "Dades personals": "Personal details",
  "Contacte": "Contact",
  "Cognoms": "Surname",
+ "bizum": "Bizum",
+ "Bizum": "Bizum",
+ "Dispensar i cobrar amb Bizum": "Dispense and charge by Bizum",
+ "Dispensar com a regal": "Dispense as a gift",
+ "Cobrar amb Bizum": "Charge by Bizum",
+ "Es pot regalar": "Can be given as a gift",
+ "Motiu de la devolució (obligatori)": "Reason for the refund (required)",
+ "Motiu per a devolucions": "Reason for refunds",
+ "Devolució": "Refund",
+ "Escriu el motiu de la devolució": "Enter the reason for the refund",
+ "Devolució feta": "Refund done",
  "Adreça i tipus de membre": "Address and member type",
  "Tipus de membre": "Member type",
  "Gènere": "Gender",
@@ -1112,3 +1123,5 @@ I18N.pat.en.push([new RegExp("^Entrat\\ (.*)\\ ·\\ dispensat\\ (.*)\\ ·\\ exis
 I18N.pat.en.push([new RegExp("^SHA\\-256\\ del\\ fitxer\\ \\(queda\\ a\\ l'auditoria\\):\\ (.*)$"), "SHA-256 of the file (recorded in the audit log): $1"]);
 I18N.pat.en.push([new RegExp("^Coincideix\\ amb\\ (.*)\\ exportació\\(ns\\)\\ registrada\\(es\\),\\ l'última\\ el\\ (.*)\\.$"), "Matches $1 recorded export(s), the latest on $2."]);
 I18N.pat.en.push([new RegExp("^El\\ soci\\ encara\\ està\\ en\\ el\\ període\\ d'espera\\ \\((.*)\\ dies\\ des\\ de\\ l'alta\\)$"), "The member is still in the waiting period ($1 days since joining)"]);
+I18N.pat.en.push([new RegExp("^Regal\\ dispensat\\ a\\ (.*)$"), "Gift dispensed to $1"]);
+I18N.pat.en.push([new RegExp("^Devolució\\ feta:\\ (.*)\\ surten\\ de\\ la\\ caixa$"), "Refund done: $1 leave the cash drawer"]);

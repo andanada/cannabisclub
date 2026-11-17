@@ -82,6 +82,7 @@ class Product(Base):
     categoria: Mapped[str] = mapped_column(String(60), default="")
     preu_cent_per_g: Mapped[int] = mapped_column(Integer, default=0)
     actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+    regalable: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # es pot dispensar com a regal
     es_genetic: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # genètic (flor, clons…) o no (accessoris, begudes)
 
 
@@ -100,6 +101,7 @@ class StockMovement(Base):
     corregeix_id: Mapped[int | None] = mapped_column(ForeignKey("stock_movements.id"), nullable=True, unique=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     nota: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    regal: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # dispensat com a regal (import 0)
 
 
 class ImmutableError(RuntimeError):
@@ -138,7 +140,7 @@ class CashEntry(Base):
     local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
     session_id: Mapped[int] = mapped_column(ForeignKey("cash_sessions.id"))
     tipus: Mapped[str] = mapped_column(String(20))  # cobrament | despesa | correccio
-    metode: Mapped[str] = mapped_column(String(10))  # efectiu | targeta
+    metode: Mapped[str] = mapped_column(String(10))  # efectiu | targeta | bizum
     import_cent: Mapped[int] = mapped_column(Integer)
     categoria: Mapped[str | None] = mapped_column(String(60), nullable=True)
     concepte: Mapped[str | None] = mapped_column(String(300), nullable=True)

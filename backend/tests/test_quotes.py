@@ -64,7 +64,7 @@ def test_sense_caixa_oberta_o_dades_invalides(ctx):
     assert quota(client, enc, mid, cent=0).status_code == 422
     assert quota(client, enc, mid, mesos=0).status_code == 422
     assert quota(client, enc, mid, mesos=25).status_code == 422
-    assert quota(client, enc, mid, metode="bizum").status_code == 422
+    assert quota(client, enc, mid, metode="cripto").status_code == 422
     assert client.post("/socis/9999/quotes", json={"import_cent": 1, "metode": "efectiu", "mesos": 1}, headers=enc).status_code == 404
 
 
