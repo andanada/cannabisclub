@@ -73,7 +73,7 @@ function memberCard(m, out, onChange) {
       m.document ? h('span', { class: 'muted' }, ' ' + m.document + (m.naixement ? ' · ' + m.naixement : '')) : null),
     m.telefon ? h('div', { class: 'muted' }, m.telefon) : null)));
   const bar = h('div', { class: 'actions' });
-  const tools = isManager() && onChange ? memberTools(m, out, onChange) : null;
+  const tools = (isManager() || S.me.pot_reemborsar) && onChange ? memberTools(m, out, onChange) : null;
   const entrada = h('button', { onclick: () => guard(entrada, out, async () => {
     await api(`/socis/${m.id}/entrada`, { method: 'POST' });
     out.replaceChildren(msg('ok', 'Entrada registrada'));

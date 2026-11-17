@@ -85,7 +85,8 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.get("/socis/{member_id}/consum")
     def consum_del_soci(member_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        if not user.pot_reemborsar:  # qui pot fer devolucions ha de poder veure què retorna
+            need_manager(user)
         rang(des, fins)
         return informes_socis.consumption(s, member_or_404(s, user, member_id), des, fins, actor=user)
     registra_informe("hores", informes.staff_hours, informes.hours_csv, True)

@@ -127,6 +127,9 @@ async function productsSection() {
     ...(tots.length ? tots.map(productCard) : [h('div', { class: 'card empty' }, 'Encara no hi ha productes.')]));
 }
 
+// Un dispensador amb el privilegi «pot editar descomptes» hi arriba des d'un menú propi (no té el d'Estoc).
+VIEWS.descomptes = async () => h('div', null, pageHead('Descomptes', 'Descomptes vigents i alta de nous.'), await discountsSection());
+
 VIEWS.estoc = async () => {
   const items = [['existencies', 'Existències', stockTable], ['moviment', 'Moviments', stockMoveForm], ['productes', 'Productes', productsSection], ['descomptes', 'Descomptes', discountsSection], ['linies', 'Línies de preu', priceLinesSection], ['magatzems', 'Magatzems', warehousesSection], ['contenidors', 'Contenidors', containersSection], ['tipus-contenidor', 'Tipus de contenidor', containerTypesSection], ['regles', 'Regles', rulesSection], ['inventari', 'Inventari', inventorySection],
     ['historial', 'Historial', () => stockHistory(() => show('estoc'))]];

@@ -10,6 +10,11 @@ from ..models import Discount, User
 
 
 def register(app, db, current_user, check_local, need_manager, run, product_or_404):
+    def _pot_editar(user):
+        """Els responsables sempre; un dispensador només amb el privilegi «pot editar descomptes»."""
+        if not user.pot_editar_descomptes:
+            need_manager(user)
+
     class DescompteIn(BaseModel):
         nom: str = Field(max_length=60)
         tipus: str
@@ -31,20 +36,20 @@ def register(app, db, current_user, check_local, need_manager, run, product_or_4
     def llista_descomptes(local_id: int, producte: int | None = None, tots: bool = False, user: User = Depends(current_user), s: Session = Depends(db)):
         check_local(s, user, local_id)
         if tots:
-            need_manager(user)
+            _pot_editar(user)
         p = product_or_404(s, user, producte) if producte else None
         return descomptes.list_discounts(s, local_id, quotes.avui(), p, tots)
 
     @app.post("/locals/{local_id}/descomptes", status_code=201)
     def alta_descompte(local_id: int, body: DescompteIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        _pot_editar(user)
         check_local(s, user, local_id)
         d = run(descomptes.create, s, user, local_id, body.nom, body.tipus, body.valor, body.ambit, body.categoria, body.product_id, body.inici, body.fi)
         return {"id": d.id}
 
     @app.put("/descomptes/{discount_id}")
     def edita_descompte(discount_id: int, body: DescompteUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        _pot_editar(user)
         d = s.get(Discount, discount_id)
         if not d:
             raise HTTPException(404, "Descompte inexistent")

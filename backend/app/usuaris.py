@@ -14,7 +14,8 @@ def _local_ids(db: Session, user_id: int) -> list[int]:
 
 def list_users(db: Session) -> list[dict]:
     amb_carnet = set(db.scalars(select(UserCard.user_id)))
-    return [{"id": u.id, "username": u.username, "role": u.role, "active": u.active, "local_ids": _local_ids(db, u.id), "te_carnet": u.id in amb_carnet}
+    return [{"id": u.id, "username": u.username, "role": u.role, "active": u.active, "local_ids": _local_ids(db, u.id), "te_carnet": u.id in amb_carnet,
+             "pot_reemborsar": u.pot_reemborsar, "pot_editar_descomptes": u.pot_editar_descomptes, "moneder_limit_cent": u.moneder_limit_cent}
             for u in db.scalars(select(User).order_by(User.username))]
 
 
@@ -26,8 +27,9 @@ def _close_sessions(db: Session, user_id: int, keep_hash: str | None = None) -> 
 
 
 def update_user(db: Session, actor: User, user: User, active: bool | None = None, role: str | None = None,
-                local_ids: list[int] | None = None) -> None:
-    if active is None and role is None and local_ids is None:
+                local_ids: list[int] | None = None, privilegis: dict | None = None) -> None:
+    privilegis = privilegis or {}
+    if active is None and role is None and local_ids is None and not privilegis:
         raise ValueError("No hi ha cap canvi")
     if role is not None and role not in service.ROLS:
         raise ValueError("Rol no vàlid")
@@ -55,6 +57,17 @@ def update_user(db: Session, actor: User, user: User, active: bool | None = None
         db.execute(delete(UserLocal).where(UserLocal.user_id == user.id))
         for lid in local_ids:
             db.add(UserLocal(user_id=user.id, local_id=lid))
+    for camp in ("pot_reemborsar", "pot_editar_descomptes"):
+        if camp in privilegis and privilegis[camp] is not None and bool(privilegis[camp]) != getattr(user, camp):
+            canvis[camp] = [getattr(user, camp), bool(privilegis[camp])]
+            setattr(user, camp, bool(privilegis[camp]))
+    if "moneder_limit_cent" in privilegis:  # None = tornar al límit del local
+        nou = privilegis["moneder_limit_cent"]
+        if nou is not None and not 0 <= nou <= 1_000_000:
+            raise ValueError("El límit negatiu del monedero ha d'estar entre 0 i 10.000 €")
+        if nou != user.moneder_limit_cent:
+            canvis["moneder_limit_cent"] = [user.moneder_limit_cent, nou]
+            user.moneder_limit_cent = nou
     if not canvis:
         raise ValueError("No hi ha cap canvi")
     if "active" in canvis or "role" in canvis or "local_ids" in canvis:

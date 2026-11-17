@@ -94,6 +94,8 @@ def register(app, db, current_user, ip_limiter):
             ids = [r.local_id for r in s.scalars(select(UserLocal).where(UserLocal.user_id == user.id))]
             locs = [s.get(Local, i) for i in ids]
         return {"id": user.id, "username": user.username, "role": user.role, "te_carnet": s.get(UserCard, user.id) is not None,
+                "pot_reemborsar": user.role in ("admin", "encarregat") or user.pot_reemborsar,
+                "pot_editar_descomptes": user.role in ("admin", "encarregat") or user.pot_editar_descomptes,
                 "locals": [{"id": l.id, "nom": l.nom, "limit_diari_mg": l.limit_diari_mg,
                             "limit_mensual_mg": l.limit_mensual_mg,
                             "tolerancia_bascula_mg": l.tolerancia_bascula_mg, **ajustos.get(s, l.id)} for l in locs]}

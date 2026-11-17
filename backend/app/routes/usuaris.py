@@ -78,11 +78,15 @@ def register(app, db, current_user, need_admin, run, usuari_or_404):
         active: bool | None = None
         role: str | None = None
         local_ids: list[int] | None = None
+        pot_reemborsar: bool | None = None
+        pot_editar_descomptes: bool | None = None
+        moneder_limit_cent: int | None = Field(default=None, ge=0, le=1_000_000)  # enviat com a null = el límit del local
 
     @app.patch("/usuaris/{user_id}")
     def edita_usuari(user_id: int, body: UsuariUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_admin(user)
-        run(usuaris.update_user, s, user, usuari_or_404(s, user_id), body.active, body.role, body.local_ids)
+        privilegis = {k: getattr(body, k) for k in ("pot_reemborsar", "pot_editar_descomptes", "moneder_limit_cent") if k in body.model_fields_set}
+        run(usuaris.update_user, s, user, usuari_or_404(s, user_id), body.active, body.role, body.local_ids, privilegis)
         return {"ok": True}
 
     @app.post("/usuaris/{user_id}/totp")

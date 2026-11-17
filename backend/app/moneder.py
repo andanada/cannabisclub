@@ -24,10 +24,12 @@ def saldo(db: Session, member_id: int) -> int:
     return db.scalar(select(func.coalesce(func.sum(WalletMovement.import_cent), 0)).where(WalletMovement.member_id == member_id))
 
 
-def _comprova_saldo(db: Session, local_id: int, member_id: int, canvi_cent: int) -> None:
-    """El saldo resultant no pot quedar per sota del límit negatiu del local (0 = no es permet saldo negatiu)."""
+def _comprova_saldo(db: Session, local_id: int, member_id: int, canvi_cent: int, actor: User | None = None) -> None:
+    """El saldo resultant no pot quedar per sota del límit negatiu: el de l'empleat si en té un de propi, si no el del local
+    (0 = no es permet saldo negatiu)."""
     nou = saldo(db, member_id) + canvi_cent
-    if nou < -limit_negatiu_cent(db, local_id):
+    propi = actor.moneder_limit_cent if actor is not None else None
+    if nou < -(propi if propi is not None else limit_negatiu_cent(db, local_id)):
         raise ValueError("Saldo del monedero insuficient")
 
 
@@ -35,7 +37,7 @@ def pay(db: Session, actor: User, member_id: int, entry: CashEntry) -> WalletMov
     """Descompta del monedero l'import d'un apunt de caixa de cobrament. SENSE commit; el soci ja ha d'estar bloquejat."""
     if not actiu(db, entry.local_id):
         raise ValueError("El monedero no està activat en aquest local")
-    _comprova_saldo(db, entry.local_id, member_id, -entry.import_cent)
+    _comprova_saldo(db, entry.local_id, member_id, -entry.import_cent, actor)
     w = WalletMovement(local_id=entry.local_id, member_id=member_id, tipus="pagament", import_cent=-entry.import_cent,
                        cash_entry_id=entry.id, movement_id=entry.movement_id, user_id=actor.id)
     db.add(w)
@@ -76,7 +78,7 @@ def reverse_for_entry(db: Session, actor: User, original: CashEntry, correction:
     if w is None:
         return
     if w.import_cent > 0:
-        _comprova_saldo(db, w.local_id, w.member_id, -w.import_cent)
+        _comprova_saldo(db, w.local_id, w.member_id, -w.import_cent, actor)
     db.add(WalletMovement(local_id=w.local_id, member_id=w.member_id, tipus="correccio", import_cent=-w.import_cent,
                           cash_entry_id=correction.id, movement_id=w.movement_id, user_id=actor.id))
     db.flush()

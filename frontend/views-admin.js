@@ -23,10 +23,15 @@ function userCard(u) {
   const reload = () => show('config');
   const rol = h('select', null, Object.keys(ROL_NOMS).map((r) => h('option', { value: r, selected: r === u.role }, ROL_NOMS[r])));
   const checks = S.me.locals.map((l) => h('label', null, h('input', { type: 'checkbox', value: l.id, checked: u.local_ids.includes(l.id) }), ' ', l.nom));
+  // Privilegis d'un dispensador (els responsables ja ho poden tot). El límit buit = el saldo negatiu permès al local.
+  const pRef = h('input', { type: 'checkbox', checked: !!u.pot_reemborsar });
+  const pDto = h('input', { type: 'checkbox', checked: !!u.pot_editar_descomptes });
+  const pMon = h('input', { inputmode: 'decimal', value: u.moneder_limit_cent === null || u.moneder_limit_cent === undefined ? '' : (u.moneder_limit_cent / 100).toFixed(2).replace('.', ','), placeholder: 'el del local', 'aria-label': 'Límit negatiu del monedero (€)' });
   const save = h('button', { class: 'primary', type: 'button' }, 'Desar rol i locals');
   save.addEventListener('click', () => guard(save, out, async () => {
     const local_ids = checks.map((c) => c.querySelector('input')).filter((i) => i.checked).map((i) => Number(i.value));
-    await api(`/usuaris/${u.id}`, { method: 'PATCH', body: { role: rol.value, local_ids } });
+    await api(`/usuaris/${u.id}`, { method: 'PATCH', body: { role: rol.value, local_ids, pot_reemborsar: pRef.checked, pot_editar_descomptes: pDto.checked,
+      moneder_limit_cent: pMon.value.trim() ? parseEur(pMon.value) : null } });
     toast('Usuari actualitzat');
     reload();
   }));
@@ -77,6 +82,8 @@ function userCard(u) {
     h('div', null, h('strong', null, u.username), ' ', h('span', { class: 'pill' }, ROL_NOMS[u.role] || u.role), ' ', h('span', { class: 'pill ' + (u.active ? 'ok' : 'warn') }, u.active ? 'actiu' : 'desactivat')),
     h('div', { class: 'row' }, field('Rol', rol), field('Contrasenya nova', pw)),
     h('h3', null, 'Locals amb accés'), h('div', null, checks),
+    h('h3', null, 'Privilegis (dispensador)'), h('div', null, h('label', null, pRef, ' Pot fer devolucions'), ' ', h('label', null, pDto, ' Pot editar descomptes')),
+    field('Límit negatiu del monedero (€)', pMon),
     h('h3', null, "Carnet d'entrada"), blocCarnet,
     h('div', { class: 'actions' }, save, setPw, totp, toggle), out);
 }

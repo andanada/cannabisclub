@@ -132,8 +132,8 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/dispensacions/{movement_id}/devolucio", status_code=201)
     def devolucio(movement_id: int, body: CorreccioIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        if user.role not in CAN_CREATE_MEMBER:
-            raise HTTPException(403, "El teu rol no pot fer devolucions")
+        if user.role not in CAN_CREATE_MEMBER and not user.pot_reemborsar:
+            raise HTTPException(403, "No tens permís per fer devolucions")
         orig = s.get(StockMovement, movement_id)
         if not orig:
             raise HTTPException(404, "Moviment inexistent")

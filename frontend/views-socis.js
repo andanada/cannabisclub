@@ -222,6 +222,8 @@ function memberTools(m, out, onChange) {
     b.classList.add('tool-toggle');
     return b;
   };
+  // Un dispensador amb el privilegi de devolucions només hi veu l'historial de consum (des d'on es fa la devolució).
+  if (!isManager()) return { bar: [toggle('Historial de consum', () => memberConsumption(m))], panel };
   return { bar: [...photoUploader(m, out, reload), toggle('Carnet', () => cardManager(m, out, reload)), toggle('Editar dades', () => editForm(m, out, reload)),
     ...(isManager() ? [toggle('Historial de consum', () => memberConsumption(m)), toggle('Incidències', () => memberIncidents(m)), toggle('Avalats', () => memberAvalats(m)), toggle('Documents', () => memberDocuments(m)), toggle('Línia de preu', () => { const box = h('div'); memberPriceLine(m, out, reload).then((f) => box.replaceChildren(f)).catch((e) => box.replaceChildren(msg('err', e.message))); return box; })] : [])], panel };
 }
