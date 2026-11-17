@@ -97,7 +97,7 @@ tornar_enrere() {
   for d in $CANVIS; do
     if [ -e "$PREV/$d" ]; then rm -rf "$DIR/$d"; mkdir -p "$(dirname "$DIR/$d")"; mv "$PREV/$d" "$DIR/$d"; fi
   done
-  [ -e "$PREV/VERSION" ] && cp "$PREV/VERSION" "$DIR/VERSION"
+  if [ -e "$PREV/VERSION" ]; then cp "$PREV/VERSION" "$DIR/VERSION"; else rm -f "$DIR/VERSION"; fi   # mai una versió que no és la que corre
   restart
   if salut ""; then say "tornat al codi anterior: el servei respon"; else say "ATENCIÓ: el servei NO respon ni amb el codi anterior (journalctl -u $SERVICE)"; fi
   exit 1
@@ -109,7 +109,7 @@ for d in $CANVIS; do   # el que hi ha ara es guarda a .prev, i el nou entra (des
   mkdir -p "$(dirname "$DIR/$d")"
   mv "$STAGE/$d" "$DIR/$d" || tornar_enrere "no s'ha pogut instal·lar $d"
 done
-[ -f "$DIR/VERSION" ] && cp "$DIR/VERSION" "$PREV/VERSION"
+if [ -f "$DIR/VERSION" ]; then cp "$DIR/VERSION" "$PREV/VERSION"; fi
 cp "$STAGE/VERSION" "$DIR/VERSION"
 for f in README.md REQUISITS.md docker-compose.yml requirements.txt requirements-dev.txt; do [ -f "$STAGE/$f" ] && cp "$STAGE/$f" "$DIR/$f"; done
 say "codi nou instal·lat ($SHA); l'anterior és a $PREV"
