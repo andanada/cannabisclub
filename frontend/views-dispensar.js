@@ -59,8 +59,8 @@ function walletPanel(m) {
         });
       } }, h('div', { class: 'row' }, field('Import (€)', imp), field('Mètode', met)), h('div', { class: 'actions' }, btn)),
       out,
-      w.historial.length ? h('table', null, h('tbody', null, w.historial.slice(0, 5).map((x) => h('tr', null,
-        h('td', null, new Date(x.ts).toLocaleString(loc())), h('td', null, tipus[x.tipus] || x.tipus), h('td', { class: 'num' }, eur(x.import_cent)))))) : null);
+      ...(w.historial.length ? [h('table', null, h('tbody', null, w.historial.slice(0, 5).map((x) => h('tr', null,
+        h('td', null, new Date(x.ts).toLocaleString(loc())), h('td', null, tipus[x.tipus] || x.tipus), h('td', { class: 'num' }, eur(x.import_cent))))))] : []));
   };
   pinta().catch((e) => box.replaceChildren(msg('err', e.message)));
   return box;
