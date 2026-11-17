@@ -17,8 +17,9 @@ function renderLogin() {
   const codeField = field("Codi de l'app d'autenticació", code);
   // Si el servidor no exigeix el segon factor (servidor de proves), el camp no es mostra.
   // Entrada amb carnet + PIN: primer es passa el carnet pel lector (el lector «escriu» el codi i prem Intro) i després es demana el PIN.
-  const carnet = h('input', { class: 'card-input', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', placeholder: 'Passa el carnet pel lector', 'aria-label': 'Carnet' });
-  const pinInput = h('input', { class: 'card-input pin-input', type: 'password', inputmode: 'numeric', autocomplete: 'off', maxlength: 8, placeholder: 'PIN', 'aria-label': 'PIN' });
+  const carnet = h('input', { class: 'card-input', autocomplete: 'off', name: 'codi-carnet', autocapitalize: 'characters', spellcheck: 'false', placeholder: 'Passa el carnet pel lector', 'aria-label': 'Carnet' });
+  // autocomplete=new-password: si no, el gestor de contrasenyes del navegador pren aquest formulari per un segon login i escriu l'usuari al camp del carnet.
+  const pinInput = h('input', { class: 'card-input pin-input', type: 'password', inputmode: 'numeric', autocomplete: 'new-password', name: 'pin-carnet', maxlength: 8, placeholder: 'PIN', 'aria-label': 'PIN' });
   const carnetOut = h('div');
   const pasCarnet = h('div', { class: 'carnet-pas' }, carnet, h('p', { class: 'muted' }, 'El lector escriu el codi tot sol i continua amb el PIN.'));
   const teclat = h('div', { class: 'teclat', role: 'group', 'aria-label': 'Teclat numèric' },

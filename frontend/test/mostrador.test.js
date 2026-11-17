@@ -101,3 +101,8 @@ test('hi ha avís de versió nova quan canvia el service worker, i només es rec
   assert.equal((a.match(/location\.reload\(\)/g) || []).length, 1);                  // l'únic reload és el del botó
   assert.match(a, /onclick: \(\) => location\.reload\(\)/);
 });
+
+test('el PIN del carnet no es deixa omplir pel gestor de contrasenyes (omplia l usuari al camp del carnet)', () => {
+  const a = text('app.js');
+  assert.match(a, /pin-input', type: 'password', inputmode: 'numeric', autocomplete: 'new-password'/);
+});
