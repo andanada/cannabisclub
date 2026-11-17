@@ -102,7 +102,7 @@ const TABS = [
   ['estoc', 'Estoc', isManager, [
     ['existencies', 'Existències'], ['magatzems', 'Magatzems'], ['linies', 'Línies de preu'], ['contenidors', 'Contenidors'],
     ['tipus-contenidor', 'Tipus de contenidors'], ['moviment', 'Moviments'], ['inventari', 'Inventaris'], ['descomptes', 'Descomptes'],
-    ['regles', 'Regles'], ['productes', 'Productes'], ['historial', 'Historial']]],
+    ['regles', 'Regles'], ['productes', 'Productes'], ['categories', 'Categories'], ['historial', 'Historial']]],
   ['caixa', 'Caixa', () => true],
   ['fitxatge', 'Fitxatge', () => true],
   ['descomptes', 'Descomptes', () => !isManager() && !!S.me.pot_editar_descomptes],
