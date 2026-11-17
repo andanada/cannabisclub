@@ -29,7 +29,7 @@ def test_sortir_tots_nomes_per_a_responsables(ctx):
     a, b = _soci(client, enc), _soci(client, enc, "87654321X", "Berta Prova")
     client.post(f"/socis/{a}/entrada", headers=disp)
     client.post(f"/socis/{b}/entrada", headers=disp)
-    assert client.get("/locals/1/acces", headers=disp).status_code == 200  # el dispensador veu la pantalla
+    assert client.get("/locals/1/acces", headers=disp).status_code == 403  # el cens nominal és per als responsables
     assert client.post("/locals/1/acces/sortir-tots", headers=disp).status_code == 403
     assert client.post("/locals/1/acces/sortir-tots", headers=enc).json() == {"sortits": 2}
     assert client.get("/locals/1/acces", headers=enc).json()["dins"] == []

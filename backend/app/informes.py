@@ -100,7 +100,7 @@ def attendance(db: Session, local_id: int, des: date, fins: date, usuari: int | 
             "total_entrades": sum(v["entrades"] for v in per_dia.values()), "socis_diferents": len(tots)}
 
 
-def visits(db: Session, local_id: int, des: date, fins: date, usuari: int | None = None) -> dict:
+def visits(db: Session, local_id: int, des: date, fins: date, usuari: int | None = None, actor=None) -> dict:
     """Visites de socis del rang: cada entrada amb el nom, el tipus de membre i la sortida (la marca següent del mateix soci).
     Les entrades sense sortida surten amb `sortida` buida. Els noms es desxifren aquí; la consulta queda a l'auditoria."""
     from . import crypto, service
@@ -124,7 +124,8 @@ def visits(db: Session, local_id: int, des: date, fins: date, usuari: int | None
     out = [{"soci_id": f["soci_id"], "nom": crypto.decrypt(socis[f["soci_id"]].nom_enc), "tipus": socis[f["soci_id"]].tipus,
             "entrada": f["entrada"].isoformat(), "sortida": f["sortida"].isoformat() if f["sortida"] else None, "via": f["via"]}
            for f in files]
-    service.audit_append(db, {"accio": "consulta_visites", "local": local_id, "n": len(out), "des": des.isoformat(), "fins": fins.isoformat()})
+    service.audit_append(db, {"accio": "consulta_visites", "local": local_id, "n": len(out), "des": des.isoformat(), "fins": fins.isoformat(),
+                              **({"per": actor.id} if actor is not None else {})})
     db.commit()
     return {"des": des.isoformat(), "fins": fins.isoformat(), "visites": out}
 

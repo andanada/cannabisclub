@@ -6,6 +6,7 @@ que marca l'operació del seu tipus de compte (suma o resta)."""
 from datetime import date, datetime
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import cash, service
@@ -155,7 +156,11 @@ def anula(db: Session, actor: User, expense_id: int, nota: str) -> Expense:
     a = Expense(local_id=orig.local_id, data=orig.data, user_id=actor.id, type_id=orig.type_id, category_id=orig.category_id,
                 account_id=orig.account_id, import_cent=orig.import_cent, corregeix_id=orig.id, comentaris=nota)
     db.add(a)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise ValueError("Aquesta despesa ja està anul·lada")
     service.audit_append(db, {"accio": "anulacio_gasto", "gasto": a.id, "anula": orig.id, "per": actor.id})
     db.commit()
     return a

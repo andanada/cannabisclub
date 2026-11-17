@@ -62,6 +62,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/socis/{member_id}/incidencies", status_code=201)
     def alta_incidencia(member_id: int, body: IncidenciaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)  # text lliure amb possibles dades personals que després només els responsables poden llegir
         return {"id": run(incidencies.crea, s, user, member_or_404(s, user, member_id), body.descripcio).id}
 
     @app.post("/incidencies/{incident_id}/tanca")
@@ -154,6 +155,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.get("/locals/{local_id}/acces")
     def estat_acces(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)  # és un cens nominal del club: el dispensador només fa servir el quiosc per carnet
         check_local(s, user, local_id)
         return service.access_state(s, user, local_id)
 

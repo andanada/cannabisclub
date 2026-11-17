@@ -43,6 +43,10 @@ def pujar(db: Session, actor: User, member: Member, tipus: str, nom: str, data_b
     if db.scalar(select(func.count()).select_from(MemberDocument).where(MemberDocument.member_id == member.id)) >= MAX_PER_SOCI:
         raise ValueError(f"S'ha arribat al límit de {MAX_PER_SOCI} documents per soci")
     nom = (nom or TIPUS[tipus]).strip()[:120] or TIPUS[tipus]
+    # L'extensió la dicta el tipus real del contingut, no el nom que envia el client (un fitxer poliglota anomenat .html s'obriria com a HTML)
+    ext = {"image/jpeg": ".jpg", "image/png": ".png", "application/pdf": ".pdf"}[mime]
+    nom = nom.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    nom = (nom.rsplit(".", 1)[0] if "." in nom else nom)[:110] + ext
     d = MemberDocument(local_id=member.local_id, member_id=member.id, tipus=tipus, nom=nom, mime=mime,
                        data_enc=crypto.encrypt(data_b64), sha256=hashlib.sha256(contingut).hexdigest(), user_id=actor.id)
     db.add(d)

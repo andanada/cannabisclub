@@ -270,10 +270,7 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     if metode is not None:
         wid = _cash.register_warehouse(db, sessio_caixa)
     else:
-        try:
-            wid = _cash.register_warehouse(db, _cash.current_session(db, p.local_id, actor=actor))
-        except ValueError:
-            wid = None
+        wid = _cash.register_warehouse(db, _cash.current_session(db, p.local_id, actor=actor))  # ambigua: error, no estoc a mig repartir
     if wid is not None:
         if stock_in_mg(db, p.id, wid) < mg:
             raise ValueError("Estoc insuficient al magatzem de la caixa")

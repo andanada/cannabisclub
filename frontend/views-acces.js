@@ -79,5 +79,5 @@ function accesQuiosc() {
 }
 
 VIEWS.acces = async () => h('div', null, pageHead('Accés', 'Entrades i sortides dels socis al local.'), await sections('acces', [
-  ['manual', 'Accés manual', accesManual], ['quiosc', 'Quiosc RFID', async () => accesQuiosc()],
+  ...(isManager() ? [['manual', 'Accés manual', accesManual]] : []), ['quiosc', 'Quiosc RFID', async () => accesQuiosc()],
 ]));

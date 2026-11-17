@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import crypto, informes_socis, service
-from .models import CheckIn, Expense, Member, Product, Quota, StockMovement, User
+from .models import CashEntry, CheckIn, Expense, Member, Product, Quota, StockMovement, User
 from .stock import TZ
 
 TOP = 10
@@ -99,7 +99,8 @@ def membres(db: Session, actor: User, local_id: int) -> dict:
     files = _vendes(db, local_id, date(avui.year, 1, 1))
     per_soci: dict[int, dict] = defaultdict(lambda: {"mg": 0, "cent": 0})
     for f in files:
-        per_soci[f["soci"]]["mg"] += f["mg"]
+        if f["genetic"]:  # el pes només té sentit per als genètics (els productes en unitats no són grams)
+            per_soci[f["soci"]]["mg"] += f["mg"]
         per_soci[f["soci"]]["cent"] += f["cent"]
     noms = {m.id: crypto.decrypt(m.nom_enc) for m in socis if m.id in per_soci}
 
@@ -133,7 +134,7 @@ def dispensari(db: Session, actor: User, local_id: int) -> dict:
     db.commit()
     return {"percentatge_genetics": None if total_cent == 0 else round(totals[True]["cent"] * 100 / total_cent, 1),
             "preu_mitja_genetics_cent_per_g": round(totals[True]["cent"] * 1000 / totals[True]["mg"]) if totals[True]["mg"] > 0 else None,
-            "preu_mitja_no_genetics_cent": round(totals[False]["cent"] / max(1, sum(1 for f in files if not f["genetic"] and f["cent"] > 0))) if totals[False]["cent"] else None,
+            "preu_mitja_no_genetics_cent": round(totals[False]["cent"] / max(1, sum((1 if f["cent"] > 0 else -1) for f in files if not f["genetic"] and f["cent"] != 0))) if totals[False]["cent"] else None,
             "dispensari": periodes(True), "bar": periodes(False),
             "top_genetics_grams": _top(files, True, "grams"), "top_genetics_import": _top(files, True, "cent"),
             "top_no_genetics_import": _top(files, False, "cent")}
@@ -150,6 +151,12 @@ def finances(db: Session, actor: User, local_id: int, any_: int | None = None) -
     despeses_mes: dict[str, int] = defaultdict(int)
     for e in db.scalars(select(Expense).where(Expense.local_id == local_id, Expense.data >= date(any_, 1, 1), Expense.data <= date(any_, 12, 31))):
         despeses_mes[e.data.strftime("%Y-%m")] += -e.import_cent if e.corregeix_id is not None else e.import_cent
+    # Despeses de caixa fetes pel camí antic (cash.expense, sense fila a «expenses»): també compten al benefici.
+    enllaçades = set(db.scalars(select(Expense.cash_entry_id).where(Expense.local_id == local_id, Expense.cash_entry_id.is_not(None))))
+    for c in db.scalars(select(CashEntry).where(CashEntry.local_id == local_id, CashEntry.categoria.is_not(None))):
+        d = _dia(c.ts)
+        if d.year == any_ and c.id not in enllaçades and c.corregeix_id not in enllaçades:
+            despeses_mes[d.strftime("%Y-%m")] += -c.import_cent
     mesos, grams_total, dies_amb_venda = [], 0, set()
     for n in range(1, 13):
         k = f"{any_}-{n:02d}"

@@ -98,7 +98,7 @@ function renderLogin() {
 const TABS = [
   ['dispensar', 'Dispensar', () => true],
   ['socis', 'Socis', () => true],
-  ['acces', 'Accés', () => true, [['manual', 'Accés manual'], ['quiosc', 'Quiosc RFID']]],
+  ['acces', 'Accés', () => true, () => (isManager() ? [['manual', 'Accés manual'], ['quiosc', 'Quiosc RFID']] : [['quiosc', 'Quiosc RFID']])],
   ['estoc', 'Estoc', isManager, [
     ['existencies', 'Existències'], ['magatzems', 'Magatzems'], ['linies', 'Línies de preu'], ['contenidors', 'Contenidors'],
     ['tipus-contenidor', 'Tipus de contenidors'], ['moviment', 'Moviments'], ['inventari', 'Inventaris'], ['descomptes', 'Descomptes'],

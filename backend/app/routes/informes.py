@@ -61,6 +61,10 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
                 raise HTTPException(422, "Cal indicar des de i fins a")
             if fins < des:
                 raise HTTPException(422, "Rang de dates invàlid")
+            if nom == "visites":  # desxifra noms: rang limitat i consulta amb autor a l'auditoria
+                if (fins - des).days > 366:
+                    raise HTTPException(422, "El rang de visites no pot passar d'un any")
+                return fn(s, local_id, des, fins, usuari, actor=user)
             return fn(s, local_id, des, fins, usuari)
 
         @app.get(f"/locals/{{local_id}}/informe/{nom}", name=f"informe_{nom}")

@@ -10,11 +10,12 @@ def test_incidencia_xifrada_oberta_i_tancada(ctx):
     client, factory, sec = ctx
     enc, disp = token(client, sec, "enc"), token(client, sec, "disp")
     mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
-    r = client.post(f"/socis/{mid}/incidencies", json={"descripcio": "Discussió amb un altre soci"}, headers=disp)  # qualsevol empleat la pot obrir
+    assert client.post(f"/socis/{mid}/incidencies", json={"descripcio": "Discussió amb un altre soci"}, headers=disp).status_code == 403
+    r = client.post(f"/socis/{mid}/incidencies", json={"descripcio": "Discussió amb un altre soci"}, headers=enc)  # només els responsables
     assert r.status_code == 201
     assert client.get(f"/socis/{mid}/incidencies", headers=disp).status_code == 403  # però només els responsables les llegeixen
     l = client.get(f"/socis/{mid}/incidencies", headers=enc).json()
-    assert l[0]["descripcio"] == "Discussió amb un altre soci" and l[0]["estat"] == "oberta" and l[0]["creat_per"] == "disp"
+    assert l[0]["descripcio"] == "Discussió amb un altre soci" and l[0]["estat"] == "oberta" and l[0]["creat_per"] == "enc"
     with factory() as s:
         brut = s.scalar(select(MemberIncident.descripcio_enc))
         assert "Discussió" not in brut and "Discussió" in crypto.decrypt(brut)

@@ -197,6 +197,7 @@ async function cashState() {
       ...lliures.map((c) => h('option', { value: c.id }, c.nom + (c.magatzem ? ' · ' + c.magatzem : ''))));
     const empleat = h('select', { 'aria-label': 'Empleat' }, h('option', { value: '' }, 'Jo mateix'), ...personal.map((u) => h('option', { value: u.id }, u.username)));
     const multi = info.caixes.length > 0 || info.implicita.oberta;
+    if (info.implicita.oberta && !lliures.length) return h('div', null, card, deutes, msg('err', "No hi ha cap caixa lliure per obrir: la del local ja és oberta i no hi ha cap caixa registradora disponible."));
     return h('div', null, card, deutes, h('form', { class: 'card', onsubmit: (e) => {
       e.preventDefault();
       guard(btn, out, async () => {

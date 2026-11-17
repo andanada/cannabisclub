@@ -51,3 +51,11 @@ def test_contracte_html_amb_dades_escapades_i_auditoria(ctx):
     assert "Anna &lt;b&gt;Prova&lt;/b&gt;" in r.text and "<b>Prova</b>" not in r.text
     assert "Carrer Major 1" in r.text and "Girona" in r.text and "Sense signatura" in r.text
     assert client.get(f"/socis/{mid}/contracte", params={"idioma": "es"}, headers=enc).status_code == 200
+
+
+def test_l_extensio_la_dicta_el_contingut_no_el_nom(ctx):
+    client, _, sec = ctx
+    enc = token(client, sec, "enc")
+    mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
+    did = client.post(f"/socis/{mid}/documents", json={"tipus": "altre", "nom": "../x.html", "data_base64": PNG}, headers=enc).json()["id"]
+    assert client.get(f"/documents/{did}", headers=enc).json()["nom"] == "x.png"

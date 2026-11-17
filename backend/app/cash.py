@@ -37,7 +37,10 @@ def open_session(db: Session, actor: User, local_id: int, opening_cent: int, reg
     if db.scalar(ocupada):
         raise ValueError("Aquesta caixa ja està oberta" if register_id is not None else "Ja hi ha una caixa oberta en aquest local")
     propietari = assigned_to if assigned_to is not None else actor.id
-    if assigned_to is not None and db.scalar(select(CashSession.id).where(CashSession.assigned_to == assigned_to, CashSession.closed_at.is_(None))):
+    # El propietari efectiu és l'assignat o, si no n'hi ha, qui l'ha obert: només una caixa oberta per propietari (si no, la segona
+    # quedaria inabastable perquè resolve_session en tria una sola).
+    if db.scalar(select(CashSession.id).where(CashSession.local_id == local_id, CashSession.closed_at.is_(None),
+                                              func.coalesce(CashSession.assigned_to, CashSession.opened_by) == propietari)):
         raise ValueError("Aquest empleat ja té una caixa oberta")
     cs = CashSession(local_id=local_id, opened_by=actor.id, opening_cent=opening_cent, register_id=register_id,
                      caixa_clau=register_id or 0, assigned_to=assigned_to)
@@ -66,7 +69,10 @@ def resolve_session(sessions: list[CashSession], actor: User | None) -> CashSess
         if len(meves) >= 1:
             return meves[0]
     if len(sessions) == 1:
-        return sessions[0]
+        unica = sessions[0]
+        if unica.assigned_to is None or actor is None or unica.assigned_to == actor.id:
+            return unica  # local d'una sola caixa sense assignar: la fa servir qui hi treballa, com sempre
+        raise ValueError("L'única caixa oberta està assignada a un altre empleat")
     raise ValueError("Hi ha diverses caixes obertes i cap és teva: demana a un responsable que te n'assigni una")
 
 
@@ -299,7 +305,7 @@ def entries_csv(db: Session, local_id: int, des: date, fins: date) -> str:
 
 # ---------- caixes registradores i resum de sessions ----------
 
-def registers_list(db: Session, local_id: int) -> list[dict]:
+def registers_list(db: Session, local_id: int) -> dict:
     from .models import Warehouse
     obertes = {c.register_id: c for c in open_sessions(db, local_id)}
     noms = {i: n for i, n in db.execute(select(User.id, User.username))}
@@ -372,7 +378,7 @@ def sessions_summary(db: Session, local_id: int, des: date, fins: date) -> list[
                     "import_anterior_cent": anterior.get(c.register_id), "esperat_cent": c.expected_cent, "comptat_cent": c.counted_cent,
                     "diferencia_cent": c.diff_cent, "efectiu_cent": t.get("efectiu", 0), "targeta_cent": t.get("targeta", 0),
                     "bizum_cent": t.get("bizum", 0), "monedero_cent": t.get("monedero", 0), "despeses_cent": t.get("despeses", 0),
-                    "total_cent": sum(t.get(k, 0) for k in ("efectiu", "targeta", "bizum", "monedero"))})
+                    "total_cent": sum(t.get(k, 0) for k in ("efectiu", "targeta", "bizum"))})  # el monedero ja es va comptar en recarregar
         if c.counted_cent is not None:
             anterior[c.register_id] = c.counted_cent
     return out[::-1]

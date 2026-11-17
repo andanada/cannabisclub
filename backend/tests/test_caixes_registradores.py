@@ -28,8 +28,9 @@ def test_una_sessio_per_caixa_i_una_per_empleat(ctx):
     assert ob(register_id=c1).status_code == 422                        # aquesta caixa ja és oberta
     assert ob(register_id=c2, assigned_to=disp_id).status_code == 422   # l'empleat ja en té una
     assert ob(register_id=c2).status_code == 201                        # una altra caixa, per al responsable
-    assert ob().status_code == 201                                      # i la caixa implícita encara es pot obrir una vegada
-    assert ob().status_code == 422
+    assert ob().status_code == 422                                      # el responsable ja en té una: no pot tenir-ne dues
+    assert ob(assigned_to=_uid(client, adm, "admin")).status_code == 201  # la caixa implícita, per a un altre empleat
+    assert ob(assigned_to=_uid(client, adm, "admin")).status_code == 422
     est = client.get("/locals/1/caixes", headers=enc).json()
     assert {c["nom"]: c["oberta"] for c in est["caixes"]} == {"Dispensari": True, "Entrada": True}
     assert client.put(f"/caixes/{c1}", json={"actiu": False}, headers=enc).status_code == 422  # oberta: no es pot desactivar
@@ -68,7 +69,7 @@ def test_ambigu_si_hi_ha_diverses_caixes_i_cap_es_teva(ctx):
     enc, disp = token(client, sec, "enc"), token(client, sec, "disp")
     mag, c1, c2 = _escena(client, enc)
     client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0, "register_id": c1}, headers=enc)
-    client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0, "register_id": c2, "assigned_to": None}, headers=enc)
+    client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0, "register_id": c2, "assigned_to": _uid(client, token(client, sec, "admin"), "admin")}, headers=enc)
     est = client.get("/locals/1/caixa", headers=disp).json()
     assert est["oberta"] is False and est["ambigua"] is True
     pid = client.post("/productes", json={"local_id": 1, "nom": "Flor", "preu_cent_per_g": 1000, "es_genetic": True}, headers=enc).json()["id"]
@@ -76,3 +77,12 @@ def test_ambigu_si_hi_ha_diverses_caixes_i_cap_es_teva(ctx):
     mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
     r = client.post("/dispensacions", json={"member_id": mid, "product_id": pid, "grams": "1", "metode": "efectiu"}, headers=disp)
     assert r.status_code == 422 and "cap és teva" in r.text
+
+
+def test_una_caixa_assignada_a_un_altre_empleat_no_la_fa_servir_ningu_mes(ctx):
+    client, _, sec = ctx
+    adm, enc, disp = token(client, sec, "admin"), token(client, sec, "enc"), token(client, sec, "disp")
+    client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0, "assigned_to": _uid(client, adm, "enc")}, headers=enc)
+    assert client.get("/locals/1/caixa", headers=enc).json()["oberta"] is True
+    est = client.get("/locals/1/caixa", headers=disp).json()
+    assert est["oberta"] is False and est["ambigua"] is True  # la caixa única és de l'encarregat
