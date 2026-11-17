@@ -34,9 +34,11 @@ async function openInventory(sid) {
       if (!window.confirm(`S'ajustarà l'estoc dels ${d.comptats} productes comptats.` + (faltenCount ? ` ${faltenCount} productes sense comptar no es toquen.` : ''))) return;
       const r = await api(`/inventaris/${sid}/tancar`, { method: 'POST' });
       toast(`Inventari tancat: ${r.ajustos} ajustos`);
-      if (r.omesos > 0) {  // avís que no es perd en 3 segons: hi ha productes del recompte que no s'han pogut ajustar
-        root.replaceChildren(h('div', { class: 'card' }, msg('err', 'Inventari tancat, però alguns productes no s’han ajustat.'),
-          h('p', null, 'Productes omesos (desactivats després del recompte):', ' ', String(r.omesos)),
+      const alertes = r.alertes_perdua || [];
+      if (r.omesos > 0 || alertes.length) {  // avís que no es perd en 3 segons: productes sense ajustar o pèrdues per sobre del màxim
+        root.replaceChildren(h('div', { class: 'card' }, msg('err', r.omesos > 0 ? 'Inventari tancat, però alguns productes no s’han ajustat.' : 'Inventari tancat. Hi ha pèrdues per sobre del màxim permès.'),
+          r.omesos > 0 ? h('p', null, 'Productes omesos (desactivats després del recompte):', ' ', String(r.omesos)) : null,
+          ...(alertes.length ? [h('h3', null, 'Pèrdues per sobre del màxim'), taula([['Producte'], ['Pèrdua', true]], alertes.map((a) => [a.producte, gText(a.perdua_mg / 1000)]))] : []),
           h('div', { class: 'actions' }, h('button', { class: 'primary', type: 'button', onclick: () => show('estoc') }, 'Entesos'))));
         return;
       }

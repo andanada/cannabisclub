@@ -41,6 +41,29 @@ function localSection() {
   return h('div', null, limits, nou);
 }
 
+// Normes del club: edat mínima, alerta d'inactivitat, decimals de la dispensació i pèrdua màxima tolerada en un inventari.
+function normesSection() {
+  const loc = localActual();
+  const edat = h('input', { type: 'number', min: 18, max: 99, value: loc.edat_minima || 18 });
+  const inact = h('input', { type: 'number', min: 1, max: 365, value: loc.inactivitat_dies || 30 });
+  const dec = h('select', null, [0, 1, 2, 3].map((n) => h('option', { value: n, selected: n === (loc.decimals_dispensacio ?? 3) }, String(n))));
+  const perdua = h('input', { inputmode: 'decimal', value: loc.perdua_maxima_mg ? (loc.perdua_maxima_mg / 1000).toString().replace('.', ',') : '', placeholder: 'sense límit' });
+  const out = h('div');
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Desar');
+  return h('form', { class: 'card', onsubmit: (e) => {
+    e.preventDefault();
+    guard(btn, out, async () => {
+      await api(`/locals/${S.local}/config`, { method: 'PUT', body: { edat_minima: Number(edat.value), inactivitat_dies: Number(inact.value), decimals_dispensacio: Number(dec.value),
+        perdua_maxima_mg: perdua.value.trim() ? Math.round(parseGrams(perdua.value) * 1000) : 0 } });
+      S.me = await api('/me');
+      out.replaceChildren(msg('ok', 'Normes desades'));
+    });
+  } }, h('h3', null, 'Normes del club · ' + loc.nom),
+  h('div', { class: 'row' }, field('Edat mínima per ser soci', edat), field("Alerta d'inactivitat (dies sense visites)", inact)),
+  h('div', { class: 'row' }, field('Decimals admesos en una dispensació', dec), field("Pèrdua màxima en un inventari (g, avisa si es supera)", perdua)),
+  h('div', { class: 'actions' }, btn), out);
+}
+
 function quotesSection() {
   const loc = localActual();
   const imp = h('input', { inputmode: 'decimal', value: loc.quota_cent ? preuText(loc.quota_cent) : '', placeholder: 'sense import per defecte' });
@@ -149,6 +172,7 @@ VIEWS.config = async () => {
   const items = [
     ['local', 'Local i límits', async () => localSection()],
     ['quotes', 'Quotes', async () => quotesSection()],
+    ['normes', 'Normes del club', async () => normesSection()],
     ['usuaris', 'Usuaris', usersSection],
     ['bascules', 'Bàscules', async () => deviceSection('bascula')],
     ['signatura', 'Tauletes de signatura', async () => deviceSection('signatura')],

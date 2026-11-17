@@ -294,8 +294,10 @@ def create_member(db: Session, actor: User, local_id: int, nom: str, document: s
     tipus = (tipus or "Ordinari").strip()[:40] or "Ordinari"
     avui = date.today()
     edat = avui.year - naixement.year - ((avui.month, avui.day) < (naixement.month, naixement.day))
-    if edat < MAJORIA_EDAT:
-        raise ValueError("El soci ha de ser major d'edat")
+    from . import ajustos
+    minima = ajustos.get(db, local_id)["edat_minima"]
+    if edat < minima:
+        raise ValueError("El soci ha de ser major d'edat" if minima <= MAJORIA_EDAT else f"El soci ha de tenir almenys {minima} anys")
     idx = document_index(document)
     if db.scalar(select(Member).where(Member.local_id == local_id, Member.document_idx == idx)):
         raise ValueError("Ja existeix un soci amb aquest document en aquest local")

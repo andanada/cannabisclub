@@ -16,11 +16,11 @@ from .models import Member, MemberCard, MemberPhoto, User
 CAMPS = {"nom", "document", "naixement", "telefon", "email", "tipus", "descompte_pct", *service.PERFIL_CAMPS}
 
 
-def _majoria(naixement: date) -> None:
+def _majoria(naixement: date, minima: int = service.MAJORIA_EDAT) -> None:
     avui = date.today()
     edat = avui.year - naixement.year - ((avui.month, avui.day) < (naixement.month, naixement.day))
-    if edat < service.MAJORIA_EDAT:
-        raise ValueError("El soci ha de ser major d'edat")
+    if edat < minima:
+        raise ValueError("El soci ha de ser major d'edat" if minima <= service.MAJORIA_EDAT else f"El soci ha de tenir almenys {minima} anys")
 
 
 def update_member(db: Session, actor: User, member: Member, canvis: dict) -> Member:
@@ -54,7 +54,8 @@ def update_member(db: Session, actor: User, member: Member, canvis: dict) -> Mem
     if "naixement" in canvis:
         if canvis["naixement"] is None:
             raise ValueError("La data de naixement no pot estar buida")
-        _majoria(canvis["naixement"])
+        from . import ajustos
+        _majoria(canvis["naixement"], ajustos.get(db, member.local_id)["edat_minima"])
         if canvis["naixement"].isoformat() != actuals["naixement"]:
             member.naixement_enc = crypto.encrypt(canvis["naixement"].isoformat())
             fets.append("naixement")

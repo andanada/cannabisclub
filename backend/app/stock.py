@@ -240,6 +240,9 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     from . import ajustos, quotes  # import local: quotes depèn d'aquest mòdul
     if ajustos.get(db, p.local_id)["quota_obligatoria"] and not quotes.status(db, member_id, now.astimezone(TZ).date())["al_dia"]:
         raise ValueError("La quota del soci no està al dia: cal cobrar-la abans de dispensar")
+    decimals = ajustos.get(db, p.local_id)["decimals_dispensacio"]
+    if -Decimal(grams).normalize().as_tuple().exponent > decimals:
+        raise ValueError("La quantitat admet com a màxim " + (f"{decimals} decimals" if decimals else "grams sencers"))
     mg = grams_to_mg(grams)
     if stock_mg(db, p.id) < mg:
         raise ValueError("Estoc insuficient")

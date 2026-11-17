@@ -93,6 +93,9 @@ def tancar(db: Session, actor: User, s: InventorySession) -> dict:
     for c in comptes:
         productes[c.product_id] = stock._lock_product_row(db, c.product_id)
     ajustos = sense = omesos = 0
+    from . import ajustos as _cfg
+    maxim = _cfg.get(db, s.local_id)["perdua_maxima_mg"]
+    alertes = []
     for c in comptes:
         p = productes[c.product_id]
         if not p or not p.actiu:
@@ -111,12 +114,14 @@ def tancar(db: Session, actor: User, s: InventorySession) -> dict:
         service.audit_append(db, {"accio": "ajust_inventari", "moviment": m.id, "producte": p.id, "delta_mg": delta, "inventari": s.id,
                                   **({"lots": [[b, x] for b, x in pla]} if pla else {}), "per": actor.id})
         ajustos += 1
+        if maxim and -delta > maxim:
+            alertes.append({"producte": p.nom, "perdua_mg": -delta})
     total = db.scalar(select(func.count()).select_from(Product).where(Product.local_id == s.local_id, Product.actiu.is_(True)))
     pendents = total - ajustos - sense
     s.estat, s.ts_tancat = "tancat", datetime.now(timezone.utc)
-    service.audit_append(db, {"accio": "tanca_inventari", "inventari": s.id, "ajustos": ajustos, "per": actor.id})
+    service.audit_append(db, {"accio": "tanca_inventari", "inventari": s.id, "ajustos": ajustos, "alertes_perdua": len(alertes), "per": actor.id})
     db.commit()
-    return {"ajustos": ajustos, "sense_canvis": sense, "pendents": max(0, pendents), "omesos": omesos}
+    return {"ajustos": ajustos, "sense_canvis": sense, "pendents": max(0, pendents), "omesos": omesos, "alertes_perdua": alertes}
 
 
 def cancellar(db: Session, actor: User, s: InventorySession) -> None:

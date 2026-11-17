@@ -29,7 +29,7 @@ def test_membres_top_i_comptadors_i_genere_amagat_per_k(ctx):
     _escena(client, enc)
     r = client.get("/locals/1/estadistiques/membres", headers=enc).json()
     assert r["top_grams"][0]["soci"] == "Anna Prova" and r["top_grams"][0]["import_cent"] == 3400
-    assert r["comptadors"]["nous_30d"] == 1 and r["comptadors"]["sense_visites_30d"] == 1
+    assert r["comptadors"]["nous_30d"] == 1 and r["comptadors"]["sense_visites"] == 1
     assert len(r["nous_per_mes"]) == 12 and r["nous_per_mes"][-1]["socis"] == 1
     # un sol soci (< k): el gènere no es publica, ni el total
     assert r["genere"]["total"] is None and all(f["socis"] is None for f in r["genere"]["franges"] if f["franja"] == "Dona")

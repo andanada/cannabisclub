@@ -45,7 +45,7 @@ def test_tancar_aplica_nomes_els_productes_comptats_amb_diferencia(ctx):
     compta(client, enc, sid, pa, "9")      # -1 g
     compta(client, enc, sid, pb, "20")     # igual: sense ajust
     r = client.post(f"/inventaris/{sid}/tancar", headers=enc)
-    assert r.status_code == 200 and r.json() == {"ajustos": 1, "sense_canvis": 1, "pendents": 0, "omesos": 0}
+    assert r.status_code == 200 and r.json() == {"ajustos": 1, "sense_canvis": 1, "pendents": 0, "omesos": 0, "alertes_perdua": []}
     s = factory()
     ajusts = list(s.scalars(select(StockMovement).where(StockMovement.tipus == "ajust")))
     accions = [json.loads(a.payload)["accio"] for a in s.scalars(select(AuditLog))]

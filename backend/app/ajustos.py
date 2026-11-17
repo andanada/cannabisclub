@@ -8,7 +8,11 @@ from .models import LocalSetting, User
 
 DEFECTES = {"quota_obligatoria": False, "quota_cent": None, "quota_mesos": 1,
             "espera_dies": 0, "aval": "no", "alta_pendent": False,
-            "moneder_actiu": False, "moneder_limit_cent": 0}  # monedero: activat i límit de saldo negatiu (cèntims)  # els tres últims: controls de club (controls.py)
+            "moneder_actiu": False, "moneder_limit_cent": 0,
+            "edat_minima": 18, "inactivitat_dies": 30, "decimals_dispensacio": 3, "perdua_maxima_mg": 0}
+# edat_minima: edat per ser soci (mai per sota de 18); inactivitat_dies: dies sense visites per considerar inactiu un soci;
+# decimals_dispensacio: decimals admesos en els grams d'una dispensació (0-3); perdua_maxima_mg: falta màxima tolerada en tancar
+# un inventari abans d'avisar (0 = no s'avisa)  # monedero: activat i límit de saldo negatiu (cèntims)  # els tres últims: controls de club (controls.py)
 BOOLEANS = {"quota_obligatoria", "alta_pendent", "moneder_actiu"}
 AVALS = {"no", "opcional", "obligatori"}
 MAX_QUOTA_CENT = 1_000_000
@@ -37,6 +41,14 @@ def _validate(clau: str, valor) -> None:
         raise ValueError("Els mesos de la quota han d'estar entre 1 i 24")
     if clau == "espera_dies" and not 0 <= valor <= 365:
         raise ValueError("El període d'espera ha d'estar entre 0 i 365 dies")
+    if clau == "edat_minima" and not 18 <= valor <= 99:
+        raise ValueError("L'edat mínima ha d'estar entre 18 i 99 anys")
+    if clau == "inactivitat_dies" and not 1 <= valor <= 365:
+        raise ValueError("L'alerta d'inactivitat ha d'estar entre 1 i 365 dies")
+    if clau == "decimals_dispensacio" and not 0 <= valor <= 3:
+        raise ValueError("Els decimals de la dispensació han d'estar entre 0 i 3")
+    if clau == "perdua_maxima_mg" and not 0 <= valor <= 10_000_000:
+        raise ValueError("La pèrdua màxima ha d'estar entre 0 i 10.000 g")
     if clau == "moneder_limit_cent" and not 0 <= valor <= MAX_QUOTA_CENT:
         raise ValueError("El límit negatiu del monedero ha d'estar entre 0 i 10.000 €")
     if clau == "aval" and valor not in AVALS:

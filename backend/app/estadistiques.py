@@ -83,7 +83,10 @@ def membres(db: Session, actor: User, local_id: int) -> dict:
         nous[informes_socis._mes(m.creat)] += 1
     # comptadors dels darrers 30 dies
     fa30 = datetime.now(timezone.utc) - timedelta(days=30)
-    amb_visita = set(db.scalars(select(CheckIn.member_id).where(CheckIn.local_id == local_id, CheckIn.ts >= fa30)))
+    from . import ajustos
+    dies_inactiu = ajustos.get(db, local_id)["inactivitat_dies"]
+    amb_visita = set(db.scalars(select(CheckIn.member_id).where(
+        CheckIn.local_id == local_id, CheckIn.ts >= datetime.now(timezone.utc) - timedelta(days=dies_inactiu))))
     primera: dict[int, int] = {}   # id de la primera quota de cada soci: les següents són renovacions
     renovats = set()
     for q in db.scalars(select(Quota).where(Quota.local_id == local_id).order_by(Quota.ts, Quota.id)):
@@ -107,7 +110,7 @@ def membres(db: Session, actor: User, local_id: int) -> dict:
     db.commit()
     return {"edat": informes_socis.demographics(db, local_id), "genere": genere,
             "nous_per_mes": [{"mes": k, "socis": nous.get(k, 0)} for k in mesos],
-            "comptadors": {"sense_visites_30d": sum(1 for m in actius if m.estat == "actiu" and m.id not in amb_visita),
+            "comptadors": {"dies_inactivitat": dies_inactiu, "sense_visites": sum(1 for m in actius if m.estat == "actiu" and m.id not in amb_visita),
                            "nous_30d": len(nous30), "renovats_30d": len(renovats)},
             "top_grams": top("mg"), "top_import": top("cent"), "any": avui.year}
 

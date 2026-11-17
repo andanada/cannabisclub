@@ -707,6 +707,16 @@ Object.assign(I18N.en, {
  "Dades personals": "Personal details",
  "Contacte": "Contact",
  "Cognoms": "Surname",
+ "Normes del club": "Club rules",
+ "Edat mínima per ser soci": "Minimum age to join",
+ "Alerta d'inactivitat (dies sense visites)": "Inactivity alert (days without visits)",
+ "Decimals admesos en una dispensació": "Decimals allowed in a dispensation",
+ "Pèrdua màxima en un inventari (g, avisa si es supera)": "Maximum loss in a stocktake (g, warns if exceeded)",
+ "Normes desades": "Rules saved",
+ "Inventari tancat. Hi ha pèrdues per sobre del màxim permès.": "Stocktake closed. Some losses exceed the allowed maximum.",
+ "Pèrdues per sobre del màxim": "Losses above the maximum",
+ "Pèrdua": "Loss",
+ "La quantitat admet com a màxim grams sencers": "The quantity must be whole grams",
  "Document d'identitat (davant)": "ID document (front)",
  "Document d'identitat (darrere)": "ID document (back)",
  "Contracte signat": "Signed contract",
@@ -1272,3 +1282,7 @@ I18N.pat.en.push([new RegExp("^Sí,\\ de\\ la\\ caixa:\\ (.*)$"), "Yes, from the
 I18N.pat.en.push([new RegExp("^Top\\ 10\\ per\\ grams\\ \\((.*)\\)$"), "Top 10 by grams ($1)"]);
 I18N.pat.en.push([new RegExp("^Top\\ 10\\ per\\ import\\ \\((.*)\\)$"), "Top 10 by amount ($1)"]);
 I18N.pat.en.push([new RegExp("^Grams\\ dispensats\\ \\((.*)\\)$"), "Grams dispensed ($1)"]);
+I18N.pat.en.push([new RegExp("^Normes\\ del\\ club\\ ·\\ (.*)$"), "Club rules · $1"]);
+I18N.pat.en.push([new RegExp("^Sense\\ visites\\ \\((.*)\\ dies\\)$"), "No visits ($1 days)"]);
+I18N.pat.en.push([new RegExp("^La\\ quantitat\\ admet\\ com\\ a\\ màxim\\ (.*)\\ decimals$"), "The quantity allows at most $1 decimals"]);
+I18N.pat.en.push([new RegExp("^El\\ soci\\ ha\\ de\\ tenir\\ almenys\\ (.*)\\ anys$"), "The member must be at least $1 years old"]);

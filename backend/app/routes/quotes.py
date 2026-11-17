@@ -53,6 +53,10 @@ def register(app, db, current_user, need_admin, run, member_or_404):
                 "limit_negatiu_cent": moneder.limit_negatiu_cent(s, m.local_id), "historial": moneder.history(s, m.id)}
 
     class AjustosIn(BaseModel):
+        edat_minima: int | None = Field(default=None, ge=18, le=99)
+        inactivitat_dies: int | None = Field(default=None, ge=1, le=365)
+        decimals_dispensacio: int | None = Field(default=None, ge=0, le=3)
+        perdua_maxima_mg: int | None = Field(default=None, ge=0, le=10_000_000)
         moneder_actiu: bool | None = None
         moneder_limit_cent: int | None = Field(default=None, ge=0, le=1_000_000)
         quota_obligatoria: bool | None = None

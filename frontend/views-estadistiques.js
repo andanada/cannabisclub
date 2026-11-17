@@ -39,7 +39,7 @@ async function statMembres() {
   const k = r.edat.k_minim;
   const suprimit = (n) => (n === null ? '<' + k : String(n));
   return h('div', null,
-    h('div', { class: 'row' }, kpi('Sense visites (30 dies)', String(r.comptadors.sense_visites_30d)), kpi('Nous (30 dies)', String(r.comptadors.nous_30d)), kpi('Renovats (30 dies)', String(r.comptadors.renovats_30d))),
+    h('div', { class: 'row' }, kpi('Sense visites (' + r.comptadors.dies_inactivitat + ' dies)', String(r.comptadors.sense_visites)), kpi('Nous (30 dies)', String(r.comptadors.nous_30d)), kpi('Renovats (30 dies)', String(r.comptadors.renovats_30d))),
     h('div', { class: 'row' },
       h('div', { class: 'card' }, h('h3', null, 'Distribució per edat'), grafBarres(r.edat.franges.map((f) => ({ text: f.franja, valor: f.socis, etiqueta: suprimit(f.socis) })))),
       h('div', { class: 'card' }, h('h3', null, 'Distribució per gènere'), grafBarres(r.genere.franges.map((f) => ({ text: f.franja, valor: f.socis, etiqueta: suprimit(f.socis) }))))),
