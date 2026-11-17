@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from .. import ajustos, carnet_login, service
+from .. import ajustos, carnet_login, service, versio
 from ..models import Local, User, UserCard, UserLocal
 
 log = logging.getLogger("club")
@@ -34,7 +34,7 @@ def register(app, db, current_user, ip_limiter):
         except Exception:
             log.exception("salut: la base de dades no respon")
             return JSONResponse({"ok": False}, status_code=503)
-        return {"ok": True}
+        return {"ok": True, "versio": versio.actual()}
 
     @app.post("/auth/login")
     def login(body: LoginIn, request: Request, s: Session = Depends(db)):
