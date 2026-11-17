@@ -68,11 +68,32 @@ function cardManager(m, out, reload) {
   return form;
 }
 
+// Camps de perfil (gènere, adreça i tipus de membre), compartits per l'alta i l'edició.
+// `valors()` torna un objecte amb tots els camps; `canvis(m)` només els que difereixen de la fitxa `m`.
+function campsPerfil(m = {}) {
+  const t = (v, a = {}) => h('input', { value: v || '', autocomplete: 'off', maxlength: 120, ...a });
+  const f = {
+    genere: h('select', null, [['', '—'], ['home', 'Home'], ['dona', 'Dona'], ['altre', 'Altre']].map(([v, x]) => h('option', { value: v, selected: v === (m.genere || '') }, x))),
+    adreca: t(m.adreca), ciutat: t(m.ciutat), codi_postal: t(m.codi_postal, { maxlength: 12, inputmode: 'numeric' }),
+    provincia: t(m.provincia), pais: t(m.pais),
+    tipus: t(m.tipus || 'Ordinari', { maxlength: 40, list: 'tipus-membre' }),
+  };
+  const llista = h('datalist', { id: 'tipus-membre' }, ['Ordinari', 'Terapèutic', 'Convidat'].map((x) => h('option', { value: x })));
+  const valors = () => Object.fromEntries(Object.entries(f).map(([k, i]) => [k, i.value.trim()]));
+  const canvis = (orig) => Object.fromEntries(Object.entries(valors()).filter(([k, v]) => v !== (orig[k] || (k === 'tipus' ? 'Ordinari' : ''))));
+  const node = h('div', null, llista,
+    h('div', { class: 'row' }, field('Tipus de membre', f.tipus), field('Gènere', f.genere)),
+    h('div', { class: 'row' }, field('Adreça', f.adreca), field('Ciutat', f.ciutat)),
+    h('div', { class: 'row' }, field('Codi postal', f.codi_postal), field('Província', f.provincia), field('País', f.pais)));
+  return { node, valors, canvis };
+}
+
 // Edició de dades. Només s'envia el que ha canviat; telèfon o correu buits els esborren.
 function editForm(m, out, reload) {
   const f = { nom: h('input', { value: m.nom }), doc: h('input', { value: m.document, autocapitalize: 'characters' }),
     naix: h('input', { type: 'date', value: m.naixement }), tel: h('input', { inputmode: 'tel', value: m.telefon || '' }),
     mail: h('input', { type: 'email', value: m.email || '' }) };
+  const perfil = campsPerfil(m);
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Desar els canvis');
   return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
@@ -83,6 +104,7 @@ function editForm(m, out, reload) {
       if (f.naix.value !== m.naixement) body.naixement = f.naix.value;
       if (f.tel.value.trim() !== (m.telefon || '')) body.telefon = f.tel.value.trim() || null;
       if (f.mail.value.trim() !== (m.email || '')) body.email = f.mail.value.trim() || null;
+      Object.assign(body, perfil.canvis(m));
       if (!Object.keys(body).length) throw new Error('No hi ha cap canvi');
       await api(`/socis/${m.id}`, { method: 'PATCH', body });
       toast('Dades actualitzades');
@@ -91,6 +113,7 @@ function editForm(m, out, reload) {
   } }, h('h3', null, 'Editar dades'),
   h('div', { class: 'row' }, field('Nom i cognoms', f.nom), field('Document', f.doc), field('Data de naixement', f.naix)),
   h('div', { class: 'row' }, field('Telèfon', f.tel), field('Correu', f.mail)),
+  perfil.node,
   h('div', { class: 'actions' }, btn));
 }
 
@@ -130,7 +153,7 @@ function memberList(onOpen) {
       body.replaceChildren(rows.length ? h('table', null, h('tbody', null, rows.map((r) => {
         const open = h('button', { type: 'button' }, 'Obrir');
         open.addEventListener('click', () => guard(open, out, async () => onOpen(await api(`/socis/${r.id}`), out)));
-        return h('tr', null, h('td', null, r.nom), h('td', null, h('span', { class: 'pill ' + (r.estat === 'actiu' ? 'ok' : 'bad') }, r.estat)),
+        return h('tr', null, h('td', null, h('span', { class: 'muted' }, `[${r.codi}] `), r.nom), h('td', null, r.tipus), h('td', null, h('span', { class: 'pill ' + (r.estat === 'actiu' ? 'ok' : 'bad') }, r.estat)),
           h('td', null, quotaPill(r.quota)), h('td', null, open));
       }))) : h('p', { class: 'muted' }, 'Cap soci amb aquest filtre.'),
       h('p', { class: 'muted' }, rows.length + ' socis'));

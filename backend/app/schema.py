@@ -124,7 +124,9 @@ COLUMNES_NOVES = {"products": [("es_genetic", {"postgresql": "BOOLEAN NOT NULL D
                   "members": [("baixa_en", {"postgresql": "TIMESTAMPTZ", "default": "TIMESTAMP"}),
                               ("suprimit_en", {"postgresql": "TIMESTAMPTZ", "default": "TIMESTAMP"}),
                               ("doc_verificat", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"}),
-                              ("avalador_id", {"default": "INTEGER REFERENCES members(id)"})],
+                              ("avalador_id", {"default": "INTEGER REFERENCES members(id)"}),
+                              ("perfil_enc", {"default": "TEXT"}),
+                              ("tipus", {"default": "VARCHAR(40) NOT NULL DEFAULT 'Ordinari'"})],
                   "audit_log": [("alg", {"default": "VARCHAR(8)"})],
                   "signatures": [("text_sha256", {"default": "VARCHAR(64)"})]}
 

@@ -135,7 +135,7 @@ def test_supressio_buida_dades_personals_i_conserva_els_llibres(ctx, monkeypatch
     with factory() as s:
         m = s.get(Member, mid)
         assert crypto.decrypt(m.nom_enc) == f"Soci suprimit #{mid}" and crypto.decrypt(m.document_enc) == "SUPRIMIT"
-        assert m.telefon_enc is None and m.email_enc is None and m.suprimit_en is not None
+        assert m.telefon_enc is None and m.email_enc is None and m.perfil_enc is None and m.suprimit_en is not None
         assert m.document_idx == supressio.pseudo_index(mid) and service.find_member_by_document(s, 1, SOCI["document"]) is None
         assert all(f.img_enc == "" for f in s.scalars(select(MemberPhoto)))
         assert all(f.png_enc == "" for f in s.scalars(select(Signature)))

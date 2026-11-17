@@ -111,6 +111,7 @@ def pseudonymize(db: Session, actor_id: int | None, member: Member, motiu: str =
     member.document_idx = pseudo_index(member.id)
     member.naixement_enc = crypto.encrypt("1900-01-01")
     member.telefon_enc = None
+    member.perfil_enc = None
     member.email_enc = None
     member.avalador_id = None
     member.suprimit_en = datetime.now(timezone.utc)

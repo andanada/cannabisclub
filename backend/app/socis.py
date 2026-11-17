@@ -3,6 +3,7 @@ import base64
 import binascii
 import hashlib
 import hmac
+import json
 import re
 from datetime import date
 
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 from . import crypto, quotes, service
 from .models import Member, MemberCard, MemberPhoto, User
 
-CAMPS = {"nom", "document", "naixement", "telefon", "email"}
+CAMPS = {"nom", "document", "naixement", "telefon", "email", "tipus", *service.PERFIL_CAMPS}
 
 
 def _majoria(naixement: date) -> None:
@@ -63,6 +64,19 @@ def update_member(db: Session, actor: User, member: Member, canvis: dict) -> Mem
             if nou != actuals[camp]:
                 setattr(member, camp + "_enc", crypto.encrypt(nou))
                 fets.append(camp)
+    if "tipus" in canvis:
+        tipus = (canvis["tipus"] or "").strip()[:40]
+        if not tipus:
+            raise ValueError("El tipus de membre no pot estar buit")
+        if tipus != member.tipus:
+            member.tipus = tipus
+            fets.append("tipus")
+    if set(canvis) & set(service.PERFIL_CAMPS):
+        actual = service.llegeix_perfil(member)
+        nou = service.normalitza_perfil({**actual, **{k: canvis[k] for k in canvis if k in service.PERFIL_CAMPS}})
+        if nou != actual:
+            member.perfil_enc = crypto.encrypt(json.dumps(nou, ensure_ascii=False)) if any(nou.values()) else None
+            fets += sorted(k for k in service.PERFIL_CAMPS if nou[k] != actual[k])
     if not fets:
         raise ValueError("No hi ha cap canvi")
     service.audit_append(db, {"accio": "edita_soci", "soci": member.id, "camps": sorted(fets), "per": actor.id})
@@ -85,7 +99,7 @@ def list_members(db: Session, actor: User, local_id: int, q: str | None, estat: 
         if filtre and filtre not in nom.casefold():
             continue
         fins = fins_per_soci.get(m.id)
-        out.append({"id": m.id, "nom": nom, "estat": m.estat,
+        out.append({"id": m.id, "nom": nom, "estat": m.estat, "tipus": m.tipus, "codi": service.codi_soci(m, nom),
                     "quota": {"al_dia": bool(fins and fins >= avui), "valid_fins": fins.isoformat() if fins else None}})
     out.sort(key=lambda x: x["nom"].casefold())
     service.audit_append(db, {"accio": "llista_socis", "local": local_id, "filtrat": bool(filtre or estat), "n": len(out), "per": actor.id})

@@ -59,6 +59,8 @@ class Member(Base):
     suprimit_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # seudonimitzat (RGPD art. 17)
     doc_verificat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # s'ha exhibit el document
     avalador_id: Mapped[int | None] = mapped_column(ForeignKey("members.id"), nullable=True)
+    perfil_enc: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON xifrat: gènere, adreça, ciutat, codi postal, província, país
+    tipus: Mapped[str] = mapped_column(String(40), default="Ordinari", server_default="Ordinari")  # tipus de membre (etiqueta lliure)
 
 
 class AuditLog(Base):

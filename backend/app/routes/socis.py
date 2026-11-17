@@ -18,6 +18,13 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         naixement: date
         telefon: str | None = None
         email: str | None = None
+        tipus: str | None = Field(default=None, max_length=40)
+        genere: str | None = Field(default=None, max_length=10)
+        adreca: str | None = Field(default=None, max_length=120)
+        ciutat: str | None = Field(default=None, max_length=120)
+        codi_postal: str | None = Field(default=None, max_length=12)
+        provincia: str | None = Field(default=None, max_length=120)
+        pais: str | None = Field(default=None, max_length=120)
 
     @app.post("/socis", status_code=201)
     def alta_soci(body: MemberIn, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -26,7 +33,8 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         check_local(s, user, body.local_id)
         try:
             m = service.create_member(s, user, body.local_id, body.nom, body.document,
-                                      body.naixement, body.telefon, body.email)
+                                      body.naixement, body.telefon, body.email, tipus=body.tipus,
+                                      perfil={k: getattr(body, k) for k in service.PERFIL_CAMPS})
         except ValueError as e:
             raise HTTPException(422, str(e))
         return {"id": m.id}
@@ -112,6 +120,13 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         naixement: date | None = None
         telefon: str | None = Field(default=None, max_length=30)
         email: str | None = Field(default=None, max_length=120)
+        tipus: str | None = Field(default=None, max_length=40)
+        genere: str | None = Field(default=None, max_length=10)
+        adreca: str | None = Field(default=None, max_length=120)
+        ciutat: str | None = Field(default=None, max_length=120)
+        codi_postal: str | None = Field(default=None, max_length=12)
+        provincia: str | None = Field(default=None, max_length=120)
+        pais: str | None = Field(default=None, max_length=120)
 
     @app.patch("/socis/{member_id}")
     def edita_soci(member_id: int, body: MemberUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):

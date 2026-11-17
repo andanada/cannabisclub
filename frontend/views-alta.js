@@ -50,6 +50,7 @@ function altaWizard() {
     veureText.addEventListener('click', async () => {
       try { const t = await api('/textos/informatiu?idioma=' + LANG); textInfo.replaceChildren(h('pre', { class: 'text-informatiu' }, t.text)); } catch (e) { textInfo.replaceChildren(msg('err', e.message)); }
     });
+    const perfil = campsPerfil();
     const doc = campAmbAjuda('Document', f.doc, validaDocument);
     const naix = campAmbAjuda('Data de naixement', f.naix, validaNaixement);
     const tel = campAmbAjuda('Telèfon (opcional)', f.tel, validaTelefon);
@@ -67,7 +68,7 @@ function altaWizard() {
         if (lc.aval === 'obligatori' && !f.aval.value) throw new Error("Cal triar l'avalador");
         const text = await api('/textos/informatiu?idioma=' + LANG);
         const r = await api('/socis', { method: 'POST', body: { local_id: S.local, nom, document: f.doc.value.trim(), naixement: f.naix.value,
-          telefon: f.tel.value.trim() || null, email: f.mail.value.trim() || null } });
+          telefon: f.tel.value.trim() || null, email: f.mail.value.trim() || null, ...perfil.valors() } });
         st.id = r.id;
         st.rgpd = { versio: text.versio, text_sha256: text.sha256, doc_verificat: f.docv.checked, avalador_id: f.aval.value ? Number(f.aval.value) : null,
           finalitats: ['basic', ...(f.foto.checked ? ['foto'] : []), ...(f.contacte.checked ? ['contacte'] : [])] };
@@ -80,6 +81,7 @@ function altaWizard() {
     h('div', { class: 'row' }, field('Nom', f.nom), field('Cognoms', f.cognoms)),
     h('div', { class: 'row' }, doc.node, naix.node),
     h('h3', null, 'Contacte'), h('div', { class: 'row' }, tel.node, mail.node),
+    h('h3', null, 'Adreça i tipus de membre'), perfil.node,
     h('h3', null, 'Protecció de dades'),
     h('label', { class: 'check' }, f.docv, " S'ha exhibit el document d'identitat original i coincideix amb les dades."), avalBox,
     h('label', { class: 'check' }, f.rgpd, ' El soci ha estat informat del tractament de les seves dades (tractament bàsic, necessari per ser soci) i ho accepta.'),

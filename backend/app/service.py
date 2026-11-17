@@ -257,9 +257,41 @@ def validate_document(document: str) -> None:
         raise ValueError("La lletra de control del document no és correcta")
 
 
+PERFIL_CAMPS = ("genere", "adreca", "ciutat", "codi_postal", "provincia", "pais")
+GENERES = {"", "home", "dona", "altre"}
+
+
+def normalitza_perfil(dades: dict | None) -> dict:
+    """Dades de perfil (gènere i adreça) netes: només els camps coneguts, retallats, sense valors desmesurats."""
+    out = {}
+    for k in PERFIL_CAMPS:
+        v = ((dades or {}).get(k) or "").strip()
+        if len(v) > (12 if k == "codi_postal" else 120):
+            raise ValueError(f"El camp «{k}» és massa llarg")
+        if k == "genere" and v not in GENERES:
+            raise ValueError("Gènere no vàlid")
+        out[k] = v
+    return out
+
+
+def llegeix_perfil(m: Member) -> dict:
+    import json
+    brut = crypto.decrypt(m.perfil_enc) if m.perfil_enc else None
+    return {**{k: "" for k in PERFIL_CAMPS}, **(json.loads(brut) if brut else {})}
+
+
+def codi_soci(m: Member, nom: str) -> str:
+    """Codi curt visible: inicials del nom i número de soci (p. ex. PP12)."""
+    ini = "".join(p[0] for p in nom.split()[:2] if p[:1].isalnum()).upper() or "S"
+    return f"{ini}{m.id}"
+
+
 def create_member(db: Session, actor: User, local_id: int, nom: str, document: str,
-                  naixement: date, telefon: str | None, email: str | None) -> Member:
+                  naixement: date, telefon: str | None, email: str | None, *,
+                  perfil: dict | None = None, tipus: str | None = None) -> Member:
     validate_document(document)
+    perfil = normalitza_perfil(perfil)
+    tipus = (tipus or "Ordinari").strip()[:40] or "Ordinari"
     avui = date.today()
     edat = avui.year - naixement.year - ((avui.month, avui.day) < (naixement.month, naixement.day))
     if edat < MAJORIA_EDAT:
@@ -271,6 +303,7 @@ def create_member(db: Session, actor: User, local_id: int, nom: str, document: s
         local_id=local_id, nom_enc=crypto.encrypt(nom), document_enc=crypto.encrypt(document),
         document_idx=idx, naixement_enc=crypto.encrypt(naixement.isoformat()),
         telefon_enc=crypto.encrypt(telefon), email_enc=crypto.encrypt(email), creat_per=actor.id,
+        perfil_enc=crypto.encrypt(json.dumps(perfil, ensure_ascii=False)) if any(perfil.values()) else None, tipus=tipus,
     )
     from . import ajustos
     if ajustos.get(db, local_id)["alta_pendent"]:
@@ -291,6 +324,7 @@ def member_view(m: Member) -> dict:
         "id": m.id, "local_id": m.local_id, "nom": crypto.decrypt(m.nom_enc),
         "document": crypto.decrypt(m.document_enc), "naixement": crypto.decrypt(m.naixement_enc),
         "telefon": crypto.decrypt(m.telefon_enc), "email": crypto.decrypt(m.email_enc), "estat": m.estat,
+        "tipus": m.tipus, "codi": codi_soci(m, crypto.decrypt(m.nom_enc)), **llegeix_perfil(m),
     }
 
 
