@@ -232,7 +232,7 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
         from . import cash
         if metode not in cash.COBRAMENTS:
             raise ValueError("Mètode de pagament no vàlid")
-        cash._require_open(db, p.local_id)
+        sessio_caixa = cash._require_open(db, p.local_id, actor)
     from . import controls
     controls.check_dispense(db, member, p, now)  # espera, aval, pendent d'aprovació (vegeu controls.py)
     if member.estat != "actiu":
@@ -244,7 +244,19 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     if -Decimal(grams).normalize().as_tuple().exponent > decimals:
         raise ValueError("La quantitat admet com a màxim " + (f"{decimals} decimals" if decimals else "grams sencers"))
     mg = grams_to_mg(grams)
-    if stock_mg(db, p.id) < mg:
+    # Caixa registradora amb magatzem propi: la dispensació en descompta l'estoc d'aquell magatzem (no del principal).
+    from . import cash as _cash
+    if metode is not None:
+        wid = _cash.register_warehouse(db, sessio_caixa)
+    else:
+        try:
+            wid = _cash.register_warehouse(db, _cash.current_session(db, p.local_id, actor=actor))
+        except ValueError:
+            wid = None
+    if wid is not None:
+        if stock_in_mg(db, p.id, wid) < mg:
+            raise ValueError("Estoc insuficient al magatzem de la caixa")
+    elif stock_mg(db, p.id) < mg:
         raise ValueError("Estoc insuficient")
     local = db.get(Local, p.local_id)
     if pes_bascula_g is not None and local.tolerancia_bascula_mg is not None:
@@ -273,6 +285,8 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
         import_cent=0 if regal else original - rebaixa, user_id=actor.id, regal=regal)
     db.add(m)
     db.flush()
+    if wid is not None:
+        db.add(MovementWarehouse(movement_id=m.id, warehouse_id=wid))
     if descompte is not None:
         from .models import MovementDiscount
         db.add(MovementDiscount(movement_id=m.id, discount_id=descompte.id, nom=descompte.nom, original_cent=original, descompte_cent=rebaixa_chosen))
@@ -338,7 +352,7 @@ def refund(db: Session, actor: User, movement_id: int, nota: str) -> dict:
     from . import cash
     cobrament = cash._live_charge(db, orig.id)
     if cobrament is not None:
-        cash._require_open(db, orig.local_id)
+        cash._require_open(db, orig.local_id, actor)
         cash.correct_entry(db, actor, cobrament.id, "Devolució: " + nota, commit=False)
     corr = correct(db, actor, movement_id, nota, commit=False)
     service.audit_append(db, {"accio": "devolucio", "moviment": orig.id, "correccio": corr.id,

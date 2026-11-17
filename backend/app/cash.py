@@ -8,39 +8,90 @@ from sqlalchemy.orm import Session, aliased
 from . import service
 from .races import flush_or_error
 from .csvutil import to_csv
-from .models import CashEntry, CashSession, Product, StockMovement, User
+from .models import CashEntry, CashRegister, CashSession, Product, StockMovement, User
 from .stock import TZ
 
 METODES = {"efectiu", "targeta", "bizum"}  # entra diner a la caixa
 COBRAMENTS = METODES | {"monedero"}  # formes de pagar una dispensació
 
 
-def open_session(db: Session, actor: User, local_id: int, opening_cent: int) -> CashSession:
+def open_session(db: Session, actor: User, local_id: int, opening_cent: int, register_id: int | None = None,
+                 assigned_to: int | None = None) -> CashSession:
+    """Obre una caixa. Sense `register_id` és la caixa implícita del local (una sola, com sempre); amb una caixa registradora, una
+    sessió oberta per caixa. `assigned_to` és l'empleat que hi treballa (per defecte, qui l'obre); només en pot tenir una d'oberta."""
     if opening_cent < 0:
         raise ValueError("L'import d'obertura no pot ser negatiu")
-    if current_session(db, local_id):
-        raise ValueError("Ja hi ha una caixa oberta en aquest local")
-    cs = CashSession(local_id=local_id, opened_by=actor.id, opening_cent=opening_cent)
+    if register_id is not None:
+        reg = db.get(CashRegister, register_id)
+        if not reg or reg.local_id != local_id:
+            raise ValueError("Caixa registradora inexistent")
+        if not reg.actiu:
+            raise ValueError("Aquesta caixa registradora està desactivada")
+    if assigned_to is not None:
+        from .models import UserLocal
+        emp = db.get(User, assigned_to)
+        if not emp or not emp.active or (emp.role != "admin" and not db.get(UserLocal, (assigned_to, local_id))):
+            raise ValueError("L'empleat no existeix o no treballa en aquest local")
+    ocupada = select(CashSession.id).where(CashSession.local_id == local_id, CashSession.closed_at.is_(None))
+    ocupada = ocupada.where(CashSession.register_id.is_(None) if register_id is None else CashSession.register_id == register_id)
+    if db.scalar(ocupada):
+        raise ValueError("Aquesta caixa ja està oberta" if register_id is not None else "Ja hi ha una caixa oberta en aquest local")
+    propietari = assigned_to if assigned_to is not None else actor.id
+    if assigned_to is not None and db.scalar(select(CashSession.id).where(CashSession.assigned_to == assigned_to, CashSession.closed_at.is_(None))):
+        raise ValueError("Aquest empleat ja té una caixa oberta")
+    cs = CashSession(local_id=local_id, opened_by=actor.id, opening_cent=opening_cent, register_id=register_id,
+                     caixa_clau=register_id or 0, assigned_to=assigned_to)
     db.add(cs)
-    flush_or_error(db, "Ja hi ha una caixa oberta en aquest local")  # l'índex únic parcial atura la segona obertura simultània
-    service.audit_append(db, {"accio": "obrir_caixa", "sessio": cs.id, "local": local_id, "cent": opening_cent, "per": actor.id})
+    flush_or_error(db, "Ja hi ha una caixa oberta (o l'empleat ja en té una)")  # els índexs únics parcials atura l'obertura simultània
+    service.audit_append(db, {"accio": "obrir_caixa", "sessio": cs.id, "local": local_id, "cent": opening_cent, "caixa": register_id,
+                              "empleat": propietari, "per": actor.id})
     db.commit()
     return cs
 
 
-def current_session(db: Session, local_id: int, lock: bool = False) -> CashSession | None:
-    q = select(CashSession).where(CashSession.local_id == local_id, CashSession.closed_at.is_(None))
+def open_sessions(db: Session, local_id: int, lock: bool = False) -> list[CashSession]:
+    q = select(CashSession).where(CashSession.local_id == local_id, CashSession.closed_at.is_(None)).order_by(CashSession.id)
     if lock:
         q = q.with_for_update().execution_options(populate_existing=True)
-    return db.scalar(q)
+    return list(db.scalars(q))
 
 
-def _require_open(db: Session, local_id: int) -> CashSession:
-    """Sessió oberta, bloquejada fins al commit: tancar la caixa no pot creuar-se amb un cobrament o una despesa."""
-    cs = current_session(db, local_id, lock=True)
+def resolve_session(sessions: list[CashSession], actor: User | None) -> CashSession | None:
+    """La caixa amb què treballa `actor`: la que té assignada (o ha obert, si no n'hi ha d'assignada); si no en té i n'hi ha
+    una sola d'oberta al local, aquesta (així un local d'una sola caixa funciona com sempre). Amb diverses i cap de seva: error."""
+    if not sessions:
+        return None
+    if actor is not None:
+        meves = [c for c in sessions if (c.assigned_to if c.assigned_to is not None else c.opened_by) == actor.id]
+        if len(meves) >= 1:
+            return meves[0]
+    if len(sessions) == 1:
+        return sessions[0]
+    raise ValueError("Hi ha diverses caixes obertes i cap és teva: demana a un responsable que te n'assigni una")
+
+
+def current_session(db: Session, local_id: int, lock: bool = False, actor: User | None = None) -> CashSession | None:
+    sessions = open_sessions(db, local_id, lock=False)
+    cs = resolve_session(sessions, actor)
+    if cs is not None and lock:  # es bloqueja NOMÉS la caixa triada
+        cs = db.scalar(select(CashSession).where(CashSession.id == cs.id).with_for_update().execution_options(populate_existing=True))
+    return cs
+
+
+def _require_open(db: Session, local_id: int, actor: User | None = None) -> CashSession:
+    """Sessió oberta de l'empleat, bloquejada fins al commit: tancar la caixa no pot creuar-se amb un cobrament o una despesa."""
+    cs = current_session(db, local_id, lock=True, actor=actor)
     if not cs:
         raise ValueError("No hi ha cap caixa oberta en aquest local")
     return cs
+
+
+def register_warehouse(db: Session, cs: CashSession | None) -> int | None:
+    """Magatzem de la caixa registradora d'una sessió (None = principal)."""
+    if cs is None or cs.register_id is None:
+        return None
+    reg = db.get(CashRegister, cs.register_id)
+    return reg.warehouse_id if reg else None
 
 
 def expected_cash(db: Session, cs: CashSession) -> int:
@@ -69,9 +120,16 @@ def unpaid_dispensations(db: Session, local_id: int, since: datetime | None = No
             for m in db.scalars(q.order_by(StockMovement.id).limit(limit))]
 
 
-def close_session(db: Session, actor: User, local_id: int, counted_cent: int) -> CashSession:
-    """Tanca la caixa. El resultat porta `sense_cobrar` (llista de dispensacions sense cobrar) i `sense_cobrar_cent`."""
-    cs = _require_open(db, local_id)
+def close_session(db: Session, actor: User, local_id: int, counted_cent: int, session_id: int | None = None) -> CashSession:
+    """Tanca la caixa (la de l'actor, o la indicada amb `session_id`). El resultat porta `sense_cobrar` i `sense_cobrar_cent`."""
+    if session_id is not None:
+        trobada = db.scalar(select(CashSession).where(CashSession.id == session_id, CashSession.local_id == local_id,
+                                                       CashSession.closed_at.is_(None)).with_for_update().execution_options(populate_existing=True))
+        if not trobada:
+            raise ValueError("Aquesta caixa no existeix o ja està tancada")
+        cs = trobada
+    else:
+        cs = _require_open(db, local_id, actor)
     if counted_cent < 0:
         raise ValueError("L'import comptat no pot ser negatiu")
     cs.expected_cent = expected_cash(db, cs)
@@ -106,7 +164,7 @@ def charge_in_tx(db: Session, actor: User, mv: StockMovement, metode: str) -> Ca
     from . import stock  # import local: stock importa cash
     stock._lock_member(db, mv.member_id)  # mateix ordre que stock.dispense/correct: soci -> producte -> sessió
     stock._lock_product_row(db, mv.product_id)
-    cs = _require_open(db, mv.local_id)
+    cs = _require_open(db, mv.local_id, actor)
     if db.scalar(select(StockMovement.id).where(StockMovement.corregeix_id == mv.id)):
         raise ValueError("La dispensació està corregida")
     if _live_charge(db, mv.id):
@@ -138,7 +196,7 @@ def expense(db: Session, actor: User, local_id: int, cent: int, metode: str, cat
         raise ValueError("L'import de la despesa ha de ser positiu")
     if metode not in METODES:
         raise ValueError("Mètode de pagament no vàlid")
-    cs = _require_open(db, local_id)
+    cs = _require_open(db, local_id, actor)
     e = CashEntry(local_id=local_id, session_id=cs.id, tipus="despesa", metode=metode, import_cent=-cent,
                   categoria=categoria, concepte=concepte, user_id=actor.id)
     db.add(e)
@@ -161,7 +219,7 @@ def correct_entry(db: Session, actor: User, entry_id: int, concepte: str, commit
     soci_moneder = moneder.member_of_entry(db, orig.id)
     if soci_moneder is not None:
         stock._lock_member(db, soci_moneder)  # ordre global: soci -> sessió de caixa -> auditoria
-    cs = _require_open(db, orig.local_id)  # sessió bloquejada
+    cs = _require_open(db, orig.local_id, actor)  # sessió bloquejada
     if db.scalar(select(CashEntry.id).where(CashEntry.corregeix_id == orig.id)):
         raise ValueError("Aquest apunt ja està corregit")
     e = CashEntry(local_id=orig.local_id, session_id=cs.id, tipus="correccio", metode=orig.metode,
@@ -237,3 +295,84 @@ def entries_csv(db: Session, local_id: int, des: date, fins: date) -> str:
             for e in db.scalars(select(CashEntry).where(CashEntry.local_id == local_id, CashEntry.ts >= a, CashEntry.ts < b).order_by(CashEntry.id))]
     # to_csv neutralitza el text que un full de càlcul executaria com a fórmula (el concepte l'escriu l'usuari)
     return to_csv(["id", "data_hora_utc", "tipus", "metode", "import_cent", "categoria", "concepte", "moviment", "corregeix"], rows)
+
+
+# ---------- caixes registradores i resum de sessions ----------
+
+def registers_list(db: Session, local_id: int) -> list[dict]:
+    from .models import Warehouse
+    obertes = {c.register_id: c for c in open_sessions(db, local_id)}
+    noms = {i: n for i, n in db.execute(select(User.id, User.username))}
+    mags = {w.id: w.nom for w in db.scalars(select(Warehouse).where(Warehouse.local_id == local_id))}
+    out = [{"id": r.id, "nom": r.nom, "warehouse_id": r.warehouse_id, "magatzem": mags.get(r.warehouse_id), "actiu": r.actiu,
+            "oberta": r.id in obertes, "sessio": obertes[r.id].id if r.id in obertes else None,
+            "empleat": noms.get((obertes[r.id].assigned_to or obertes[r.id].opened_by)) if r.id in obertes else None}
+           for r in db.scalars(select(CashRegister).where(CashRegister.local_id == local_id).order_by(CashRegister.nom))]
+    implicita = obertes.get(None)
+    return {"caixes": out, "implicita": {"oberta": implicita is not None, "sessio": implicita.id if implicita else None,
+                                        "empleat": noms.get(implicita.assigned_to or implicita.opened_by) if implicita else None}}
+
+
+def register_create(db: Session, actor: User, local_id: int, nom: str, warehouse_id: int | None) -> CashRegister:
+    from .models import Warehouse
+    nom = (nom or "").strip()
+    if not nom:
+        raise ValueError("El nom de la caixa no pot estar buit")
+    if db.scalar(select(CashRegister.id).where(CashRegister.local_id == local_id, CashRegister.nom == nom)):
+        raise ValueError("Ja existeix una caixa amb aquest nom")
+    if warehouse_id is not None:
+        w = db.get(Warehouse, warehouse_id)
+        if not w or w.local_id != local_id:
+            raise ValueError("Magatzem inexistent")
+    r = CashRegister(local_id=local_id, nom=nom, warehouse_id=warehouse_id)
+    db.add(r)
+    db.flush()
+    service.audit_append(db, {"accio": "alta_caixa_registradora", "caixa": r.id, "local": local_id, "magatzem": warehouse_id, "per": actor.id})
+    db.commit()
+    return r
+
+
+def register_update(db: Session, actor: User, reg: CashRegister, nom: str | None, actiu: bool | None) -> None:
+    if nom is not None and nom.strip() != reg.nom:
+        if not nom.strip():
+            raise ValueError("El nom de la caixa no pot estar buit")
+        if db.scalar(select(CashRegister.id).where(CashRegister.local_id == reg.local_id, CashRegister.nom == nom.strip(), CashRegister.id != reg.id)):
+            raise ValueError("Ja existeix una caixa amb aquest nom")
+        reg.nom = nom.strip()
+    if actiu is not None and actiu != reg.actiu:
+        if not actiu and db.scalar(select(CashSession.id).where(CashSession.register_id == reg.id, CashSession.closed_at.is_(None))):
+            raise ValueError("No es pot desactivar una caixa oberta: tanca-la primer")
+        reg.actiu = actiu
+    service.audit_append(db, {"accio": "edita_caixa_registradora", "caixa": reg.id, "per": actor.id})
+    db.commit()
+
+
+def sessions_summary(db: Session, local_id: int, des: date, fins: date) -> list[dict]:
+    """Sessions de caixa (obertes o tancades) que s'han obert al rang, amb l'empleat, la caixa i els totals per mètode.
+    Serveix de «resum d'empleats» (una targeta per torn) i de «moviments de caixa» (obertura i tancament amb import anterior i de control)."""
+    a, b = _range(des, fins)
+    sessions = list(db.scalars(select(CashSession).where(CashSession.local_id == local_id, CashSession.opened_at >= a, CashSession.opened_at < b)
+                               .order_by(CashSession.id.desc())))
+    ids = [c.id for c in sessions]
+    totals: dict[int, dict] = defaultdict(lambda: defaultdict(int))
+    if ids:
+        for sid, metode, tipus, cat, cent in db.execute(select(CashEntry.session_id, CashEntry.metode, CashEntry.tipus, CashEntry.categoria, CashEntry.import_cent)
+                                                        .where(CashEntry.session_id.in_(ids))):
+            if cat is None:  # ingressos (cobraments, quotes, recàrregues i les seves correccions)
+                totals[sid][metode] += cent
+            else:
+                totals[sid]["despeses"] += -cent
+    noms = {i: n for i, n in db.execute(select(User.id, User.username))}
+    regs = {r.id: r.nom for r in db.scalars(select(CashRegister).where(CashRegister.local_id == local_id))}
+    out, anterior = [], {}
+    for c in reversed(sessions):  # de més antiga a més nova per calcular l'import anterior de cada caixa
+        t = totals[c.id]
+        out.append({"id": c.id, "caixa": regs.get(c.register_id), "empleat": noms.get(c.assigned_to or c.opened_by), "obertura": c.opened_at.isoformat(),
+                    "tancament": c.closed_at.isoformat() if c.closed_at else None, "obertura_cent": c.opening_cent,
+                    "import_anterior_cent": anterior.get(c.register_id), "esperat_cent": c.expected_cent, "comptat_cent": c.counted_cent,
+                    "diferencia_cent": c.diff_cent, "efectiu_cent": t.get("efectiu", 0), "targeta_cent": t.get("targeta", 0),
+                    "bizum_cent": t.get("bizum", 0), "monedero_cent": t.get("monedero", 0), "despeses_cent": t.get("despeses", 0),
+                    "total_cent": sum(t.get(k, 0) for k in ("efectiu", "targeta", "bizum", "monedero"))})
+        if c.counted_cent is not None:
+            anterior[c.register_id] = c.counted_cent
+    return out[::-1]

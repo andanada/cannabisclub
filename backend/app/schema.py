@@ -120,6 +120,9 @@ def missing_indexes(engine) -> list[str]:
 COLUMNES_NOVES = {"products": [("es_genetic", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"}),
                                ("regalable", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"})],
                   "checkins": [("tipus", {"default": "VARCHAR(8) NOT NULL DEFAULT 'entrada'"}), ("via", {"default": "VARCHAR(8) NOT NULL DEFAULT 'manual'"})],
+                  "cash_sessions": [("register_id", {"default": "INTEGER REFERENCES cash_registers(id)"}),
+                                    ("assigned_to", {"default": "INTEGER REFERENCES users(id)"}),
+                                    ("caixa_clau", {"default": "INTEGER NOT NULL DEFAULT 0"})],
                   "stock_movements": [("regal", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"})],
                   "inventory_counts": [("expected_mg", {"default": "INTEGER"})],
                   "user_cards": [("pin_hash", {"default": "TEXT"})],
@@ -162,6 +165,8 @@ def add_missing_columns(engine) -> list[str]:
 def install(engine) -> None:
     Base.metadata.create_all(engine)
     add_missing_columns(engine)
+    with engine.begin() as c:  # l'índex antic (una sola caixa per local) impediria tenir-ne diverses
+        c.execute(text("DROP INDEX IF EXISTS uq_cash_sessions_oberta"))
     for t in Base.metadata.sorted_tables:
         for ix in t.indexes:
             ix.create(engine, checkfirst=True)

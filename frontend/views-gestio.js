@@ -141,16 +141,30 @@ VIEWS.estoc = async () => {
 async function cashState() {
   const st = await api(`/locals/${S.local}/caixa`);
   const out = h('div');
+  if (st.ambigua) return h('div', { class: 'card' }, h('span', { class: 'pill warn' }, 'Cap caixa teva'), h('p', { class: 'muted' }, st.motiu));
   const deutes = senseCobrar(st.sense_cobrar_anteriors, st.sense_cobrar_anteriors_cent, false, true, st.oberta);   // sessions anteriors: no poden quedar invisibles
   if (!st.oberta) {
     const card = h('div', { class: 'card' }, h('span', { class: 'pill warn' }, 'Caixa tancada'), h('p', { class: 'muted' }, 'Cal obrir la caixa per dispensar, cobrar quotes o registrar despeses.'));
     if (!isManager()) return card;
     const ini = h('input', { inputmode: 'decimal', placeholder: '0,00' });
     const btn = h('button', { class: 'primary', type: 'submit' }, 'Obrir caixa');
+    // Caixes registradores del local (si n'hi ha): es tria quina caixa i per a quin empleat.
+    const info = await api(`/locals/${S.local}/caixes`);
+    const personal = await api(`/locals/${S.local}/personal`);
+    const lliures = info.caixes.filter((c) => c.actiu && !c.oberta);
+    const caixa = h('select', { 'aria-label': 'Caixa' }, ...(info.implicita.oberta ? [] : [h('option', { value: '' }, 'Caixa del local')]),
+      ...lliures.map((c) => h('option', { value: c.id }, c.nom + (c.magatzem ? ' · ' + c.magatzem : ''))));
+    const empleat = h('select', { 'aria-label': 'Empleat' }, h('option', { value: '' }, 'Jo mateix'), ...personal.map((u) => h('option', { value: u.id }, u.username)));
+    const multi = info.caixes.length > 0 || info.implicita.oberta;
     return h('div', null, card, deutes, h('form', { class: 'card', onsubmit: (e) => {
       e.preventDefault();
-      guard(btn, out, async () => { await api('/caixa/obrir', { method: 'POST', body: { local_id: S.local, opening_cent: parseEur(ini.value) } }); show('caixa'); });
-    } }, h('h3', null, 'Obrir caixa'), field('Efectiu inicial al calaix (€)', ini), h('div', { class: 'actions' }, btn), out));
+      guard(btn, out, async () => {
+        await api('/caixa/obrir', { method: 'POST', body: { local_id: S.local, opening_cent: parseEur(ini.value),
+          register_id: caixa.value ? Number(caixa.value) : null, assigned_to: empleat.value ? Number(empleat.value) : null } });
+        show('caixa');
+      });
+    } }, h('h3', null, 'Obrir caixa'), ...(multi ? [h('div', { class: 'row' }, field('Caixa', caixa), field('Empleat', empleat))] : []),
+    field('Efectiu inicial al calaix (€)', ini), h('div', { class: 'actions' }, btn), out));
   }
   return h('div', null, h('div', { class: 'card' }, h('span', { class: 'pill ok' }, 'Caixa oberta'),
     h('div', { class: 'stats' }, h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Obertura'), h('div', { class: 'big' }, eur(st.obertura_cent))),
@@ -206,7 +220,11 @@ function senseCobrar(llista, centTotal, tancada, anteriors, cobrables) {
 
 async function closeForm() {
   const st = await api(`/locals/${S.local}/caixa`);
-  if (!st.oberta) return h('div', { class: 'card empty' }, 'No hi ha cap caixa oberta per tancar.');
+  const info = await api(`/locals/${S.local}/caixes`);
+  const obertes = [...info.caixes.filter((c) => c.oberta).map((c) => ({ sessio: c.sessio, text: `${c.nom} · ${c.empleat}` })),
+    ...(info.implicita.oberta ? [{ sessio: info.implicita.sessio, text: `Caixa del local · ${info.implicita.empleat}` }] : [])];
+  if (!st.oberta && !obertes.length) return h('div', { class: 'card empty' }, 'No hi ha cap caixa oberta per tancar.');
+  const triada = h('select', { 'aria-label': 'Caixa a tancar' }, obertes.map((o) => h('option', { value: o.sessio }, o.text)));
   const comptat = h('input', { inputmode: 'decimal', placeholder: '0,00' });
   const btn = h('button', { class: 'danger', type: 'submit' }, 'Tancar caixa');
   const out = h('div');
@@ -216,7 +234,7 @@ async function closeForm() {
   box.append(h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(btn, out, async () => {
-      const r = await api('/caixa/tancar', { method: 'POST', body: { local_id: S.local, counted_cent: parseEur(comptat.value) } });
+      const r = await api('/caixa/tancar', { method: 'POST', body: { local_id: S.local, counted_cent: parseEur(comptat.value), session_id: obertes.length > 1 ? Number(triada.value) : null } });
       const d = r.diferencia_cent;
       box.replaceChildren(h('div', { class: 'card' }, h('h3', null, 'Caixa tancada'), h('div', { class: 'stats' },
         h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Esperat'), h('div', { class: 'big' }, eur(r.esperat_cent))),
@@ -224,13 +242,59 @@ async function closeForm() {
         h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Diferència'), h('span', { class: 'pill ' + (d === 0 ? 'ok' : 'bad') }, (d > 0 ? '+' : '') + eur(d))))), senseCobrar(r.sense_cobrar, r.sense_cobrar_cent, true));
     });
   } }, h('h3', null, 'Tancament de caixa'), h('p', { class: 'muted' }, "Compta l'efectiu del calaix i escriu-lo: el programa calcula la diferència."),
-  field('Efectiu comptat al calaix (€)', comptat), h('div', { class: 'actions' }, btn), out));
+  ...(obertes.length > 1 ? [field('Caixa a tancar', triada)] : []), field('Efectiu comptat al calaix (€)', comptat), h('div', { class: 'actions' }, btn), out));
   return box;
+}
+
+// Caixes registradores (Dispensari, Entrada…): cada una pot tenir el seu magatzem, del qual descompta l'estoc.
+async function secCaixes() {
+  const [info, mags] = await Promise.all([api(`/locals/${S.local}/caixes`), api(`/locals/${S.local}/magatzems`)]);
+  const out = h('div');
+  const nom = h('input', { maxlength: 60, required: true });
+  const mag = h('select', null, h('option', { value: '' }, 'Magatzem principal'), ...mags.filter((m) => m.actiu !== false).map((m) => h('option', { value: m.id }, m.nom)));
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Crear caixa');
+  const form = h('form', { class: 'card', onsubmit: (e) => {
+    e.preventDefault();
+    guard(btn, out, async () => {
+      await api(`/locals/${S.local}/caixes`, { method: 'POST', body: { nom: nom.value.trim(), warehouse_id: mag.value ? Number(mag.value) : null } });
+      toast('Caixa creada');
+      show('caixa');
+    });
+  } }, h('h3', null, 'Nova caixa registradora'), h('div', { class: 'row' }, field('Nom', nom), field('Magatzem', mag)), h('div', { class: 'actions' }, btn), out);
+  const files = info.caixes.map((c) => {
+    const b = h('button', { type: 'button', class: 'small' }, c.actiu ? 'Desactivar' : 'Reactivar');
+    b.addEventListener('click', () => guard(b, out, async () => { await api(`/caixes/${c.id}`, { method: 'PUT', body: { actiu: !c.actiu } }); show('caixa'); }));
+    return [c.nom, c.magatzem || 'Principal', c.oberta ? h('span', { class: 'pill ok' }, 'oberta · ' + c.empleat) : h('span', { class: 'pill' }, c.actiu ? 'tancada' : 'inactiva'), b];
+  });
+  return h('div', null, form, taula([['Caixa'], ['Magatzem'], ['Estat'], ['']], files, 'Només hi ha la caixa del local: crea una caixa per tenir-ne més d\'una.'));
+}
+
+// Resum de sessions: una fila per torn amb l'empleat, la caixa, els imports anterior i de control, els totals per mètode i la diferència.
+async function secResum() {
+  const avui = new Date().toLocaleDateString('sv-SE');
+  const fa7 = new Date(Date.now() - 7 * 86400000).toLocaleDateString('sv-SE');
+  const des = h('input', { type: 'date', value: fa7 }), fins = h('input', { type: 'date', value: avui });
+  const res = h('div'), out = h('div');
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Veure');
+  const carrega = async () => {
+    const l = await api(`/locals/${S.local}/caixa/sessions?des=${des.value}&fins=${fins.value}`);
+    const tot = (k) => l.reduce((s, x) => s + (x[k] || 0), 0);
+    const hora = (iso) => (iso ? new Date(iso).toLocaleString(loc()) : 'oberta');
+    res.replaceChildren(h('div', { class: 'row' }, kpi('Total', eur(tot('total_cent'))), kpi('Efectiu', eur(tot('efectiu_cent'))), kpi('Targeta', eur(tot('targeta_cent'))),
+      kpi('Bizum', eur(tot('bizum_cent'))), kpi('Monedero', eur(tot('monedero_cent'))), kpi('Despeses', eur(tot('despeses_cent')))),
+      taula([['Empleat'], ['Caixa'], ['Obertura'], ['Tancament'], ['Import anterior', true], ['Obertura €', true], ['Efectiu', true], ['Targeta', true], ['Bizum', true], ['Monedero', true], ['Total', true], ['Diferència', true]],
+        l.map((x) => [x.empleat, x.caixa || 'Caixa del local', hora(x.obertura), hora(x.tancament), x.import_anterior_cent == null ? '—' : eur(x.import_anterior_cent), eur(x.obertura_cent),
+          eur(x.efectiu_cent), eur(x.targeta_cent), eur(x.bizum_cent), eur(x.monedero_cent), eur(x.total_cent), x.diferencia_cent == null ? '—' : eur(x.diferencia_cent)]), 'Cap sessió de caixa en aquest període.'));
+  };
+  const form = h('form', { class: 'card', onsubmit: (e) => { e.preventDefault(); guard(btn, out, carrega); } },
+    h('h3', null, 'Resum de sessions de caixa'), h('div', { class: 'row' }, field('Des de', des), field('Fins a', fins)), h('div', { class: 'actions' }, btn), out);
+  await carrega();
+  return h('div', null, form, res);
 }
 
 VIEWS.caixa = async () => {
   const items = [['estat', 'Estat', cashState]];
-  if (isManager()) items.push(['despesa', 'Despesa', expenseForm], ['apunts', 'Apunts', () => cashHistory(() => show('caixa'))], ['tancament', 'Tancament', closeForm]);
+  if (isManager()) items.push(['despesa', 'Despesa', expenseForm], ['apunts', 'Apunts', () => cashHistory(() => show('caixa'))], ['tancament', 'Tancament', closeForm], ['caixes', 'Caixes', secCaixes], ['resum', 'Resum de sessions', secResum]);
   return h('div', null, pageHead('Caixa', 'Obertura i tancament, despeses i apunts del dia.'), sections('caixa', items));
 };
 

@@ -57,7 +57,7 @@ def recharge(db: Session, actor: User, member: Member, cent: int, metode: str) -
         raise ValueError("Mètode de pagament no vàlid")
     from . import stock
     stock._lock_member(db, member.id)  # ordre global: soci -> sessió de caixa -> auditoria
-    cs = cash._require_open(db, member.local_id)
+    cs = cash._require_open(db, member.local_id, actor)
     e = CashEntry(local_id=member.local_id, session_id=cs.id, tipus="recarrega", metode=metode, import_cent=cent,
                   concepte="Recàrrega del monedero", user_id=actor.id)
     db.add(e)

@@ -1,5 +1,5 @@
 from datetime import date, datetime, timezone
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, false
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, false, func
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -122,6 +122,17 @@ def _no_delete(mapper, connection, target):
     raise ImmutableError("Els moviments d'estoc no es poden esborrar: crea una correcció")
 
 
+class CashRegister(Base):
+    """Caixa registradora (un lloc físic: Dispensari, Entrada…). Si té magatzem, les dispensacions d'aquesta caixa en descompten l'estoc."""
+    __tablename__ = "cash_registers"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    warehouse_id: Mapped[int | None] = mapped_column(ForeignKey("warehouses.id"), nullable=True)
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class CashSession(Base):
     __tablename__ = "cash_sessions"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -134,6 +145,9 @@ class CashSession(Base):
     expected_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)
     counted_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)
     diff_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    register_id: Mapped[int | None] = mapped_column(ForeignKey("cash_registers.id"), nullable=True)  # NULL = caixa implícita del local
+    caixa_clau: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # register_id o 0 (caixa implícita): clau de l'índex únic
+    assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)  # empleat a qui es dóna la caixa (NULL = qui l'ha oberta)
 
 
 class CashEntry(Base):
@@ -438,8 +452,13 @@ Index("ix_cash_entries_local_ts", CashEntry.local_id, CashEntry.ts)
 Index("ix_cash_entries_session", CashEntry.session_id)
 Index("ix_cash_entries_movement", CashEntry.movement_id)
 # Una sola caixa oberta per local, garantit per la base de dades (dos «obrir caixa» simultanis no poden passar tots dos)
-Index("uq_cash_sessions_oberta", CashSession.local_id, unique=True,
+# Una sola sessió oberta per caixa (la implícita, sense register_id, compta com la caixa 0 del local) i una per empleat assignat:
+# ho garanteix la base de dades (dues obertures simultànies no poden passar totes dues).
+Index("uq_cash_sessions_oberta_caixa", CashSession.local_id, CashSession.caixa_clau, unique=True,
       postgresql_where=CashSession.closed_at.is_(None), sqlite_where=CashSession.closed_at.is_(None))
+Index("uq_cash_sessions_oberta_empleat", CashSession.assigned_to, unique=True,
+      postgresql_where=CashSession.closed_at.is_(None) & CashSession.assigned_to.is_not(None),
+      sqlite_where=CashSession.closed_at.is_(None) & CashSession.assigned_to.is_not(None))
 Index("ix_checkins_local_ts", CheckIn.local_id, CheckIn.ts)
 Index("ix_time_events_user", TimeEvent.user_id, TimeEvent.id)
 Index("ix_members_local", Member.local_id)
