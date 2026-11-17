@@ -60,6 +60,7 @@ class Member(Base):
     doc_verificat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # s'ha exhibit el document
     avalador_id: Mapped[int | None] = mapped_column(ForeignKey("members.id"), nullable=True)
     perfil_enc: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON xifrat: gènere, adreça, ciutat, codi postal, província, país
+    descompte_pct: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # descompte permanent del soci (0-100 %)
     tipus: Mapped[str] = mapped_column(String(40), default="Ordinari", server_default="Ordinari")  # tipus de membre (etiqueta lliure)
 
 
@@ -149,6 +150,24 @@ class CashEntry(Base):
     movement_id: Mapped[int | None] = mapped_column(ForeignKey("stock_movements.id"), nullable=True)
     corregeix_id: Mapped[int | None] = mapped_column(ForeignKey("cash_entries.id"), nullable=True, unique=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
+class MemberDocument(Base):
+    """Document del soci (foto del DNI, contracte…) xifrat. A diferència de fotos i signatures es pot esborrar."""
+    __tablename__ = "member_documents"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
+    tipus: Mapped[str] = mapped_column(String(20))  # nif_davant | nif_darrera | contracte | altre
+    nom: Mapped[str] = mapped_column(String(120))
+    mime: Mapped[str] = mapped_column(String(30))
+    data_enc: Mapped[str] = mapped_column(Text)
+    sha256: Mapped[str] = mapped_column(String(64))
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
+Index("ix_documents_member", MemberDocument.member_id)
 
 
 class MemberIncident(Base):

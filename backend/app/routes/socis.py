@@ -1,12 +1,12 @@
 """Rutes: socis (fitxa, cerques, foto, signatura, carnet) (extretes de main.py sense canviar-ne el comportament)."""
 from datetime import date
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import incidencies, quotes, service, socis
-from ..models import Member, MemberIncident, User
+from .. import documents, incidencies, quotes, service, socis
+from ..models import Member, MemberDocument, MemberIncident, User
 from .comu import CAN_CREATE_MEMBER
 
 
@@ -73,6 +73,45 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         check_local(s, user, i.local_id)
         run(incidencies.tanca, s, user, i)
         return {"ok": True}
+
+    class DocumentIn(BaseModel):
+        tipus: str = Field(max_length=20)
+        nom: str | None = Field(default=None, max_length=120)
+        data_base64: str = Field(max_length=600_000)
+
+    @app.get("/socis/{member_id}/documents")
+    def llista_documents(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        return {"tipus": documents.TIPUS, "documents": documents.llista(s, user, member_or_404(s, user, member_id))}
+
+    @app.post("/socis/{member_id}/documents", status_code=201)
+    def puja_document(member_id: int, body: DocumentIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        return {"id": run(documents.pujar, s, user, member_or_404(s, user, member_id), body.tipus, body.nom, body.data_base64).id}
+
+    def _document(s, user, document_id):
+        d = s.get(MemberDocument, document_id)
+        if not d:
+            raise HTTPException(404, "No existeix")
+        check_local(s, user, d.local_id)
+        return d
+
+    @app.get("/documents/{document_id}")
+    def veure_document(document_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        return documents.llegir(s, user, _document(s, user, document_id))
+
+    @app.delete("/documents/{document_id}")
+    def esborra_document(document_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        documents.esborrar(s, user, _document(s, user, document_id))
+        return {"ok": True}
+
+    @app.get("/socis/{member_id}/contracte")
+    def contracte(member_id: int, idioma: str = "ca", user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        cos = documents.contracte_html(s, user, member_or_404(s, user, member_id), idioma)
+        return Response(cos, media_type="text/html; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="contracte-{member_id}.html"'})
 
     @app.get("/socis/{member_id}/avalats")
     def llista_avalats(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -181,6 +220,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         telefon: str | None = Field(default=None, max_length=30)
         email: str | None = Field(default=None, max_length=120)
         tipus: str | None = Field(default=None, max_length=40)
+        descompte_pct: int | None = Field(default=None, ge=0, le=100)
         genere: str | None = Field(default=None, max_length=10)
         adreca: str | None = Field(default=None, max_length=120)
         ciutat: str | None = Field(default=None, max_length=120)

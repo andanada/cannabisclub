@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from . import consentiments, crypto, informes_socis, moneder, quotes, service, socis
 from .auditoria_consulta import entrades_del_soci
 from .csvutil import to_csv
-from .models import CheckIn, Member, MemberCard, MemberIncident, MemberPhoto, Signature, User
+from .models import CheckIn, Member, MemberCard, MemberDocument, MemberIncident, MemberPhoto, Signature, User
 
 
 def _ts(d) -> str:
@@ -24,6 +24,8 @@ def export_member(db: Session, actor: User, member: Member) -> dict:
         "consentiments": consentiments.history(db, member.id),
         "consentiments_vigents": consentiments.status(db, member.id),
         "quotes": quotes.history(db, member.id),
+        "documents": [{"id": d.id, "tipus": d.tipus, "nom": d.nom, "mime": d.mime, "sha256": d.sha256, "ts": _ts(d.ts), "enllac": f"/documents/{d.id}"}
+                       for d in db.scalars(select(MemberDocument).where(MemberDocument.member_id == member.id).order_by(MemberDocument.id))],
         "incidencies": [{"id": i.id, "ts": _ts(i.creat), "estat": i.estat, "descripcio": crypto.decrypt(i.descripcio_enc)}
                         for i in db.scalars(select(MemberIncident).where(MemberIncident.member_id == member.id).order_by(MemberIncident.id))],
         "monedero": {"saldo_cent": moneder.saldo(db, member.id), "moviments": moneder.history(db, member.id, limit=100000)},

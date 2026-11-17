@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from . import crypto, quotes, service
 from .models import Member, MemberCard, MemberPhoto, User
 
-CAMPS = {"nom", "document", "naixement", "telefon", "email", "tipus", *service.PERFIL_CAMPS}
+CAMPS = {"nom", "document", "naixement", "telefon", "email", "tipus", "descompte_pct", *service.PERFIL_CAMPS}
 
 
 def _majoria(naixement: date) -> None:
@@ -71,6 +71,13 @@ def update_member(db: Session, actor: User, member: Member, canvis: dict) -> Mem
         if tipus != member.tipus:
             member.tipus = tipus
             fets.append("tipus")
+    if "descompte_pct" in canvis:
+        pct = canvis["descompte_pct"]
+        if not isinstance(pct, int) or isinstance(pct, bool) or not 0 <= pct <= 100:
+            raise ValueError("El descompte del soci ha d'estar entre 0 i 100 %")
+        if pct != member.descompte_pct:
+            member.descompte_pct = pct
+            fets.append("descompte_pct")
     if set(canvis) & set(service.PERFIL_CAMPS):
         actual = service.llegeix_perfil(member)
         nou = service.normalitza_perfil({**actual, **{k: canvis[k] for k in canvis if k in service.PERFIL_CAMPS}})

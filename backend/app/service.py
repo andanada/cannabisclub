@@ -324,7 +324,7 @@ def member_view(m: Member) -> dict:
         "id": m.id, "local_id": m.local_id, "nom": crypto.decrypt(m.nom_enc),
         "document": crypto.decrypt(m.document_enc), "naixement": crypto.decrypt(m.naixement_enc),
         "telefon": crypto.decrypt(m.telefon_enc), "email": crypto.decrypt(m.email_enc), "estat": m.estat,
-        "tipus": m.tipus, "codi": codi_soci(m, crypto.decrypt(m.nom_enc)), **llegeix_perfil(m),
+        "tipus": m.tipus, "descompte_pct": m.descompte_pct, "codi": codi_soci(m, crypto.decrypt(m.nom_enc)), **llegeix_perfil(m),
     }
 
 

@@ -24,7 +24,7 @@ from sqlalchemy import delete, select, text, update
 from sqlalchemy.orm import Session
 
 from . import crypto, service
-from .models import AuditLog, Member, MemberCard, MemberIncident, MemberPhoto, Signature
+from .models import AuditLog, Member, MemberCard, MemberDocument, MemberIncident, MemberPhoto, Signature
 
 MIN_DIES_DEFECTE = 365
 TOKEN_NOM = "Soci suprimit"
@@ -106,6 +106,7 @@ def pseudonymize(db: Session, actor_id: int | None, member: Member, motiu: str =
             db.flush()
     binaris = buida_binaris(db, member.id, "tot")
     targetes = db.execute(delete(MemberCard).where(MemberCard.member_id == member.id)).rowcount
+    docs = db.execute(delete(MemberDocument).where(MemberDocument.member_id == member.id)).rowcount
     member.nom_enc = crypto.encrypt(f"{TOKEN_NOM} #{member.id}")
     member.document_enc = crypto.encrypt("SUPRIMIT")
     member.document_idx = pseudo_index(member.id)
@@ -117,7 +118,7 @@ def pseudonymize(db: Session, actor_id: int | None, member: Member, motiu: str =
     member.email_enc = None
     member.avalador_id = None
     member.suprimit_en = datetime.now(timezone.utc)
-    service.audit_append(db, {"accio": "supressio_soci", "soci": member.id, "binaris": binaris, "carnets": targetes,
+    service.audit_append(db, {"accio": "supressio_soci", "soci": member.id, "binaris": binaris, "carnets": targetes, "documents": docs,
                               "motiu": (motiu or "")[:100], "per": actor_id})
     db.commit()
     return {"soci": member.id, "binaris_buidats": binaris, "carnets_esborrats": targetes}

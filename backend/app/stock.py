@@ -261,6 +261,9 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     if discount_id is not None:
         from . import descomptes
         descompte, rebaixa = descomptes.apply(db, discount_id, p, original, mg, now.astimezone(TZ).date())
+    rebaixa_chosen = rebaixa
+    if member.descompte_pct and not regal:  # descompte permanent del soci, sumat al triat (mai per sobre de l'import)
+        rebaixa = min(original, rebaixa + int((Decimal(original) * member.descompte_pct / 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)))
     m = StockMovement(
         ts=now, local_id=p.local_id, product_id=p.id, tipus="dispensacio", delta_mg=-mg, member_id=member_id,
         pes_bascula_mg=grams_to_mg(pes_bascula_g) if pes_bascula_g is not None else None,
@@ -269,11 +272,12 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     db.flush()
     if descompte is not None:
         from .models import MovementDiscount
-        db.add(MovementDiscount(movement_id=m.id, discount_id=descompte.id, nom=descompte.nom, original_cent=original, descompte_cent=rebaixa))
+        db.add(MovementDiscount(movement_id=m.id, discount_id=descompte.id, nom=descompte.nom, original_cent=original, descompte_cent=rebaixa_chosen))
     m.descompte_cent = rebaixa  # només per a la resposta (no és una columna)
     lots.attach_dispense(db, m, pla_lots)
     service.audit_append(db, {"accio": "dispensacio", "moviment": m.id, "soci": member_id, "producte": p.id,
                               "mg": mg, "import_cent": m.import_cent, "descompte": descompte.id if descompte else None,
+                              **({"descompte_soci_pct": member.descompte_pct} if member.descompte_pct and not regal else {}),
                               **({"regal": True} if regal else {}),
                               **({"lots": [[b, x] for b, x in pla_lots]} if pla_lots else {}), "per": actor.id})
     if metode is not None:

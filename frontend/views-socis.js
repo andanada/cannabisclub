@@ -94,6 +94,7 @@ function editForm(m, out, reload) {
     naix: h('input', { type: 'date', value: m.naixement }), tel: h('input', { inputmode: 'tel', value: m.telefon || '' }),
     mail: h('input', { type: 'email', value: m.email || '' }) };
   const perfil = campsPerfil(m);
+  const dto = h('input', { type: 'number', min: 0, max: 100, step: 1, value: m.descompte_pct || 0, 'aria-label': 'Descompte permanent del soci (%)' });
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Desar els canvis');
   return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
@@ -105,6 +106,7 @@ function editForm(m, out, reload) {
       if (f.tel.value.trim() !== (m.telefon || '')) body.telefon = f.tel.value.trim() || null;
       if (f.mail.value.trim() !== (m.email || '')) body.email = f.mail.value.trim() || null;
       Object.assign(body, perfil.canvis(m));
+      if (Number(dto.value) !== (m.descompte_pct || 0)) body.descompte_pct = Number(dto.value);
       if (!Object.keys(body).length) throw new Error('No hi ha cap canvi');
       await api(`/socis/${m.id}`, { method: 'PATCH', body });
       toast('Dades actualitzades');
@@ -113,7 +115,7 @@ function editForm(m, out, reload) {
   } }, h('h3', null, 'Editar dades'),
   h('div', { class: 'row' }, field('Nom i cognoms', f.nom), field('Document', f.doc), field('Data de naixement', f.naix)),
   h('div', { class: 'row' }, field('Telèfon', f.tel), field('Correu', f.mail)),
-  perfil.node,
+  perfil.node, field('Descompte permanent (%)', dto),
   h('div', { class: 'actions' }, btn));
 }
 
@@ -135,6 +137,64 @@ function memberIncidents(m) {
         b.addEventListener('click', () => guard(b, out, async () => { await api(`/incidencies/${i.id}/tanca`, { method: 'POST' }); await pinta(); }));
         return [i.descripcio, h('span', { class: 'pill ' + (i.estat === 'oberta' ? 'warn' : 'ok') }, i.estat), new Date(i.creat).toLocaleString(loc()), i.creat_per, i.estat === 'oberta' ? b : ''];
       }), 'Cap incidència.'));
+  };
+  pinta().catch((e) => box.replaceChildren(msg('err', e.message)));
+  return box;
+}
+
+// Fitxer (imatge o PDF) a base64 sense prefix. Les imatges es redueixen; un PDF es puja tal qual (màxim 400 KB al servidor).
+async function fitxerBase64(file) {
+  if (file.type.startsWith('image/')) return photoToJpegBase64(file, 1400, 380000);
+  if (file.type !== 'application/pdf') throw new Error('El fitxer ha de ser una imatge o un PDF');
+  if (file.size > 400000) throw new Error('El PDF és massa gran (màxim 400 KB)');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  return btoa(bin);
+}
+
+function base64ABlob(b64, mime) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+// Documents del soci (foto del document d'identitat davant i darrere, contracte signat, altres) i descàrrega del contracte.
+function memberDocuments(m) {
+  const box = h('div', { class: 'card' });
+  const out = h('div');
+  const pinta = async () => {
+    const r = await api(`/socis/${m.id}/documents`);
+    const tipus = h('select', { 'aria-label': 'Tipus de document' }, Object.entries(r.tipus).map(([k, v]) => h('option', { value: k }, v)));
+    const file = h('input', { type: 'file', accept: 'image/*,application/pdf', capture: 'environment', 'aria-label': 'Fitxer' });
+    const btn = h('button', { class: 'primary', type: 'submit' }, 'Pujar document');
+    const contracte = h('button', { type: 'button' }, 'Descarregar contracte');
+    contracte.addEventListener('click', () => guard(contracte, out, async () => {
+      const resp = await api(`/socis/${m.id}/contracte?idioma=${LANG}`, { raw: true });
+      if (!resp.ok) throw new Error("No s'ha pogut generar el contracte");
+      descarrega(await resp.blob(), `contracte-${m.id}.html`);
+    }));
+    box.replaceChildren(h('h3', null, 'Documents'),
+      h('form', { onsubmit: (e) => {
+        e.preventDefault();
+        guard(btn, out, async () => {
+          if (!file.files[0]) throw new Error('Tria un fitxer');
+          await api(`/socis/${m.id}/documents`, { method: 'POST', body: { tipus: tipus.value, nom: file.files[0].name.slice(0, 120), data_base64: await fitxerBase64(file.files[0]) } });
+          toast('Document pujat');
+          await pinta();
+        });
+      } }, h('div', { class: 'row' }, field('Tipus', tipus), field('Fitxer', file)), h('div', { class: 'actions' }, btn, contracte)), out,
+      taula([['Tipus'], ['Nom'], ['Pujat'], ['']], r.documents.map((d) => {
+        const veure = h('button', { type: 'button', class: 'small' }, 'Descarregar');
+        veure.addEventListener('click', () => guard(veure, out, async () => {
+          const x = await api(`/documents/${d.id}`);
+          descarrega(base64ABlob(x.data_base64, x.mime), x.nom);
+        }));
+        const del = h('button', { type: 'button', class: 'small danger' }, 'Esborrar');
+        del.addEventListener('click', () => guard(del, out, async () => { await api(`/documents/${d.id}`, { method: 'DELETE' }); toast('Document esborrat'); await pinta(); }));
+        return [r.tipus[d.tipus] || d.tipus, d.nom, new Date(d.ts).toLocaleDateString(loc()), h('span', { class: 'actions fila-accions' }, veure, del)];
+      }), 'Cap document.'));
   };
   pinta().catch((e) => box.replaceChildren(msg('err', e.message)));
   return box;
@@ -163,7 +223,7 @@ function memberTools(m, out, onChange) {
     return b;
   };
   return { bar: [...photoUploader(m, out, reload), toggle('Carnet', () => cardManager(m, out, reload)), toggle('Editar dades', () => editForm(m, out, reload)),
-    ...(isManager() ? [toggle('Historial de consum', () => memberConsumption(m)), toggle('Incidències', () => memberIncidents(m)), toggle('Avalats', () => memberAvalats(m)), toggle('Línia de preu', () => { const box = h('div'); memberPriceLine(m, out, reload).then((f) => box.replaceChildren(f)).catch((e) => box.replaceChildren(msg('err', e.message))); return box; })] : [])], panel };
+    ...(isManager() ? [toggle('Historial de consum', () => memberConsumption(m)), toggle('Incidències', () => memberIncidents(m)), toggle('Avalats', () => memberAvalats(m)), toggle('Documents', () => memberDocuments(m)), toggle('Línia de preu', () => { const box = h('div'); memberPriceLine(m, out, reload).then((f) => box.replaceChildren(f)).catch((e) => box.replaceChildren(msg('err', e.message))); return box; })] : [])], panel };
 }
 
 // Llistat de socis del local amb filtre per nom i estat (només responsables).
