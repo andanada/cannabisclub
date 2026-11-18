@@ -242,13 +242,25 @@ function memberList(onOpen) {
       if (q.value.trim()) params.set('q', q.value.trim());
       if (estat.value) params.set('estat', estat.value);
       const rows = await api(`/locals/${S.local}/socis?${params}`);
-      body.replaceChildren(rows.length ? h('table', null, h('tbody', null, rows.map((r) => {
-        const open = h('button', { type: 'button' }, 'Obrir');
-        open.addEventListener('click', () => guard(open, out, async () => onOpen(await api(`/socis/${r.id}`), out)));
-        return h('tr', null, h('td', null, h('span', { class: 'muted' }, `[${r.codi}] `), r.nom), h('td', null, r.tipus), h('td', null, h('span', { class: 'pill ' + (r.estat === 'actiu' ? 'ok' : 'bad') }, r.estat)),
-          h('td', null, quotaPill(r.quota)), h('td', null, open));
-      }))) : h('p', { class: 'muted' }, 'Cap soci amb aquest filtre.'),
-      h('p', { class: 'muted' }, rows.length + ' socis'));
+      // Es pinten de 100 en 100: amb milers de socis, una taula única fa el mòbil lent.
+      const PAGINA = 100;
+      const tbody = h('tbody');
+      const mes = h('button', { type: 'button' }, 'Mostrar-ne més');
+      let pintats = 0;
+      const pintaMes = () => {
+        tbody.append(...rows.slice(pintats, pintats + PAGINA).map((r) => {
+          const open = h('button', { type: 'button' }, 'Obrir');
+          open.addEventListener('click', () => guard(open, out, async () => onOpen(await api(`/socis/${r.id}`), out)));
+          return h('tr', null, h('td', null, h('span', { class: 'muted' }, `[${r.codi}] `), r.nom), h('td', null, r.tipus), h('td', null, h('span', { class: 'pill ' + (r.estat === 'actiu' ? 'ok' : 'bad') }, r.estat)),
+            h('td', null, quotaPill(r.quota)), h('td', null, open));
+        }));
+        pintats = Math.min(rows.length, pintats + PAGINA);
+        mes.hidden = pintats >= rows.length;
+      };
+      pintaMes();
+      mes.addEventListener('click', pintaMes);
+      body.replaceChildren(...(rows.length ? [h('div', { class: 'table-wrap' }, h('table', null, tbody)), h('div', { class: 'actions' }, mes)] : [h('p', { class: 'muted' }, 'Cap soci amb aquest filtre.')]),
+        h('p', { class: 'muted' }, rows.length + ' socis'));
     });
   } }, h('h3', null, 'Filtrar la llista'), h('div', { class: 'row' }, field('Nom', q), field('Estat', estat)), h('div', { class: 'actions' }, load), out, body);
   return form;

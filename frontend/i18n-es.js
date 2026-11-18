@@ -707,6 +707,7 @@ Object.assign(I18N.es, {
  "Dades personals": "Datos personales",
  "Contacte": "Contacto",
  "Cognoms": "Apellidos",
+ "Mostrar-ne més": "Mostrar más",
  "No s'ha pogut copiar: selecciona el text": "No se ha podido copiar: selecciona el texto",
  "Només si l'import no és la tarifa del local": "Solo si el importe no es la tarifa del local",
  "Escriu el teu PIN": "Escribe tu PIN",

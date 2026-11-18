@@ -707,6 +707,7 @@ Object.assign(I18N.en, {
  "Dades personals": "Personal details",
  "Contacte": "Contact",
  "Cognoms": "Surname",
+ "Mostrar-ne més": "Show more",
  "No s'ha pogut copiar: selecciona el text": "Could not copy: select the text",
  "Només si l'import no és la tarifa del local": "Only if the amount is not the venue's rate",
  "Escriu el teu PIN": "Enter your PIN",
