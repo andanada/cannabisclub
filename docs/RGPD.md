@@ -77,6 +77,8 @@ Migració: tot són taules/columnes noves amb valor per defecte; `python -m app.
 
 ## D. Pendent d'advocat / DPO
 
+> Revisió preliminar (feta amb IA, no és assessorament legal): vegeu `docs/REVISION_LEGAL.md`.
+
 - Validar i completar el **text informatiu** (identitat del responsable, base jurídica real de cada finalitat, destinataris, terminis) i la **versió v1**; decidir si cal DPO.
 - Fixar els **terminis de conservació** reals (`CLUB_RETENCIO_MIN_DIES` és un valor prudent, no una obligació jurídica) segons obligacions fiscals, associatives i de les administracions competents.
 - Avaluar si la **fotografia** és un tractament de categoria especial (biometria) i si l'EIPD (secció B) és obligatòria; el programa no fa reconeixement facial.
