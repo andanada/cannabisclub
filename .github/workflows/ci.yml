@@ -30,8 +30,8 @@ jobs:
       # Format SQLAlchemy amb el driver psycopg 3 (el mateix que fa servir l'aplicació)
       CLUB_TEST_PG_URL: postgresql+psycopg://club:club-ci@127.0.0.1:5432/club
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -47,8 +47,8 @@ jobs:
     # Prova de punta a punta de les còpies: còpia xifrada i signada, restauració, manipulació, clau equivocada i retenció.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: |
@@ -60,8 +60,8 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - name: Sintaxi de tots els .js del front
@@ -74,8 +74,8 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Vulnerabilitats conegudes a les dependències
@@ -89,7 +89,7 @@ jobs:
   shell:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: bash -n i shellcheck
         run: |
           for f in scripts/*.sh; do bash -n "$f"; done
@@ -98,7 +98,7 @@ jobs:
   fitxers:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Tots els fitxers de text versionats són UTF-8 vàlid i sense NUL
         run: |
           python3 - <<'PY'
