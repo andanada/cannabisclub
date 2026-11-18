@@ -69,7 +69,7 @@ jobs:
         run: for f in *.js; do node --check "$f"; done
       - name: Proves del front (sense dependències)
         working-directory: frontend
-        run: node --test test/
+        run: node --test "test/*.test.js"
 
   audit:
     runs-on: ubuntu-latest
