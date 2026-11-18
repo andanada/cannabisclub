@@ -1349,3 +1349,6 @@ I18N.pat.en.push([new RegExp("^Normes\\ del\\ club\\ ·\\ (.*)$"), "Club rules �
 I18N.pat.en.push([new RegExp("^Sense\\ visites\\ \\((.*)\\ dies\\)$"), "No visits ($1 days)"]);
 I18N.pat.en.push([new RegExp("^La\\ quantitat\\ admet\\ com\\ a\\ màxim\\ (.*)\\ decimals$"), "The quantity allows at most $1 decimals"]);
 I18N.pat.en.push([new RegExp("^El\\ soci\\ ha\\ de\\ tenir\\ almenys\\ (.*)\\ anys$"), "The member must be at least $1 years old"]);
+I18N.pat.en.push([new RegExp("^Generar\\ un\\ carnet\\ nou\\ per\\ a\\ (.*)\\?\\ L'actual\\ deixarà\\ de\\ servir\\.$"), "Generate a new card for $1? The current one will stop working."]);
+I18N.pat.en.push([new RegExp("^S'ajustarà\\ l'estoc\\ dels\\ (.*)\\ productes\\ comptats\\.\\ (.*)\\ productes\\ sense\\ comptar\\ no\\ es\\ toquen\\.$"), "Stock will be adjusted for the $1 counted products. The $2 uncounted products are left untouched."]);
+I18N.pat.en.push([new RegExp("^S'ajustarà\\ l'estoc\\ dels\\ (.*)\\ productes\\ comptats\\.$"), "Stock will be adjusted for the $1 counted products."]);

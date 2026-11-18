@@ -65,3 +65,10 @@ test('castellà i anglès tenen exactament les mateixes claus i patrons, sense b
 test('els idiomes desconeguts cauen al català', () => {
   assert.equal(carrega('fr').LANG, 'ca');
 });
+
+test('els textos dels diàlegs de confirmació amb dades es tradueixen', () => {
+  const es = carrega('es').tr, en = carrega('en').tr;
+  assert.equal(es("Generar un carnet nou per a ana? L'actual deixarà de servir."), '¿Generar un carnet nuevo para ana? El actual dejará de servir.');
+  assert.equal(es("S'ajustarà l'estoc dels 3 productes comptats. 1 productes sense comptar no es toquen."), 'Se ajustará el stock de los 3 productos contados. Los 1 productos sin contar no se tocan.');
+  assert.equal(en("S'ajustarà l'estoc dels 3 productes comptats."), 'Stock will be adjusted for the 3 counted products.');
+});
