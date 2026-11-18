@@ -133,3 +133,23 @@ test('format ST/US amb GS/NT (bàscules tipus WANT o A&D)', () => {
   assert.deepEqual(pick(parsePesLine('ST,+  1.00 g')), { mg: 1000, unit: 'g', stable: true, mode: null });
   assert.equal(parsePesLine('ST,GS,'), null);
 });
+
+test('reutilitza l\'únic port ja autoritzat sense tornar a demanar-lo', async () => {
+  const f = fakeSerial(['   1.000 g']);
+  const port = await f.serial.requestPort();
+  let demanat = 0;
+  const serial = { async getPorts() { return [port]; }, async requestPort() { demanat++; return port; } };
+  const b = new Bascula({ serial }); await b.connect();
+  assert.equal(demanat, 0);
+  assert.equal(b.connected, true);
+  await b.disconnect();
+});
+
+test('si el port no s\'obre, es tanca i l\'error arriba a qui crida', async () => {
+  let tancat = false;
+  const port = { async open() { throw new Error('ocupat'); }, async close() { tancat = true; } };
+  const b = new Bascula({ serial: { async requestPort() { return port; } } });
+  await assert.rejects(() => b.connect(), /ocupat/);
+  assert.equal(tancat, true);
+  assert.equal(b.port, null);
+});

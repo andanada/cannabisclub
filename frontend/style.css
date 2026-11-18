@@ -63,7 +63,7 @@ button:hover:not(:disabled) { border-color: var(--brand); }
 button.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
 button.primary:hover:not(:disabled) { filter: brightness(1.08); }
 button.danger { color: var(--danger); border-color: var(--danger); }
-button.small { min-height: 36px; padding: 4px 12px; font-size: .88rem; }
+button.small { min-height: 44px; padding: 4px 12px; font-size: .88rem; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 /* Botons i un camp de text en una sola fila dins d'una cel·la de taula (p. ex. aprovar / motiu / rebutjar). */

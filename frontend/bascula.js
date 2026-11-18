@@ -59,9 +59,17 @@ class Bascula {
 
   async connect() {
     if (!this.serial) throw new Error('Aquest navegador o connexió no admet ports sèrie (cal Chrome/Edge i HTTPS o localhost)');
-    this.port = await this.serial.requestPort();
-    await this.port.open(Object.assign({ baudRate: this.baudRate }, this.serialOptions));
-    this.writer = this.port.writable.getWriter();
+    // Si el navegador ja té autoritzat un únic port (la bàscula de sempre), es reutilitza sense tornar a demanar-lo.
+    const autoritzats = this.serial.getPorts ? await this.serial.getPorts().catch(() => []) : [];
+    this.port = autoritzats.length === 1 ? autoritzats[0] : await this.serial.requestPort();
+    try {
+      await this.port.open(Object.assign({ baudRate: this.baudRate }, this.serialOptions));
+      this.writer = this.port.writable.getWriter();
+    } catch (e) {
+      try { await this.port.close(); } catch (_) { /* no estava obert */ }   // un port a mig obrir quedaria ocupat fins recarregar
+      this.port = null;
+      throw e;
+    }
     this.connected = true;
     this._readLoop();
   }
@@ -80,6 +88,7 @@ class Bascula {
         for (const line of lines) this._onLine(line);
       }
     } catch (e) { this.lastError = e; } finally {
+      try { this.reader.releaseLock(); } catch (_) { /* ja alliberat */ }   // sense això el port no es pot tancar després
       this.connected = false;
       this._wake();
     }
