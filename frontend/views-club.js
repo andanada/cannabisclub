@@ -48,7 +48,7 @@ function secLimits() {
       const l = await api(`/socis/${s.id}/limits`);
       llista.replaceChildren(taula([['Període'], ['Límit', true], ['Motiu'], ['']], l.map((x) => [x.periode === 'dia' ? 'Diari' : 'Mensual', grams(x.max_mg), x.motiu,
         h('button', { type: 'button', class: 'small', onclick: (e) => guard(e.target, out, async () => {
-          const m = prompt('Motiu per treure l\'excepció');
+          const m = await demana('Motiu per treure l\'excepció');
           if (!m) return;
           await api(`/socis/${s.id}/limits`, { method: 'PUT', body: { periode: x.periode, max_g: null, motiu: m } }); await pinta();
         }) }, 'Treure')]), 'Aquest soci fa servir els límits del local.'));
@@ -78,7 +78,7 @@ async function secLots() {
     llista.replaceChildren(taula([['Lot'], ['Proveïdor'], ['Entrada'], ['Existències', true], ['']], l.map((b) => [b.codi + (b.actiu ? '' : ' (tancat)'), b.proveidor || '', b.data_entrada, grams(b.existencies_mg),
       h('div', { class: 'actions' },
         h('button', { type: 'button', class: 'small', onclick: (e) => guard(e.target, out, async () => {
-          const g = prompt('Grams que entren en aquest lot'); if (!g) return;
+          const g = await demana('Grams que entren en aquest lot'); if (!g) return;
           await api(`/lots/${b.id}/entrada`, { method: 'POST', body: { grams: parseGrams(g) } }); toast('Entrada registrada'); await pinta();
         }) }, 'Entrada'),
         h('button', { type: 'button', class: 'small', onclick: (e) => guard(e.target, out, async () => {

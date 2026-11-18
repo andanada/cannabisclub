@@ -37,7 +37,7 @@ function userCard(u) {
   }));
   const toggle = h('button', { type: 'button', class: u.active ? 'danger' : '' }, u.active ? 'Desactivar' : 'Reactivar');
   toggle.addEventListener('click', () => guard(toggle, out, async () => {
-    if (u.active && !confirm(`Desactivar ${u.username}? Se li tancaran les sessions obertes.`)) return;
+    if (u.active && !await confirma(`Desactivar ${u.username}? Se li tancaran les sessions obertes.`)) return;
     await api(`/usuaris/${u.id}`, { method: 'PATCH', body: { active: !u.active } });
     toast(u.active ? 'Usuari desactivat' : 'Usuari reactivat');
     reload();
@@ -51,7 +51,7 @@ function userCard(u) {
   }));
   const totp = h('button', { type: 'button' }, 'Reiniciar TOTP');
   totp.addEventListener('click', () => guard(totp, out, async () => {
-    if (!confirm(`Reiniciar el segon factor de ${u.username}? El codi actual deixarà de servir.`)) return;
+    if (!await confirma(`Reiniciar el segon factor de ${u.username}? El codi actual deixarà de servir.`)) return;
     const r = await api(`/usuaris/${u.id}/totp`, { method: 'POST' });
     out.replaceChildren(msg('ok', 'Nou secret per a l\'app d\'autenticació; no es tornarà a mostrar:'), h('div', { class: 'secret' }, r.totp_secret));
   }));
@@ -60,7 +60,7 @@ function userCard(u) {
   const generat = h('div');
   const genera = h('button', { type: 'button', class: 'primary' }, u.te_carnet ? 'Generar carnet nou' : 'Generar carnet');
   genera.addEventListener('click', () => guard(genera, out, async () => {
-    if (u.te_carnet && !confirm(`Generar un carnet nou per a ${u.username}? L'actual deixarà de servir.`)) return;
+    if (u.te_carnet && !await confirma(`Generar un carnet nou per a ${u.username}? L'actual deixarà de servir.`)) return;
     const r = await api(`/usuaris/${u.id}/carnet/generar`, { method: 'POST', body: { pin: pinNou.value } });
     pinNou.value = '';
     generat.replaceChildren(msg('ok', "Carnet generat. Imprimeix-lo o grava'l ara: el codi no es tornarà a mostrar. Dona el PIN al treballador en persona."),

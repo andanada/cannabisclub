@@ -6,7 +6,7 @@ const horaCa = (iso) => new Date(iso).toLocaleString(loc(), { day: '2-digit', mo
 
 // Demana el motiu (mínim 3 caràcters, com exigeix el servidor) i envia la correcció.
 async function demanaCorreccio(url, onDone) {
-  const nota = (window.prompt('Motiu de la correcció (mínim 3 caràcters):') || '').trim();
+  const nota = (await demana('Motiu de la correcció (mínim 3 caràcters):') || '').trim();
   if (!nota) return;
   await api(url, { method: 'POST', body: { nota } });
   toast('Correcció registrada');

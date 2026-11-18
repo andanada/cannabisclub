@@ -99,7 +99,7 @@ function profileCard(kind, p, reload) {
   def.addEventListener('click', () => guard(def, out, async () => { await api(`/dispositius/${p.id}`, { method: 'PUT', body: { per_defecte: true } }); reload(); }));
   const del = h('button', { type: 'button', class: 'danger' }, 'Esborrar');
   del.addEventListener('click', () => guard(del, out, async () => {
-    if (!confirm(`Esborrar «${p.nom}»?`)) return;
+    if (!await confirma(`Esborrar «${p.nom}»?`)) return;
     await api(`/dispositius/${p.id}`, { method: 'DELETE' });
     reload();
   }));

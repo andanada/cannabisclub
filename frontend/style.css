@@ -405,3 +405,10 @@ ul.resum li.ok .marca { background: var(--brand-soft); color: var(--brand); }
   .cat-badge.cat-lila { background: #33204f; color: #c6a8f5; } .cat-badge.cat-taronja { background: #4a2c10; color: #f6b985; }
   .cat-badge.cat-rosa { background: #4a1f36; color: #f5a3c9; } .cat-badge.cat-gris { background: #2b3732; color: #b4c3bc; }
 }
+
+/* Diàlegs propis (confirma / demana) */
+dialog.dialeg { border: 1px solid var(--line, #ccc); border-radius: 12px; padding: 20px; max-width: min(440px, 92vw); background: var(--card, #fff); color: inherit; }
+dialog.dialeg::backdrop { background: rgba(0, 0, 0, .45); }
+.dialeg-text { margin: 0 0 12px; font-weight: 600; }
+dialog.dialeg input { width: 100%; margin-bottom: 12px; }
+dialog.dialeg .actions { justify-content: flex-end; }

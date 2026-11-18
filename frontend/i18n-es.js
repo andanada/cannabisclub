@@ -707,6 +707,8 @@ Object.assign(I18N.es, {
  "Dades personals": "Datos personales",
  "Contacte": "Contacto",
  "Cognoms": "Apellidos",
+ "Cancel·lar": "Cancelar",
+ "Acceptar": "Aceptar",
  "Preu": "Precio",
  "Unitat": "Unidad",
  "Unitats": "Unidades",

@@ -157,3 +157,34 @@ function sections(viewId, items) {
 }
 
 const pageHead = (title, lead) => h('div', { class: 'page-head' }, h('h2', null, title), lead ? h('p', { class: 'lead' }, lead) : null);
+
+// Diàlegs propis (en lloc de confirm()/prompt() del navegador, que bloquegen i no es poden estilar ni traduir).
+// Tots dos retornen una promesa: confirma → true/false; demana → text (o null si es cancel·la). Esc o fora = cancel·lar.
+function dialegModal(titol, cos, primariText, perill) {
+  return new Promise((resolve) => {
+    const dlg = h('dialog', { class: 'dialeg', 'aria-label': titol });
+    const ok = h('button', { type: 'submit', class: perill ? 'danger' : 'primary' }, primariText);
+    const no = h('button', { type: 'button' }, 'Cancel·lar');
+    const form = h('form', { method: 'dialog' }, h('p', { class: 'dialeg-text' }, titol), ...cos, h('div', { class: 'actions' }, no, ok));
+    dlg.append(form);
+    let valor = false;
+    form.addEventListener('submit', (e) => { e.preventDefault(); valor = true; dlg.close(); });
+    no.addEventListener('click', () => dlg.close());
+    dlg.addEventListener('close', () => { dlg.remove(); resolve(valor); });
+    document.body.append(dlg);
+    dlg.showModal();
+    (cos[0] || no).focus();
+  });
+}
+
+async function confirma(text, { perill = false, boto = 'Continuar' } = {}) {
+  if (typeof document.createElement !== 'function' || !window.HTMLDialogElement) return window.confirm(text);
+  return dialegModal(text, [], boto, perill);
+}
+
+async function demana(text, { placeholder = '' } = {}) {
+  if (typeof document.createElement !== 'function' || !window.HTMLDialogElement) return window.prompt(text);
+  const camp = h('input', { type: 'text', 'aria-label': text, placeholder, autocomplete: 'off', maxlength: 200 });
+  const ok = await dialegModal(text, [camp], 'Acceptar', false);
+  return ok ? camp.value : null;
+}

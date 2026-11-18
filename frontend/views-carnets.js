@@ -89,7 +89,7 @@ function memberCardStep(m, cfg) {
   const area = h('div');
   const gen = h('button', { class: 'primary', type: 'button' }, m.te_carnet ? 'Generar un carnet nou (substitueix l\'actual)' : 'Generar carnet');
   gen.addEventListener('click', () => guard(gen, out, async () => {
-    if (m.te_carnet && !confirm('Aquest soci ja té un carnet. El nou el substituirà i l\'antic deixarà de servir. Continuar?')) return;
+    if (m.te_carnet && !await confirma('Aquest soci ja té un carnet. El nou el substituirà i l\'antic deixarà de servir. Continuar?')) return;
     const r = await api(`/socis/${m.id}/carnet/generar`, { method: 'POST', body: { prefix: (cfg && cfg.prefix_generat) || 'CLB' } });
     m.te_carnet = true;
     let photo = null;

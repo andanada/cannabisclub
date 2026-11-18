@@ -31,7 +31,7 @@ async function openInventory(sid) {
     const tanca = h('button', { class: 'primary', type: 'button' }, 'Tancar i ajustar estoc');
     tanca.addEventListener('click', () => guard(tanca, out, async () => {
       const faltenCount = d.total - d.comptats;
-      if (!window.confirm(`S'ajustarà l'estoc dels ${d.comptats} productes comptats.` + (faltenCount ? ` ${faltenCount} productes sense comptar no es toquen.` : ''))) return;
+      if (!await confirma(`S'ajustarà l'estoc dels ${d.comptats} productes comptats.` + (faltenCount ? ` ${faltenCount} productes sense comptar no es toquen.` : ''))) return;
       const r = await api(`/inventaris/${sid}/tancar`, { method: 'POST' });
       toast(`Inventari tancat: ${r.ajustos} ajustos`);
       const alertes = r.alertes_perdua || [];

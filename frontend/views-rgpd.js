@@ -63,7 +63,7 @@ function fitxaRgpd(soci) {
         if (prova.bloqueig === 'no_es_de_baixa') throw new Error('Només es poden suprimir les dades d\'un soci de baixa.');
         if (prova.bloqueig === 'retencio') throw new Error(`Bloquejat per la política de conservació (${prova.min_dies} dies des de la baixa).`);
         if (prova.bloqueig === 'ja_suprimit') throw new Error('Les dades d\'aquest soci ja estan suprimides.');
-        if (!confirm('Això esborra de manera irreversible el nom, el document, les dades de contacte, la foto i la signatura del soci. Continuar?')) return;
+        if (!await confirma('Això esborra de manera irreversible el nom, el document, les dades de contacte, la foto i la signatura del soci. Continuar?')) return;
         const r = await api(`/socis/${soci.id}/supressio`, { method: 'POST', body: { confirmar: true, motiu: 'sol·licitud del soci' } });
         out.replaceChildren(msg('ok', `Dades suprimides (${r.binaris_buidats} imatges buidades).`));
       }) }, 'Suprimir dades (seudonimitzar)')));
@@ -104,7 +104,7 @@ function secRetencio() {
     const r = await api(`/locals/${S.local}/retencio`);
     const aplica = h('button', { type: 'button', class: 'danger', disabled: !r.suprimibles && !r.fotos_velles && !r.intents_login && !r.sessions_caducades,
       onclick: () => guard(aplica, out, async () => {
-        if (!confirm(`S'aplicarà la purga: ${r.suprimibles} socis seudonimitzats, ${r.fotos_velles} fotos antigues, ${r.intents_login} intents de login. Continuar?`)) return;
+        if (!await confirma(`S'aplicarà la purga: ${r.suprimibles} socis seudonimitzats, ${r.fotos_velles} fotos antigues, ${r.intents_login} intents de login. Continuar?`)) return;
         const x = await api(`/locals/${S.local}/retencio/aplicar`, { method: 'POST', body: { confirmar: true } });
         out.replaceChildren(msg('ok', `Fet: ${x.suprimits.length} socis seudonimitzats.`));
         await veure();
