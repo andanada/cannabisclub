@@ -45,6 +45,9 @@ def get_db_factory():
     sense_index = schema.missing_indexes(engine)
     if sense_index:  # no impedeix arrencar, però les consultes anirien lentes
         logging.getLogger("club").warning("Falten índexs (%s). Executa: python -m app.cli actualitzar-bd", ", ".join(sense_index))
+    if os.environ.get("CLUB_TOTP", "1") == "0":
+        logging.getLogger("club").warning("CLUB_TOTP=0: el segon factor està DESACTIVAT. Només és acceptable en un servidor de proves; "
+                                          "en un club real ha d'estar activat.")
     factory = make_session_factory(engine)
     if canari.comprova(factory) == "creat":
         logging.getLogger("club").warning("Canari de claus creat: d'ara endavant el servei només arrencarà amb aquestes mateixes "

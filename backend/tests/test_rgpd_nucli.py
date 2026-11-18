@@ -2,6 +2,7 @@
 import base64
 import os
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -183,6 +184,7 @@ def test_purga_de_fotos_velles_deixa_la_darrera(ctx, monkeypatch):
     mid = _soci(client, enc)
     for _ in range(3):
         client.post(f"/socis/{mid}/foto", json={"image_base64": JPEG}, headers=enc)
+    time.sleep(0.05)  # el rellotge de Windows té ~15 ms de resolució: el tall (ara) ha de ser posterior a les fotos
     with factory() as s:
         assert retencio.run(s)["fotos_velles"] == 2
         retencio.run(s, None, aplicar=True)
