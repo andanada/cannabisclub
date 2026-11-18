@@ -384,9 +384,10 @@ VIEWS.dispensar = async () => {
       h('section', { class: 'card dis-pas2' }, h('h3', null, h('span', { class: 'pas-num' }, '3'), ' Quantitat'),
         h('div', { class: 'dis-qrow' }, menys, h('div', { class: 'dis-qbox' }, g, unitEtiqueta), mes), rapids),
       mesOpcions,
-      h('section', { class: 'card dis-cobra' }, h('h3', null, h('span', { class: 'pas-num' }, '4'), ' Cobrament'),
-        h('div', { class: 'dis-totalbox' }, h('span', { class: 'muted' }, 'Total'), totalEl, totalNota), avis,
-        h('div', { class: 'dis-pagaments' }, ...pagaments), out));
+      h('section', { class: 'card dis-cobra', 'aria-label': 'Cobrament' }, avis,
+        h('div', { class: 'dis-cobra-fila' },
+          h('div', { class: 'dis-totalbox' }, h('span', { class: 'pas-num' }, '4'), h('span', { class: 'muted' }, 'Total'), totalEl, totalNota),
+          h('div', { class: 'dis-pagaments' }, ...pagaments)), out));
   }
 
   // Pantalla de final: confirma què s'ha fet i deixa a un clic la dispensació següent.
