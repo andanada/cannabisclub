@@ -39,7 +39,7 @@ function altaWizard() {
       naix: h('input', { type: 'date', required: true, max: new Date().toLocaleDateString('sv-SE') }),
       tel: h('input', { inputmode: 'tel', placeholder: '+34 600 000 000' }), mail: h('input', { type: 'email', placeholder: 'nom@correu.cat' }),
       rgpd: h('input', { type: 'checkbox', required: true }),
-      foto: h('input', { type: 'checkbox' }), contacte: h('input', { type: 'checkbox' }),
+      consum: h('input', { type: 'checkbox' }), foto: h('input', { type: 'checkbox' }), contacte: h('input', { type: 'checkbox' }),
       docv: h('input', { type: 'checkbox', required: true }), aval: h('select', null, h('option', { value: '' }, '—')),
     };
     const lc = S.me.locals.find((l) => l.id === S.local) || {};
@@ -65,13 +65,14 @@ function altaWizard() {
         if (!naix.pinta().ok) throw new Error('Revisa la data de naixement');
         if (!tel.pinta().ok || !mail.pinta().ok) throw new Error('Revisa el telèfon i el correu');
         if (!f.rgpd.checked) throw new Error("Cal confirmar que el soci ha estat informat del tractament de dades");
+        if (lc.consum_exigit && !f.consum.checked) throw new Error("Aquest club exigeix el consentiment explícit del registre de consum per poder dispensar");
         if (lc.aval === 'obligatori' && !f.aval.value) throw new Error("Cal triar l'avalador");
         const text = await api('/textos/informatiu?idioma=' + LANG);
         const r = await api('/socis', { method: 'POST', body: { local_id: S.local, nom, document: f.doc.value.trim(), naixement: f.naix.value,
           telefon: f.tel.value.trim() || null, email: f.mail.value.trim() || null, ...perfil.valors() } });
         st.id = r.id;
         st.rgpd = { versio: text.versio, text_sha256: text.sha256, doc_verificat: f.docv.checked, avalador_id: f.aval.value ? Number(f.aval.value) : null,
-          finalitats: ['basic', ...(f.foto.checked ? ['foto'] : []), ...(f.contacte.checked ? ['contacte'] : [])] };
+          finalitats: ['basic', ...(f.consum.checked ? ['consum'] : []), ...(f.foto.checked ? ['foto'] : []), ...(f.contacte.checked ? ['contacte'] : [])] };
         st.fets.add(0);
         await refresca();
         nav(1);
@@ -85,6 +86,7 @@ function altaWizard() {
     h('h3', null, 'Protecció de dades'),
     h('label', { class: 'check' }, f.docv, " S'ha exhibit el document d'identitat original i coincideix amb les dades."), avalBox,
     h('label', { class: 'check' }, f.rgpd, ' El soci ha estat informat del tractament de les seves dades (tractament bàsic, necessari per ser soci) i ho accepta.'),
+    h('label', { class: 'check' }, f.consum, ' Consentiment explícit: registre del consum (producte, quantitat i data de cada dispensació). Es pot retirar en qualsevol moment.'),
     h('label', { class: 'check' }, f.foto, ' Consentiment opcional: fotografia per identificar el soci al taulell.'),
     h('label', { class: 'check' }, f.contacte, ' Consentiment opcional: contacte per telèfon o correu.'),
     h('div', null, veureText, textInfo),

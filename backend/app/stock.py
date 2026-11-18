@@ -258,7 +258,9 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     controls.check_dispense(db, member, p, now)  # espera, aval, pendent d'aprovació (vegeu controls.py)
     if member.estat != "actiu":
         raise ValueError("El soci no està actiu")
-    from . import ajustos, quotes  # import local: quotes depèn d'aquest mòdul
+    from . import ajustos, consentiments, quotes
+    if ajustos.get(db, p.local_id)["consum_exigit"] and not consentiments.vigent(db, member_id, "consum"):
+        raise ValueError("El soci no ha donat (o ha retirat) el consentiment explícit per al registre de consum")  # import local: quotes depèn d'aquest mòdul
     if ajustos.get(db, p.local_id)["quota_obligatoria"] and not quotes.status(db, member_id, now.astimezone(TZ).date())["al_dia"]:
         raise ValueError("La quota del soci no està al dia: cal cobrar-la abans de dispensar")
     decimals = 0 if (p.unitat == "u" or not p.granel) else ajustos.get(db, p.local_id)["decimals_dispensacio"]

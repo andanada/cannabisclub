@@ -16,7 +16,7 @@ def grant(db: Session, actor: User, member: Member, finalitats: list[str], versi
     if canal not in CANALS:
         raise ValueError("Canal no vàlid")
     if not finalitats or not set(finalitats) <= set(textos.FINALITATS):
-        raise ValueError("Finalitat no vàlida (basic, foto, contacte)")
+        raise ValueError("Finalitat no vàlida (basic, consum, foto, contacte)")
     if versio not in textos.versions() or textos.idioma_del_hash(versio, text_sha256) is None:
         raise ValueError("El text informatiu acceptat no coincideix amb cap versió publicada")
     out = []

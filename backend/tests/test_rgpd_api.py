@@ -22,7 +22,7 @@ def test_text_informatiu_en_tres_idiomes(ctx):
     hs = set()
     for idioma in ("ca", "es", "en"):
         r = client.get("/textos/informatiu", params={"idioma": idioma}, headers=enc).json()
-        assert r["versio"] == "v1" and r["sha256"] == textos.sha256("v1", idioma) and len(r["text"]) > 200
+        assert r["versio"] == textos.VERSIO_ACTUAL and r["sha256"] == textos.sha256(textos.VERSIO_ACTUAL, idioma) and len(r["text"]) > 200
         hs.add(r["sha256"])
     assert len(hs) == 3
     assert client.get("/textos/informatiu", params={"idioma": "fr"}, headers=enc).status_code == 404
@@ -33,7 +33,7 @@ def test_alta_desa_consentiments_signatura_amb_hash_i_document(ctx):
     client, factory, sec = ctx
     enc = token(client, sec, "enc")
     mid, r = alta(client, enc)
-    assert r.status_code == 201 and r.json()["consentiments"] == {"basic": True, "foto": True, "contacte": False}
+    assert r.status_code == 201 and r.json()["consentiments"] == {"basic": True, "foto": True, "contacte": False, "consum": False}
     c = client.get(f"/socis/{mid}/consentiments", headers=enc).json()
     assert [(x["finalitat"], x["versio"], x["text_sha256"]) for x in c["historial"]] == [("basic", "v1", H), ("foto", "v1", H)]
     assert all(x["signature_id"] == r.json()["signatura"] for x in c["historial"])

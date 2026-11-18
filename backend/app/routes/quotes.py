@@ -58,6 +58,7 @@ def register(app, db, current_user, need_admin, run, member_or_404):
         decimals_dispensacio: int | None = Field(default=None, ge=0, le=3)
         perdua_maxima_mg: int | None = Field(default=None, ge=0, le=10_000_000)
         moneder_actiu: bool | None = None
+        consum_exigit: bool | None = None
         moneder_limit_cent: int | None = Field(default=None, ge=0, le=1_000_000)
         quota_obligatoria: bool | None = None
         quota_cent: int | None = Field(default=None, ge=0, le=quotes.MAX_IMPORT_CENT)

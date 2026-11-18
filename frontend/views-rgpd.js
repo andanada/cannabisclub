@@ -1,7 +1,7 @@
 'use strict';
 // Privacitat (RGPD): consentiments, accés i portabilitat, supressió, registre d'accessos i retenció de dades.
 
-const FINALITATS = { basic: 'Tractament bàsic', foto: 'Fotografia', contacte: 'Contacte' };
+const FINALITATS = { basic: 'Tractament bàsic', consum: 'Registre de consum', foto: 'Fotografia', contacte: 'Contacte' };
 const dataHora = (iso) => new Date(iso).toLocaleString(loc(), { dateStyle: 'short', timeStyle: 'short' });
 const isAdmin = () => S.me.role === 'admin';
 

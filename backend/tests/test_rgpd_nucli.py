@@ -59,7 +59,7 @@ def test_consentiment_append_only_i_retirada_com_a_registre_nou(ctx):
         with pytest.raises(ValueError):
             consentiments.grant(s, u, m, ["altres"], "v1", h)
         consentiments.grant(s, u, m, ["basic", "foto"], "v1", h)
-        assert consentiments.status(s, mid) == {"basic": True, "foto": True, "contacte": False}
+        assert consentiments.status(s, mid) == {"basic": True, "foto": True, "contacte": False, "consum": False}
         consentiments.withdraw(s, u, m, "foto")
         assert consentiments.status(s, mid)["foto"] is False
         assert [(c["finalitat"], c["accio"]) for c in consentiments.history(s, mid)] == [("basic", "atorgat"), ("foto", "atorgat"), ("foto", "retirat")]

@@ -55,6 +55,16 @@ Para la v2 hay que **crear una versión nueva** (`textos/v2/`), nunca editar la 
 - **Copias**: política de rotación coherente con el derecho de supresión (las copias anteriores a una supresión conservan los datos).
 - **Acceso**: ya restringido por rol (el censo nominal solo para responsables) y auditado.
 
+## 4 bis. Ya implementado (18/11/2026)
+
+- **Texto v2** (`textos/v2/{ca,es,en}.txt`, versión vigente): estructura del art. 13 completa, finalidad propia «registro de consumo» con consentimiento
+  explícito (art. 9.2.a), plazos, encargados, transferencias y derechos. **Lleva marcas `[COMPLETAR…]`** (responsable, norma, años de conservación,
+  proveedor): el abogado debe fijarlas y, al hacerlo, se publica como v3 (la v2 no se edita una vez firmada por socios).
+- **Finalidad `consum`** y ajuste del club «Exigir el consentimiento explícito del registro de consumo para dispensar» (Configuración → Normas del club,
+  desactivado por defecto): si está activo, no se dispensa a quien no lo haya dado o lo haya retirado. El alta incluye la casilla.
+- Sin implementar: minimizar el historial de consumo (las tablas de solo añadir lo impiden sin rediseño; hay que decidirlo con el abogado) y la política
+  de rotación de copias frente al derecho de supresión.
+
 ## 5. Lo que el programa ya cubre (técnico)
 
 Cifrado de campos y copias, auditoría encadenada con HMAC, mínimo privilegio en BD, consentimientos versionados con hash, exportación/portabilidad,

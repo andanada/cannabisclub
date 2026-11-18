@@ -1,0 +1,13 @@
+INFORMATION ON THE PROCESSING OF PERSONAL DATA (version v2)
+
+Controller: [COMPLETE: name of the association, tax ID, address and contact e-mail]. Data protection officer, if any: [COMPLETE or "not appointed"].
+
+1. Basic processing (required to be a member). Purpose: managing your registration, verifying that you are of legal age, access control and accounting and membership obligations. Legal basis: performance of the membership relationship and, only where a specific rule requires it, compliance with legal obligations [COMPLETE: rule]. Data: name, identity document, date of birth, fees and entries. If you do not provide them, your registration cannot be completed.
+2. Consumption record (explicit consent). Purpose: applying per-member dispensing limits and keeping a record of what is dispensed to you. This data may reveal information about health, so it is processed only with your explicit consent (Art. 9(2)(a) GDPR). Data: product, quantity and date of each dispensing. You may withdraw your consent at any time; without it, no dispensing can be carried out.
+3. Photograph (optional). Purpose: identifying the member at the counter. Legal basis: consent, which you may withdraw at any time without affecting the basic processing.
+4. Contact (optional). Purpose: sending you notices from the association by phone or e-mail. Legal basis: consent, which you may withdraw at any time.
+
+Retention: basic-processing data for as long as you are a member and for [COMPLETE: years, according to tax and accounting obligations]; after that it is pseudonymised. Old photographs are deleted after [COMPLETE] days. Backups are rotated periodically.
+Recipients: only authorised club staff and processors (hosting and backups: [COMPLETE: provider and location]). Data is not disclosed to third parties unless required by law or a competent authority. No transfers outside the European Economic Area take place [COMPLETE if untrue]. No automated decisions are made.
+Rights: access, rectification, erasure, restriction, objection and portability, by contacting the controller; reply within one month. You may withdraw any consent without retroactive effect and lodge a complaint with the Spanish Data Protection Agency (www.aepd.es).
+Your data is stored encrypted and every access is logged.

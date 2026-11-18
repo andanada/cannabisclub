@@ -83,13 +83,14 @@ function quotesSection() {
   const mesos = h('input', { type: 'number', min: 1, max: 24, value: loc.quota_mesos || 1 });
   const obl = h('input', { type: 'checkbox', checked: !!loc.quota_obligatoria });
   const mon = h('input', { type: 'checkbox', checked: !!loc.moneder_actiu });
+  const cons = h('input', { type: 'checkbox', checked: !!loc.consum_exigit });
   const monLim = h('input', { inputmode: 'decimal', value: preuText(loc.moneder_limit_cent || 0), placeholder: '0,00' });
   const out = h('div');
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Desar');
   return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(btn, out, async () => {
-      await api(`/locals/${S.local}/config`, { method: 'PUT', body: { quota_cent: imp.value.trim() ? parseEur(imp.value) : 0, quota_mesos: Number(mesos.value), quota_obligatoria: obl.checked, moneder_actiu: mon.checked, moneder_limit_cent: monLim.value.trim() ? parseEur(monLim.value) : 0 } });
+      await api(`/locals/${S.local}/config`, { method: 'PUT', body: { quota_cent: imp.value.trim() ? parseEur(imp.value) : 0, quota_mesos: Number(mesos.value), quota_obligatoria: obl.checked, moneder_actiu: mon.checked, consum_exigit: cons.checked, moneder_limit_cent: monLim.value.trim() ? parseEur(monLim.value) : 0 } });
       S.me = await api('/me');
       out.replaceChildren(msg('ok', 'Quotes desades'));
     });
@@ -99,7 +100,7 @@ function quotesSection() {
   h('label', null, obl, ' Exigir la quota al dia per poder dispensar'),
   h('h3', null, 'Monedero'),
   h('p', { class: 'muted' }, 'Saldo prepagat dels socis: es recarrega a la caixa i es gasta en dispensacions. Les recàrregues compten com a ingrés; gastar-ne no.'),
-  h('label', null, mon, ' Activar el monedero'), h('div', { class: 'row' }, field('Saldo negatiu permès (€)', monLim)),
+  h('label', null, cons, ' Exigir el consentiment explícit del registre de consum per dispensar'), h('label', null, mon, ' Activar el monedero'), h('div', { class: 'row' }, field('Saldo negatiu permès (€)', monLim)),
   h('div', { class: 'actions' }, btn), out);
 }
 

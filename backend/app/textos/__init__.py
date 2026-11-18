@@ -4,9 +4,9 @@ import hashlib
 from functools import lru_cache
 from pathlib import Path
 
-VERSIO_ACTUAL = "v1"
+VERSIO_ACTUAL = "v2"
 IDIOMES = ("ca", "es", "en")
-FINALITATS = ("basic", "foto", "contacte")
+FINALITATS = ("basic", "foto", "contacte", "consum")
 _ARREL = Path(__file__).resolve().parent
 
 

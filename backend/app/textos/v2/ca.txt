@@ -1,0 +1,13 @@
+INFORMACIÓ SOBRE EL TRACTAMENT DE DADES PERSONALS (versió v2)
+
+Responsable: [COMPLETAR: denominació de l'associació, NIF, domicili i correu de contacte]. Delegat de protecció de dades, si n'hi ha: [COMPLETAR o «no designat»].
+
+1. Tractament bàsic (necessari per ser soci). Finalitat: gestionar l'alta, la verificació de la majoria d'edat, el control d'accés i les obligacions comptables i associatives. Base jurídica: l'execució de la relació associativa i, només on una norma concreta ho exigeixi, el compliment d'obligacions legals [COMPLETAR: norma]. Dades: nom, document d'identitat, data de naixement, quotes i accessos. Si no les faciliteu no es pot formalitzar l'alta.
+2. Registre de consum (consentiment explícit). Finalitat: aplicar els límits de dispensació per soci i mantenir el registre del que se us dispensa. Aquestes dades poden revelar informació relativa a la salut, per això només es tracten amb el vostre consentiment explícit (art. 9.2.a RGPD). Dades: producte, quantitat i data de cada dispensació. Podeu retirar el consentiment en qualsevol moment; sense aquest consentiment no es poden fer dispensacions.
+3. Fotografia (opcional). Finalitat: identificar el soci al taulell. Base jurídica: consentiment, que podeu retirar en qualsevol moment sense afectar el tractament bàsic.
+4. Contacte (opcional). Finalitat: comunicar-vos avisos de l'associació per telèfon o correu. Base jurídica: consentiment, que podeu retirar en qualsevol moment.
+
+Terminis de conservació: les dades del tractament bàsic, mentre sigueu soci i durant [COMPLETAR: anys, segons les obligacions fiscals i comptables]; després se seudonimitzen. Les fotografies antigues se suprimeixen als [COMPLETAR] dies. Les còpies de seguretat es renoven periòdicament.
+Destinataris: només el personal autoritzat del club i els encarregats del tractament (allotjament i còpies de seguretat: [COMPLETAR: proveïdor i ubicació]). No se cedeixen dades a tercers, tret que una norma o una autoritat competent ho exigeixi. No es fan transferències fora de l'Espai Econòmic Europeu [COMPLETAR si no és cert]. No es prenen decisions automatitzades.
+Drets: accés, rectificació, supressió, limitació, oposició i portabilitat, adreçant-vos al responsable; resposta en un mes. Podeu retirar qualsevol consentiment sense efecte retroactiu i reclamar davant l'Agència Espanyola de Protecció de Dades (www.aepd.es).
+Les vostres dades es guarden xifrades i cada consulta queda registrada.

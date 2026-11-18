@@ -1,0 +1,13 @@
+INFORMACIÓN SOBRE EL TRATAMIENTO DE DATOS PERSONALES (versión v2)
+
+Responsable: [COMPLETAR: denominación de la asociación, NIF, domicilio y correo de contacto]. Delegado de protección de datos, si lo hay: [COMPLETAR o «no designado»].
+
+1. Tratamiento básico (necesario para ser socio). Finalidad: gestionar el alta, la verificación de la mayoría de edad, el control de acceso y las obligaciones contables y asociativas. Base jurídica: la ejecución de la relación asociativa y, solo cuando una norma concreta lo exija, el cumplimiento de obligaciones legales [COMPLETAR: norma]. Datos: nombre, documento de identidad, fecha de nacimiento, cuotas y accesos. Si no los facilita no se puede formalizar el alta.
+2. Registro de consumo (consentimiento explícito). Finalidad: aplicar los límites de dispensación por socio y mantener el registro de lo que se le dispensa. Estos datos pueden revelar información relativa a la salud, por lo que solo se tratan con su consentimiento explícito (art. 9.2.a RGPD). Datos: producto, cantidad y fecha de cada dispensación. Puede retirar el consentimiento en cualquier momento; sin este consentimiento no se pueden realizar dispensaciones.
+3. Fotografía (opcional). Finalidad: identificar al socio en el mostrador. Base jurídica: consentimiento, que puede retirar en cualquier momento sin afectar al tratamiento básico.
+4. Contacto (opcional). Finalidad: comunicarle avisos de la asociación por teléfono o correo. Base jurídica: consentimiento, que puede retirar en cualquier momento.
+
+Plazos de conservación: los datos del tratamiento básico, mientras sea socio y durante [COMPLETAR: años, según las obligaciones fiscales y contables]; después se seudonimizan. Las fotografías antiguas se suprimen a los [COMPLETAR] días. Las copias de seguridad se renuevan periódicamente.
+Destinatarios: solo el personal autorizado del club y los encargados del tratamiento (alojamiento y copias de seguridad: [COMPLETAR: proveedor y ubicación]). No se ceden datos a terceros, salvo que lo exija una norma o una autoridad competente. No se realizan transferencias fuera del Espacio Económico Europeo [COMPLETAR si no es cierto]. No se toman decisiones automatizadas.
+Derechos: acceso, rectificación, supresión, limitación, oposición y portabilidad, dirigiéndose al responsable; respuesta en un mes. Puede retirar cualquier consentimiento sin efecto retroactivo y reclamar ante la Agencia Española de Protección de Datos (www.aepd.es).
+Sus datos se guardan cifrados y cada consulta queda registrada.

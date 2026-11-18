@@ -8,12 +8,12 @@ from .models import LocalSetting, User
 
 DEFECTES = {"quota_obligatoria": False, "quota_cent": None, "quota_mesos": 1,
             "espera_dies": 0, "aval": "no", "alta_pendent": False,
-            "moneder_actiu": False, "moneder_limit_cent": 0,
+            "moneder_actiu": False, "moneder_limit_cent": 0, "consum_exigit": False,
             "edat_minima": 18, "inactivitat_dies": 30, "decimals_dispensacio": 3, "perdua_maxima_mg": 0}
 # edat_minima: edat per ser soci (mai per sota de 18); inactivitat_dies: dies sense visites per considerar inactiu un soci;
 # decimals_dispensacio: decimals admesos en els grams d'una dispensació (0-3); perdua_maxima_mg: falta màxima tolerada en tancar
 # un inventari abans d'avisar (0 = no s'avisa)  # monedero: activat i límit de saldo negatiu (cèntims)  # els tres últims: controls de club (controls.py)
-BOOLEANS = {"quota_obligatoria", "alta_pendent", "moneder_actiu"}
+BOOLEANS = {"quota_obligatoria", "alta_pendent", "moneder_actiu", "consum_exigit"}  # consum_exigit: cal consentiment explícit de consum per dispensar
 AVALS = {"no", "opcional", "obligatori"}
 MAX_QUOTA_CENT = 1_000_000
 
