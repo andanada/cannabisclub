@@ -394,10 +394,10 @@ VIEWS.dispensar = async () => {
   function resultatDispensacio(m, p, quantitat, r, metode) {
     const nova = h('button', { class: 'primary gran', type: 'button' }, 'Nova dispensació');
     nova.addEventListener('click', () => show('dispensar'));
-    const etiqueta = { efectiu: 'efectiu', targeta: 'targeta', bizum: 'Bizum', monedero: 'monedero', regal: 'regal' }[metode] || metode;
+    const etiqueta = { efectiu: 'Efectiu', targeta: 'Targeta', bizum: 'Bizum', monedero: 'Monedero', regal: 'Regal' }[metode] || metode;
     return h('div', { class: 'card dis-fet', role: 'status' }, h('div', { class: 'dis-check', 'aria-hidden': 'true' }, '✓'),
       h('h2', null, r ? `Cobrat ${eur(r.import_cent)}` : 'Regal dispensat'),
-      h('p', null, `${fmtQ(quantitat)} ${unitTxt(p)} de ${p.nom} a ${m.nom} · ${etiqueta}`),
+      h('p', null, `${fmtQ(quantitat)} ${unitTxt(p)} de ${p.nom} a ${m.nom} · `, h('strong', null, etiqueta)),
       r && r.descompte_cent > 0 ? h('p', { class: 'muted' }, 'Descompte aplicat: -' + eur(r.descompte_cent)) : null,
       h('div', { class: 'actions' }, nova));
   }
