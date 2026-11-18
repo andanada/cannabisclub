@@ -1,6 +1,10 @@
 'use strict';
 // Pantalles: Dispensar (flux complet) i Socis (cerca, alta, estat).
 
+// Quantitat com a nombre (admet coma decimal) i com a text per a la pantalla.
+const numG = (txt) => { const v = Number(String(txt).trim().replace(',', '.')); return String(txt).trim() === '' ? NaN : v; };
+const fmtQ = (v) => String(Math.round(v * 1000) / 1000).replace('.', ',');
+
 const dataCa = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString(loc());
 
 function quotaPill(q) {
@@ -99,7 +103,7 @@ function memberCard(m, out, onChange) {
 function searchBox(onFound) {
   const out = h('div');
   const doc = h('input', { placeholder: 'DNI / NIE / passaport', autocapitalize: 'characters', autocomplete: 'off' });
-  const carnet = h('input', { placeholder: 'Passa el carnet pel lector', autocapitalize: 'characters', autocomplete: 'off' });
+  const carnet = h('input', { placeholder: 'Carnet', 'aria-label': 'Carnet', autocapitalize: 'characters', autocomplete: 'off' });
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Cercar');
   let torn = 0;   // número de la cerca en curs: una resposta d'una cerca anterior es descarta
   const form = h('form', { class: 'card', onsubmit: (e) => {
@@ -122,7 +126,8 @@ function searchBox(onFound) {
         if (meva === torn) { carnet.value = ''; carnet.focus(); }
       }
     });
-  } }, h('div', { class: 'row' }, field('Document del soci', doc), field('o carnet', carnet)), h('div', { class: 'actions' }, btn), out);
+  } }, h('h3', null, h('span', { class: 'num' }, '1'), ' Soci'), h('div', { class: 'row' }, field('Passa el carnet pel lector', carnet), field('o escriu el document', doc)), h('div', { class: 'actions' }, btn), out);
+  if (window.matchMedia && window.matchMedia('(pointer: fine)').matches) setTimeout(() => { if (document.body.contains(carnet)) carnet.focus(); }, 0);
   return form;
 }
 
@@ -186,7 +191,11 @@ VIEWS.dispensar = async () => {
     await carregaMetaCat();
     if (meu !== tornSoci) return;   // mentre es carregaven els preus s'ha obert un altre soci
     const bloquejat = loc.quota_obligatoria && !(m.quota && m.quota.al_dia);
+    search.hidden = true;   // trobat: la cerca es torna a mostrar amb «Canviar de soci»
+    const canvia = h('button', { type: 'button', class: 'small' }, 'Canviar de soci');
+    canvia.addEventListener('click', () => show('dispensar'));
     step.replaceChildren(...[
+      h('div', { class: 'actions dis-canvia' }, canvia),
       alertesSoci(m.alertes),
       memberCard(m, out, (mm) => showMember(mm, out)),
       m.estat !== 'baixa' ? walletPanel(m) : null,
@@ -199,54 +208,149 @@ VIEWS.dispensar = async () => {
   };
   const search = searchBox(showMember);
 
+  // Producte → quantitat → cobrament, tot visible a la mateixa pantalla: botons grans, quantitats ràpides, total en directe i els
+  // mètodes de cobrament sempre a la vista (s'activen quan hi ha producte i una quantitat vàlida).
   function productStep(m, productes) {
     let chosen = null;
     const out = h('div');
     const ref = novaRef();   // una dispensació = una referència: repetir l'enviament no dispensa dues vegades
+    const decimals = loc.decimals_dispensacio ?? 3;
     const sense = () => h('option', { value: '' }, 'Sense descompte');
-    const descSel = h('select', null, sense());
+    const descSel = h('select', { 'aria-label': 'Descompte' }, sense());
+    const descField = field('Descompte', descSel);
+    descField.hidden = true;   // només surt si el producte triat té algun descompte vigent
+    const totalEl = h('div', { class: 'dis-total' }, eur(0));
+    const totalNota = h('div', { class: 'muted' });
+    const avis = h('div', { role: 'status' });
+    const unitat = () => (chosen ? unitTxt(chosen) : 'g');
+    const estoc = () => (chosen ? numG(chosen.estoc_g) : 0);
+
+    const g = h('input', { class: 'dis-q', inputmode: 'decimal', placeholder: '0', 'aria-label': 'Quantitat', autocomplete: 'off' });
+    const pes = h('input', { inputmode: 'decimal', placeholder: 'Pes de la bàscula (opcional)', 'aria-label': 'Pes de la bàscula' });
+    const qty = () => numG(g.value);
+
     // Descomptes vigents que es poden aplicar al producte triat (cada un amb el seu import o percentatge).
     const carregaDescomptes = async (p) => {
       const l = await api(`/locals/${S.local}/descomptes?producte=${p.id}`);
       if (chosen !== p) return;   // resposta d'un producte que ja no és el triat
       descSel.replaceChildren(sense(), ...l.map((d) => h('option', { value: d.id }, `${d.nom} (${d.tipus === 'percent' ? d.valor + ' %' : eur(d.valor) + '/g'})`)));
+      descField.hidden = !l.length;
+      refresca();
     };
     // Lots amb existències del producte triat. Sense lots, el camp s'amaga i la dispensació surt pel FIFO com sempre.
     const lotSel = h('select', { 'aria-label': 'Lot' });
     const lotField = field('Lot', lotSel);
-    lotField.style.display = 'none';
+    lotField.hidden = true;
     const carregaLots = async (p) => {
       lotSel.replaceChildren();
-      lotField.style.display = 'none';
+      lotField.hidden = true;
       const l = await api(`/productes/${p.id}/lots-dispensables`);
       if (chosen !== p || !l.length) return;
       lotSel.replaceChildren(h('option', { value: '' }, 'Automàtic (lot més antic)'),
         ...l.map((b) => h('option', { value: b.id }, `${b.codi} · ${mgToG(b.existencies_mg)} g`)));
-      lotField.style.display = '';
+      lotField.hidden = false;
     };
-    const list = h('div', { class: 'products' }, productes.map((p) => {
-      const b = h('button', { 'aria-pressed': 'false', onclick: () => {
-        chosen = p; btnRegal.hidden = !p.regalable; qLabel.textContent = p.unitat === 'u' ? 'Quantitat (unitats)' : 'Quantitat (g)'; list.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-        descSel.replaceChildren(sense());   // el descompte del producte anterior no val per a aquest
-        carregaDescomptes(p).catch(() => { if (chosen === p) descSel.replaceChildren(sense()); });
-        carregaLots(p).catch(() => { lotSel.replaceChildren(); lotField.style.display = 'none'; });
-      } }, productThumb(p, 44), h('strong', null, catBadge(p.categoria), ' ', p.nom), h('span', { class: 'muted' }, p.estoc_g + ' ' + unitTxt(p) + ' · ' + eur(p.preu_cent_per_g) + '/' + unitTxt(p)));
-      return b;
-    }));
-    const g = h('input', { inputmode: 'decimal', placeholder: '0,000' });
-    const pes = h('input', { inputmode: 'decimal', placeholder: 'Pes de la bàscula (opcional)' });
-    const btnEfectiu = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar en efectiu');
-    const btnTargeta = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar amb targeta');
-    const btnBizum = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar amb Bizum');
-    const btnMoneder = h('button', { class: 'primary', type: 'button' }, 'Dispensar i cobrar amb el monedero');
+
+    // ---- Botons de cobrament (sempre visibles) ----
+    const btnEfectiu = h('button', { class: 'pagar efectiu', type: 'button' }, 'Efectiu');
+    const btnTargeta = h('button', { class: 'pagar targeta', type: 'button' }, 'Targeta');
+    const btnBizum = h('button', { class: 'pagar bizum', type: 'button' }, 'Bizum');
+    const btnMoneder = h('button', { class: 'pagar moneder', type: 'button' }, 'Monedero');
     btnMoneder.hidden = !loc.moneder_actiu;
     const btnRegal = h('button', { type: 'button' }, 'Dispensar com a regal');
     const btnApart = h('button', { type: 'submit' }, 'Dispensar i cobrar després');
+    btnRegal.hidden = true;   // només per als productes marcats com a regalables
+    const pagaments = [btnEfectiu, btnTargeta, btnBizum, btnMoneder];
+
+    // Estat dels botons i total en directe.
+    const refresca = () => {
+      const q = qty();
+      const valida = !!chosen && Number.isFinite(q) && q > 0 && q <= estoc() + 1e-9;
+      const total = chosen && Number.isFinite(q) && q > 0 ? Math.round(q * chosen.preu_cent_per_g) : 0;
+      totalEl.textContent = eur(total);
+      totalNota.textContent = chosen && total > 0 && (descSel.value || m.descompte_pct > 0) ? 'Els descomptes s\'apliquen en cobrar.' : '';
+      avis.replaceChildren(...[
+        !chosen ? msg('info', 'Tria un producte per començar.') : null,
+        chosen && Number.isFinite(q) && q > estoc() + 1e-9 ? msg('err', `No hi ha prou estoc: en queden ${chosen.estoc_g} ${unitat()}.`) : null,
+        chosen && Number.isFinite(q) && q > 0 && decimals < 3 && unitat() === 'g' && chosen.granel !== false && Math.abs(q * 10 ** decimals - Math.round(q * 10 ** decimals)) > 1e-9
+          ? msg('err', `Aquest club només admet ${decimals} decimal${decimals === 1 ? '' : 's'} en els grams.`) : null,
+      ].filter(Boolean));
+      [...pagaments, btnRegal, btnApart].forEach((b) => { b.disabled = !valida; });
+      if (m.saldo_cent != null && loc.moneder_actiu) btnMoneder.textContent = 'Monedero · ' + eur(m.saldo_cent);
+    };
+
+    // ---- Quantitat: botons ràpids i ajust fi ----
+    const rapids = h('div', { class: 'dis-rapids', role: 'group', 'aria-label': 'Quantitats ràpides' });
+    const pintaRapids = () => {
+      const valors = (chosen && chosen.unitat === 'u' ? [1, 2, 3, 5] : [0.5, 1, 2, 3.5, 5, 10]).filter((v) => decimals >= 1 || Number.isInteger(v) || (chosen && chosen.unitat === 'u'));
+      rapids.replaceChildren(...valors.map((v) => {
+        const b = h('button', { type: 'button', class: 'rapid' }, fmtQ(v) + ' ' + unitat());
+        b.addEventListener('click', () => { g.value = fmtQ(v); refresca(); });
+        return b;
+      }));
+    };
+    const pas = () => (chosen && chosen.unitat === 'u') || decimals === 0 ? 1 : 0.5;
+    const ajusta = (signe) => {
+      const base = Number.isFinite(qty()) ? qty() : 0;
+      g.value = fmtQ(Math.max(0, Math.round((base + signe * pas()) * 1000) / 1000));
+      refresca();
+    };
+    const menys = h('button', { type: 'button', class: 'dis-pas', 'aria-label': 'Menys' }, '−');
+    const mes = h('button', { type: 'button', class: 'dis-pas', 'aria-label': 'Més' }, '+');
+    menys.addEventListener('click', () => ajusta(-1));
+    mes.addEventListener('click', () => ajusta(1));
+    g.addEventListener('input', refresca);
+    const unitEtiqueta = h('span', { class: 'dis-unit' }, 'g');
+
+    // ---- Llista de productes (taules grans, amb filtre quan n'hi ha molts) ----
+    let filtreText = '', filtreCat = '';
+    const list = h('div', { class: 'products' });
+    const triar = (p) => {
+      chosen = p;
+      btnRegal.hidden = !p.regalable;
+      unitEtiqueta.textContent = unitTxt(p);
+      g.value = '';
+      descSel.replaceChildren(sense());   // el descompte del producte anterior no val per a aquest
+      descField.hidden = true;
+      carregaDescomptes(p).catch(() => { if (chosen === p) descSel.replaceChildren(sense()); });
+      carregaLots(p).catch(() => { lotSel.replaceChildren(); lotField.hidden = true; });
+      pintaRapids();
+      pintaLlista();
+      refresca();
+      g.focus();
+    };
+    const pintaLlista = () => {
+      const t = filtreText.trim().toLowerCase();
+      const visibles = productes.filter((p) => (!t || p.nom.toLowerCase().includes(t)) && (!filtreCat || p.categoria === filtreCat));
+      list.replaceChildren(...(visibles.length ? visibles.map((p) => {
+        const sensEstoc = !(numG(p.estoc_g) > 0);
+        const b = h('button', { type: 'button', class: 'prod' + (sensEstoc ? ' sense-estoc' : ''), 'aria-pressed': String(chosen === p), disabled: sensEstoc },
+          productThumb(p, 44), h('strong', null, catBadge(p.categoria), ' ', p.nom),
+          h('span', { class: 'prod-preu' }, eur(p.preu_cent_per_g) + '/' + unitTxt(p)),
+          h('span', { class: 'muted' }, sensEstoc ? 'Sense estoc' : p.estoc_g + ' ' + unitTxt(p) + ' en estoc'));
+        b.addEventListener('click', () => triar(p));
+        return b;
+      }) : [h('p', { class: 'muted' }, 'Cap producte amb aquest filtre.')]));
+    };
+    const categories = [...new Set(productes.map((p) => p.categoria).filter(Boolean))];
+    const filtre = productes.length > 6 ? h('div', { class: 'dis-filtre' },
+      (() => { const i = h('input', { type: 'search', placeholder: 'Cercar producte…', 'aria-label': 'Cercar producte', autocomplete: 'off' }); i.addEventListener('input', () => { filtreText = i.value; pintaLlista(); }); return i; })(),
+      categories.length > 1 ? h('div', { class: 'dis-cats' }, ['', ...categories].map((c) => {
+        const b = h('button', { type: 'button', class: 'small', 'aria-pressed': String(c === '') }, c || 'Tots');
+        b.addEventListener('click', () => { filtreCat = c; [...b.parentNode.children].forEach((x) => x.setAttribute('aria-pressed', String(x === b))); pintaLlista(); });
+        return b;
+      })) : null) : null;
+    pintaLlista();
+
     const scale = scalePanel(g, pes);
-    const qField = field('Quantitat (g)', g);
-    const qLabel = qField.querySelector('label');
+    // La bàscula, el descompte, el lot i les accions poc habituals queden plegats: el camí normal és triar, quantitat i cobrar.
+    const mesOpcions = h('details', { class: 'dis-mes' }, h('summary', null, 'Més opcions (bàscula, descompte, lot, regal)'),
+      scale, h('div', { class: 'row' }, field('Pes de la bàscula (g)', pes), descField, lotField),
+      h('div', { class: 'actions' }, btnRegal, btnApart));
+    if (Bascula.supported() && BASCULA && BASCULA.connected) mesOpcions.open = true;
+
     // Amb mètode, la dispensació i el cobrament es fan en una sola operació al servidor (o es fa tot o res).
-    // Els tres botons fan la mateixa dispensació: es bloquegen junts (un Intro o un segon clic no la repeteix).
+    // Els botons fan la mateixa dispensació: es bloquegen junts (un Intro o un segon clic no la repeteix).
     const envia = (btn, metode) => guardTots([btnEfectiu, btnTargeta, btnBizum, btnMoneder, btnRegal, btnApart], out, async () => {
       if (!chosen) throw new Error('Tria un producte');
       const body = { client_ref: ref, member_id: m.id, product_id: chosen.id,
@@ -256,11 +360,9 @@ VIEWS.dispensar = async () => {
       if (metode === 'regal') { body.regal = true; body.discount_id = null; } else if (metode) body.metode = metode;
       const r = await api('/dispensacions', { method: 'POST', body });
       if (r.regal) {
-        step.replaceChildren(msg('ok', `Regal dispensat a ${m.nom}`),
-          h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => show('dispensar') }, 'Nova dispensació')));
+        step.replaceChildren(resultatDispensacio(m, chosen, parseGrams(g.value), null, 'regal'));
       } else if (r.cobrat) {
-        step.replaceChildren(msg('ok', `Cobrat ${eur(r.import_cent)} (${metode}) a ${m.nom}`),
-          h('div', { class: 'actions' }, h('button', { class: 'primary', onclick: () => show('dispensar') }, 'Nova dispensació')));
+        step.replaceChildren(resultatDispensacio(m, chosen, parseGrams(g.value), r, metode));
       } else {
         step.replaceChildren(chargeStep(m, r));
       }
@@ -270,11 +372,28 @@ VIEWS.dispensar = async () => {
     btnBizum.onclick = () => envia(btnBizum, 'bizum');
     btnMoneder.onclick = () => envia(btnMoneder, 'monedero');
     btnRegal.onclick = () => envia(btnRegal, 'regal');
-    btnRegal.hidden = true;   // només per als productes marcats com a regalables
-    return h('form', { class: 'card', onsubmit: (e) => { e.preventDefault(); envia(btnApart, null); } }, h('h3', null, 'Producte'), list,
-    scale,
-    h('div', { class: 'row' }, qField, field('Bàscula (g)', pes), field('Descompte', descSel), lotField),
-    h('div', { class: 'actions' }, btnEfectiu, btnTargeta, btnBizum, btnMoneder, btnRegal, btnApart), out);
+
+    refresca();
+    return h('form', { class: 'dispensa', onsubmit: (e) => { e.preventDefault(); if (!btnApart.disabled) envia(btnApart, null); } },
+      h('section', { class: 'card dis-pas1' }, h('h3', null, h('span', { class: 'num' }, '2'), ' Producte'), filtre, list),
+      h('section', { class: 'card dis-pas2' }, h('h3', null, h('span', { class: 'num' }, '3'), ' Quantitat'),
+        h('div', { class: 'dis-qrow' }, menys, h('div', { class: 'dis-qbox' }, g, unitEtiqueta), mes), rapids),
+      mesOpcions,
+      h('section', { class: 'card dis-cobra' }, h('h3', null, h('span', { class: 'num' }, '4'), ' Cobrament'),
+        h('div', { class: 'dis-totalbox' }, h('span', { class: 'muted' }, 'Total'), totalEl, totalNota), avis,
+        h('div', { class: 'dis-pagaments' }, ...pagaments), out));
+  }
+
+  // Pantalla de final: confirma què s'ha fet i deixa a un clic la dispensació següent.
+  function resultatDispensacio(m, p, quantitat, r, metode) {
+    const nova = h('button', { class: 'primary gran', type: 'button' }, 'Nova dispensació');
+    nova.addEventListener('click', () => show('dispensar'));
+    const etiqueta = { efectiu: 'efectiu', targeta: 'targeta', bizum: 'Bizum', monedero: 'monedero', regal: 'regal' }[metode] || metode;
+    return h('div', { class: 'card dis-fet', role: 'status' }, h('div', { class: 'dis-check', 'aria-hidden': 'true' }, '✓'),
+      h('h2', null, r ? `Cobrat ${eur(r.import_cent)}` : 'Regal dispensat'),
+      h('p', null, `${fmtQ(quantitat)} ${unitTxt(p)} de ${p.nom} a ${m.nom} · ${etiqueta}`),
+      r && r.descompte_cent > 0 ? h('p', { class: 'muted' }, 'Descompte aplicat: -' + eur(r.descompte_cent)) : null,
+      h('div', { class: 'actions' }, nova));
   }
 
   function chargeStep(m, r) {

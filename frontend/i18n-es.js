@@ -707,6 +707,23 @@ Object.assign(I18N.es, {
  "Dades personals": "Datos personales",
  "Contacte": "Contacto",
  "Cognoms": "Apellidos",
+ "Canviar de soci": "Cambiar de socio",
+ "Pes de la bàscula": "Peso de la báscula",
+ "Pes de la bàscula (g)": "Peso de la báscula (g)",
+ "Tria un producte per començar.": "Elige un producto para empezar.",
+ "Quantitats ràpides": "Cantidades rápidas",
+ "Sense estoc": "Sin stock",
+ "Cap producte amb aquest filtre.": "Ningún producto con este filtro.",
+ "Cercar producte…": "Buscar producto…",
+ "Cercar producte": "Buscar producto",
+ "Més opcions (bàscula, descompte, lot, regal)": "Más opciones (báscula, descuento, lote, regalo)",
+ "Regal dispensat": "Regalo dispensado",
+ "o escriu el document": "o escribe el documento",
+ "Quantitat": "Cantidad",
+ "Cobrament": "Cobro",
+ "Menys": "Menos",
+ "Més": "Más",
+ "Els descomptes s'apliquen en cobrar.": "Los descuentos se aplican al cobrar.",
  "Observació": "Observación",
  "Avís": "Aviso",
  "Mal comportament": "Mal comportamiento",
@@ -1372,3 +1389,8 @@ I18N.pat.es.push([new RegExp("^El\\ soci\\ ha\\ de\\ tenir\\ almenys\\ (.*)\\ an
 I18N.pat.es.push([new RegExp("^Generar\\ un\\ carnet\\ nou\\ per\\ a\\ (.*)\\?\\ L'actual\\ deixarà\\ de\\ servir\\.$"), "¿Generar un carnet nuevo para $1? El actual dejará de servir."]);
 I18N.pat.es.push([new RegExp("^S'ajustarà\\ l'estoc\\ dels\\ (.*)\\ productes\\ comptats\\.\\ (.*)\\ productes\\ sense\\ comptar\\ no\\ es\\ toquen\\.$"), "Se ajustará el stock de los $1 productos contados. Los $2 productos sin contar no se tocan."]);
 I18N.pat.es.push([new RegExp("^S'ajustarà\\ l'estoc\\ dels\\ (.*)\\ productes\\ comptats\\.$"), "Se ajustará el stock de los $1 productos contados."]);
+I18N.pat.es.push([new RegExp("^Cobrat\\ (.*)$"), "Cobrado $1"]);
+I18N.pat.es.push([new RegExp("^No\\ hi\\ ha\\ prou\\ estoc:\\ en\\ queden\\ (.*)\\.$"), "No hay suficiente stock: quedan $1."]);
+I18N.pat.es.push([new RegExp("^Aquest\\ club\\ només\\ admet\\ (.*)\\ decimals\\ en\\ els\\ grams\\.$"), "Este club solo admite $1 decimales en los gramos."]);
+I18N.pat.es.push([new RegExp("^Aquest\\ club\\ només\\ admet\\ (.*)\\ decimal\\ en\\ els\\ grams\\.$"), "Este club solo admite $1 decimal en los gramos."]);
+I18N.pat.es.push([new RegExp("^(.*)\\ de\\ (.*)\\ a\\ (.*)\\ ·\\ (.*)$"), "$1 de $2 a $3 · $4"]);
