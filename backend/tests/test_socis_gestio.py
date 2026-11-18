@@ -227,6 +227,6 @@ def test_cerca_per_document_i_carnet_nomes_per_post_i_dispensador_veu_vista_redu
               client.post("/locals/1/socis/carnet", json={"codi": "CARNET-Q"}, headers=disp),
               client.get(f"/socis/{mid}", headers=disp)):
         v = r.json()
-        assert set(v) == {"id", "local_id", "nom", "estat", "quota", "te_foto", "te_carnet"}, v
+        assert set(v) == {"id", "local_id", "nom", "estat", "quota", "te_foto", "te_carnet", "alertes"}, v
         assert v["nom"] == "Anna Prova"
     assert "document" in client.get(f"/socis/{mid}", headers=enc).json()

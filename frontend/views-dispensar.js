@@ -187,12 +187,14 @@ VIEWS.dispensar = async () => {
     if (meu !== tornSoci) return;   // mentre es carregaven els preus s'ha obert un altre soci
     const bloquejat = loc.quota_obligatoria && !(m.quota && m.quota.al_dia);
     step.replaceChildren(...[
+      alertesSoci(m.alertes),
       memberCard(m, out, (mm) => showMember(mm, out)),
       m.estat !== 'baixa' ? walletPanel(m) : null,
       m.estat !== 'actiu' ? msg('err', 'El soci no està actiu: no es pot dispensar.') : null,
       m.estat === 'actiu' && bloquejat ? msg('err', 'La quota del soci no està al dia: cal cobrar-la abans de dispensar.') : null,
       m.estat !== 'baixa' && bloquejat ? quotaForm(m, out, (mm) => showMember(mm, out)) : null,
       m.estat === 'actiu' && !bloquejat ? productStep(m, productes) : null,
+      h('details', { class: 'card' }, h('summary', null, 'Deixar una observació sobre aquest soci'), observacioForm(m, () => showMember(m, out))),
     ].filter(Boolean));
   };
   const search = searchBox(showMember);

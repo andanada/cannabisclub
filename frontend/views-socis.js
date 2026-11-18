@@ -119,24 +119,37 @@ function editForm(m, out, reload) {
   h('div', { class: 'actions' }, btn));
 }
 
+// Formulari per deixar una observació sobre un soci (mal comportament, objecte oblidat…). Qualsevol empleat el pot fer servir.
+function observacioForm(m, onDone) {
+  const tipus = h('select', { 'aria-label': 'Tipus' }, Object.entries(TIPUS_OBS).map(([k, v]) => h('option', { value: k }, v)));
+  const text = h('textarea', { rows: 2, maxlength: 1000, 'aria-label': 'Observació', placeholder: 'Què ha passat? (es desa xifrat)' });
+  const alerta = h('input', { type: 'checkbox', checked: true });
+  const out = h('div');
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Desar observació');
+  return h('form', { class: 'card', onsubmit: (e) => {
+    e.preventDefault();
+    guard(btn, out, async () => {
+      await api(`/socis/${m.id}/incidencies`, { method: 'POST', body: { descripcio: text.value.trim(), tipus: tipus.value, alerta: alerta.checked } });
+      text.value = '';
+      toast('Observació desada');
+      if (onDone) await onDone();
+    });
+  } }, h('h3', null, 'Deixar una observació'), h('div', { class: 'row' }, field('Tipus', tipus)), field('Observació', text),
+  h('label', { class: 'check' }, alerta, " Avisar el personal quan el soci faci l'entrada"), h('div', { class: 'actions' }, btn), out);
+}
+
 // Incidències del soci: llista (oberta/tancada), alta i tancament. El text és lliure i es desa xifrat.
 function memberIncidents(m) {
   const box = h('div', { class: 'card' });
   const out = h('div');
-  const text = h('textarea', { rows: 3, maxlength: 1000, 'aria-label': "Descripció de la incidència", placeholder: 'Descriu la incidència' });
-  const btn = h('button', { class: 'primary', type: 'submit' }, 'Registrar incidència');
   const pinta = async () => {
     const l = await api(`/socis/${m.id}/incidencies`);
-    box.replaceChildren(h('h3', null, 'Incidències'),
-      h('form', { onsubmit: (e) => {
-        e.preventDefault();
-        guard(btn, out, async () => { await api(`/socis/${m.id}/incidencies`, { method: 'POST', body: { descripcio: text.value.trim() } }); text.value = ''; toast('Incidència registrada'); await pinta(); });
-      } }, field('Nova incidència', text), h('div', { class: 'actions' }, btn)), out,
-      taula([['Descripció'], ['Estat'], ['Creada'], ['Creada per'], ['']], l.map((i) => {
+    box.replaceChildren(h('h3', null, 'Observacions i incidències'), observacioForm(m, pinta), out,
+      taula([['Tipus'], ['Descripció'], ['Estat'], ['Creada'], ['Creada per'], ['']], l.map((i) => {
         const b = h('button', { type: 'button', class: 'small' }, 'Tancar');
         b.addEventListener('click', () => guard(b, out, async () => { await api(`/incidencies/${i.id}/tanca`, { method: 'POST' }); await pinta(); }));
-        return [i.descripcio, h('span', { class: 'pill ' + (i.estat === 'oberta' ? 'warn' : 'ok') }, i.estat), new Date(i.creat).toLocaleString(loc()), i.creat_per, i.estat === 'oberta' ? b : ''];
-      }), 'Cap incidència.'));
+        return [TIPUS_OBS[i.tipus] || i.tipus, i.descripcio + (i.alerta && i.estat === 'oberta' ? ' ⚠' : ''), h('span', { class: 'pill ' + (i.estat === 'oberta' ? 'warn' : 'ok') }, i.estat), new Date(i.creat).toLocaleString(loc()), i.creat_per, i.estat === 'oberta' ? b : ''];
+      }), 'Cap observació.'));
   };
   pinta().catch((e) => box.replaceChildren(msg('err', e.message)));
   return box;

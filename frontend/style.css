@@ -412,3 +412,8 @@ dialog.dialeg::backdrop { background: rgba(0, 0, 0, .45); }
 .dialeg-text { margin: 0 0 12px; font-weight: 600; }
 dialog.dialeg input { width: 100%; margin-bottom: 12px; }
 dialog.dialeg .actions { justify-content: flex-end; }
+
+/* Alertes d'observacions del soci (entrada, quiosc i dispensar) */
+.alerta-soci { margin: 12px 0; padding: 12px 14px; border: 2px solid var(--danger); border-radius: 12px; background: color-mix(in srgb, var(--danger) 10%, var(--card)); }
+.alerta-soci ul { margin: 8px 0 0; padding-left: 18px; }
+.quiosc-ok .alerta-soci { font-size: 1.15rem; text-align: left; }

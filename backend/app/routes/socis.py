@@ -54,6 +54,8 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     class IncidenciaIn(BaseModel):
         descripcio: str = Field(min_length=3, max_length=incidencies.MAX_DESCRIPCIO)
+        tipus: str = Field(default="nota", max_length=12)
+        alerta: bool = False
 
     @app.get("/socis/{member_id}/incidencies")
     def llista_incidencies(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -62,12 +64,12 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/socis/{member_id}/incidencies", status_code=201)
     def alta_incidencia(member_id: int, body: IncidenciaIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)  # text lliure amb possibles dades personals que després només els responsables poden llegir
-        return {"id": run(incidencies.crea, s, user, member_or_404(s, user, member_id), body.descripcio).id}
+        # Qualsevol empleat pot deixar una observació (mal comportament, objecte oblidat…); l'historial complet només el llegeixen els responsables,
+        # però les observacions marcades amb alerta surten a tot el personal en fer l'entrada del soci.
+        return {"id": run(incidencies.crea, s, user, member_or_404(s, user, member_id), body.descripcio, body.tipus, body.alerta).id}
 
     @app.post("/incidencies/{incident_id}/tanca")
     def tanca_incidencia(incident_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
         i = s.get(MemberIncident, incident_id)
         if not i:
             raise HTTPException(404, "No existeix")
@@ -145,8 +147,9 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/socis/{member_id}/entrada", status_code=201)
     def entrada_soci(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        c = run(service.check_in, s, user, member_or_404(s, user, member_id))
-        return {"id": c.id}
+        m = member_or_404(s, user, member_id)
+        c = run(service.check_in, s, user, m)
+        return {"id": c.id, "alertes": incidencies.alertes(s, m.id)}
 
     @app.post("/socis/{member_id}/sortida", status_code=201)
     def sortida_soci(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -180,7 +183,8 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         dins = m.id in service._dins_ids(s, local_id)
         run(service.check_out if dins else service.check_in, s, user, m, "rfid")
         return {"soci_id": m.id, "nom": service.member_name(m), "accio": "sortida" if dins else "entrada",
-                "quota": quotes.status(s, m.id), "te_foto": socis.has_photo(s, m.id)}
+                "quota": quotes.status(s, m.id), "te_foto": socis.has_photo(s, m.id),
+                **({"alertes": incidencies.alertes(s, m.id)} if not dins else {})}
 
     class CercaDocumentIn(BaseModel):
         document: str = Field(min_length=1, max_length=30)

@@ -21,7 +21,9 @@ def check_local(s: Session, user: User, local_id: int) -> None:
 def member_payload(s: Session, m: Member, user: User) -> dict:
     """Fitxa del soci. Els gestors (admin, encarregat) la veuen sencera; el dispensador només el que necessita al
     taulell: nom, estat, quota, foto i carnet. Document, naixement, telèfon i correu no li arriben mai."""
-    base = {"quota": quotes.status(s, m.id), "te_foto": socis.has_photo(s, m.id), "te_carnet": socis.has_card(s, m.id)}
+    from .. import incidencies
+    base = {"quota": quotes.status(s, m.id), "te_foto": socis.has_photo(s, m.id), "te_carnet": socis.has_card(s, m.id),
+            "alertes": incidencies.alertes(s, m.id)}
     if user.role in CAN_CREATE_MEMBER:
         return {**service.member_view(m), **base}
     return {"id": m.id, "local_id": m.local_id, "nom": service.member_name(m), "estat": m.estat, **base}

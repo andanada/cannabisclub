@@ -188,3 +188,13 @@ async function demana(text, { placeholder = '' } = {}) {
   const ok = await dialegModal(text, [camp], 'Acceptar', false);
   return ok ? camp.value : null;
 }
+
+// Observacions de soci: tipus i banner d'alertes (compartits per Accés, Dispensar i la fitxa).
+const TIPUS_OBS = { nota: 'Observació', comportament: 'Mal comportament', objecte: 'Objecte oblidat al club', avis: 'Avís' };
+
+// Banner amb les alertes obertes del soci (null si no n'hi ha). Es mostra al personal en fer l'entrada i en dispensar.
+function alertesSoci(alertes) {
+  if (!alertes || !alertes.length) return null;
+  return h('div', { class: 'alerta-soci', role: 'alert' }, h('strong', null, alertes.length === 1 ? 'Alerta del soci' : 'Alertes del soci'),
+    h('ul', null, alertes.map((a) => h('li', null, h('span', { class: 'pill warn' }, TIPUS_OBS[a.tipus] || a.tipus), ' ', a.descripcio))));
+}

@@ -224,6 +224,8 @@ class MemberIncident(Base):
     creat_per: Mapped[int] = mapped_column(ForeignKey("users.id"))
     tancada_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     tancada_per: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    tipus: Mapped[str] = mapped_column(String(12), default="nota")  # nota | comportament | objecte | avis
+    alerta: Mapped[bool] = mapped_column(Boolean, default=False)    # si està oberta i amb alerta, surt al personal en fer l'entrada o dispensar
 
 
 Index("ix_incidents_member", MemberIncident.member_id)

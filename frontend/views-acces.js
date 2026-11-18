@@ -29,7 +29,7 @@ async function accesManual() {
   const box = h('div');
   const carrega = async () => {
     const e = await api(`/locals/${S.local}/acces`);
-    const entra = (s, b) => guard(b, out, async () => { await api(`/socis/${s.id}/entrada`, { method: 'POST' }); toast(s.nom + ': entrada registrada'); await carrega(); });
+    const entra = (s, b) => guard(b, out, async () => { const r = await api(`/socis/${s.id}/entrada`, { method: 'POST' }); toast(s.nom + ': entrada registrada'); await carrega(); out.replaceChildren(...[alertesSoci(r.alertes)].filter(Boolean)); });
     const surt = (s, b) => guard(b, out, async () => { await api(`/socis/${s.id}/sortida`, { method: 'POST' }); toast(s.nom + ': sortida registrada'); await carrega(); });
     const tots = h('button', { type: 'button', class: 'danger' }, 'Sortir-ne tots');
     tots.addEventListener('click', () => guard(tots, out, async () => {
@@ -64,11 +64,11 @@ function accesQuiosc() {
       const entra = r.accio === 'entrada';
       resultat.replaceChildren(h('div', { class: 'quiosc-ok ' + (entra ? 'entra' : 'surt') }, h('div', { class: 'gran-marca', 'aria-hidden': 'true' }, entra ? '→' : '←'),
         h('div', { class: 'big' }, r.nom), h('p', null, entra ? 'Benvingut/da. Entrada registrada.' : 'Fins aviat. Sortida registrada.'),
-        entra && r.quota && !r.quota.al_dia ? h('p', { class: 'pill warn' }, 'La quota no està al dia') : null));
+        entra && r.quota && !r.quota.al_dia ? h('p', { class: 'pill warn' }, 'La quota no està al dia') : null, entra ? alertesSoci(r.alertes) : null));
     } catch (er) {
       resultat.replaceChildren(h('div', { class: 'quiosc-ok error' }, h('div', { class: 'gran-marca', 'aria-hidden': 'true' }, '!'), msg('err', er.message)));
     }
-    timer = setTimeout(() => { resultat.replaceChildren(h('p', { class: 'muted' }, 'Posa el carnet al lector')); refoca(); }, 6000);
+    timer = setTimeout(() => { resultat.replaceChildren(h('p', { class: 'muted' }, 'Posa el carnet al lector')); refoca(); }, resultat.querySelector('.alerta-soci') ? 20000 : 6000);
     refoca();
   });
   const pantalla = h('button', { type: 'button' }, 'Pantalla completa');
