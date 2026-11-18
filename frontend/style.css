@@ -419,7 +419,7 @@ dialog.dialeg .actions { justify-content: flex-end; }
 .quiosc-ok .alerta-soci { font-size: 1.15rem; text-align: left; }
 
 /* Dispensar: pantalla de taulell (producte → quantitat → cobrament) */
-.num { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-right: 6px; border-radius: 50%; background: var(--brand); color: var(--brand-ink); font-size: .85rem; font-weight: 700; }
+.pas-num { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-right: 6px; border-radius: 50%; background: var(--brand); color: var(--brand-ink); font-size: .85rem; font-weight: 700; }
 .msg.info { background: var(--brand-soft); border: 1px solid var(--line); }
 .dis-canvia { justify-content: flex-end; margin-bottom: 4px; }
 .dis-filtre { display: grid; gap: 8px; margin-bottom: 10px; }
@@ -447,3 +447,8 @@ button.pagar.efectiu { background: var(--brand); color: var(--brand-ink); border
 .dis-check { width: 72px; height: 72px; margin: 0 auto 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--brand); color: var(--brand-ink); font-size: 2.4rem; font-weight: 800; }
 button.gran { min-height: 64px; font-size: 1.2rem; padding: 12px 32px; }
 @media (max-width: 640px) { .dis-total { font-size: 2rem; } .dis-pagaments { grid-template-columns: 1fr 1fr; } }
+
+.dis-soci { display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
+.dis-soci-dades { flex: 1; min-width: 0; }
+.dis-soci .big { font-size: 1.3rem; }
+.dis-eines > summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 6px 0; }

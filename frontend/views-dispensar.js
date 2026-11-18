@@ -126,7 +126,7 @@ function searchBox(onFound) {
         if (meva === torn) { carnet.value = ''; carnet.focus(); }
       }
     });
-  } }, h('h3', null, h('span', { class: 'num' }, '1'), ' Soci'), h('div', { class: 'row' }, field('Passa el carnet pel lector', carnet), field('o escriu el document', doc)), h('div', { class: 'actions' }, btn), out);
+  } }, h('h3', null, h('span', { class: 'pas-num' }, '1'), ' Soci'), h('div', { class: 'row' }, field('Passa el carnet pel lector', carnet), field('o escriu el document', doc)), h('div', { class: 'actions' }, btn), out);
   if (window.matchMedia && window.matchMedia('(pointer: fine)').matches) setTimeout(() => { if (document.body.contains(carnet)) carnet.focus(); }, 0);
   return form;
 }
@@ -191,19 +191,24 @@ VIEWS.dispensar = async () => {
     await carregaMetaCat();
     if (meu !== tornSoci) return;   // mentre es carregaven els preus s'ha obert un altre soci
     const bloquejat = loc.quota_obligatoria && !(m.quota && m.quota.al_dia);
+    if (loc.moneder_actiu && m.estat !== 'baixa') { try { m.saldo_cent = (await api(`/socis/${m.id}/moneder`)).saldo_cent; } catch (_) { /* sense saldo */ } }
+    if (meu !== tornSoci) return;
     search.hidden = true;   // trobat: la cerca es torna a mostrar amb «Canviar de soci»
     const canvia = h('button', { type: 'button', class: 'small' }, 'Canviar de soci');
     canvia.addEventListener('click', () => show('dispensar'));
+    const barra = h('div', { class: 'card dis-soci' }, memberPhoto(m), h('div', { class: 'dis-soci-dades' }, h('div', { class: 'big' }, m.nom),
+      h('div', null, h('span', { class: 'pill ' + (m.estat === 'actiu' ? 'ok' : 'bad') }, m.estat), ' ', quotaPill(m.quota),
+        loc.moneder_actiu && m.saldo_cent != null ? h('span', { class: 'pill' }, 'Monedero ' + eur(m.saldo_cent)) : null)), canvia);
     step.replaceChildren(...[
-      h('div', { class: 'actions dis-canvia' }, canvia),
+      barra,
       alertesSoci(m.alertes),
-      memberCard(m, out, (mm) => showMember(mm, out)),
-      m.estat !== 'baixa' ? walletPanel(m) : null,
       m.estat !== 'actiu' ? msg('err', 'El soci no està actiu: no es pot dispensar.') : null,
       m.estat === 'actiu' && bloquejat ? msg('err', 'La quota del soci no està al dia: cal cobrar-la abans de dispensar.') : null,
       m.estat !== 'baixa' && bloquejat ? quotaForm(m, out, (mm) => showMember(mm, out)) : null,
       m.estat === 'actiu' && !bloquejat ? productStep(m, productes) : null,
-      h('details', { class: 'card' }, h('summary', null, 'Deixar una observació sobre aquest soci'), observacioForm(m, () => showMember(m, out))),
+      h('details', { class: 'card dis-eines' }, h('summary', null, 'Fitxa i eines del soci (monedero, observacions, devolucions)'),
+        memberCard(m, out, (mm) => showMember(mm, out)), m.estat !== 'baixa' ? walletPanel(m) : null,
+        observacioForm(m, () => showMember(m, out))),
     ].filter(Boolean));
   };
   const search = searchBox(showMember);
@@ -375,11 +380,11 @@ VIEWS.dispensar = async () => {
 
     refresca();
     return h('form', { class: 'dispensa', onsubmit: (e) => { e.preventDefault(); if (!btnApart.disabled) envia(btnApart, null); } },
-      h('section', { class: 'card dis-pas1' }, h('h3', null, h('span', { class: 'num' }, '2'), ' Producte'), filtre, list),
-      h('section', { class: 'card dis-pas2' }, h('h3', null, h('span', { class: 'num' }, '3'), ' Quantitat'),
+      h('section', { class: 'card dis-pas1' }, h('h3', null, h('span', { class: 'pas-num' }, '2'), ' Producte'), filtre, list),
+      h('section', { class: 'card dis-pas2' }, h('h3', null, h('span', { class: 'pas-num' }, '3'), ' Quantitat'),
         h('div', { class: 'dis-qrow' }, menys, h('div', { class: 'dis-qbox' }, g, unitEtiqueta), mes), rapids),
       mesOpcions,
-      h('section', { class: 'card dis-cobra' }, h('h3', null, h('span', { class: 'num' }, '4'), ' Cobrament'),
+      h('section', { class: 'card dis-cobra' }, h('h3', null, h('span', { class: 'pas-num' }, '4'), ' Cobrament'),
         h('div', { class: 'dis-totalbox' }, h('span', { class: 'muted' }, 'Total'), totalEl, totalNota), avis,
         h('div', { class: 'dis-pagaments' }, ...pagaments), out));
   }

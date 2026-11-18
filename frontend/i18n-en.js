@@ -707,6 +707,7 @@ Object.assign(I18N.en, {
  "Dades personals": "Personal details",
  "Contacte": "Contact",
  "Cognoms": "Surname",
+ "Fitxa i eines del soci (monedero, observacions, devolucions)": "Member file and tools (wallet, observations, refunds)",
  "Canviar de soci": "Change member",
  "Pes de la bàscula": "Scale weight",
  "Pes de la bàscula (g)": "Scale weight (g)",
@@ -1394,3 +1395,4 @@ I18N.pat.en.push([new RegExp("^No\\ hi\\ ha\\ prou\\ estoc:\\ en\\ queden\\ (.*)
 I18N.pat.en.push([new RegExp("^Aquest\\ club\\ només\\ admet\\ (.*)\\ decimals\\ en\\ els\\ grams\\.$"), "This club only allows $1 decimals in grams."]);
 I18N.pat.en.push([new RegExp("^Aquest\\ club\\ només\\ admet\\ (.*)\\ decimal\\ en\\ els\\ grams\\.$"), "This club only allows $1 decimal in grams."]);
 I18N.pat.en.push([new RegExp("^(.*)\\ de\\ (.*)\\ a\\ (.*)\\ ·\\ (.*)$"), "$1 of $2 to $3 · $4"]);
+I18N.pat.en.push([new RegExp("^Monedero\\ (.*)$"), "Wallet $1"]);
