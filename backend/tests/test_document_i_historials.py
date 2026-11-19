@@ -63,7 +63,8 @@ def test_llista_dapunts_amb_estat_de_correccio(ctx):
     assert per[a]["corregit"] is True and per[a]["import_cent"] == -500 and per[a]["usuari"] == "enc"
     assert [x for x in r if x["tipus"] == "correccio"][0]["corregeix_id"] == a
     assert sum(1 for x in r if x["corregit"]) == 1
-    assert client.get("/locals/1/apunts", params=rang(), headers=disp).status_code == 403
+    client.post("/auth/rol-dia", json={"rol": "dispensari"}, headers=disp)
+    assert client.get("/locals/1/apunts", params=rang(), headers=disp).status_code == 403   # el llibre de la caixa és de recepció
     assert client.get("/locals/2/apunts", params=rang(), headers=enc).status_code == 403
     assert client.get("/locals/1/apunts", params={"des": "2026-02-01", "fins": "2026-01-01"}, headers=enc).status_code == 422
 

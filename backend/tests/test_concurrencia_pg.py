@@ -149,7 +149,8 @@ def test_tancar_inventari_i_dispensar_a_la_vegada_no_s_interbloquegen(ctx):
         client.put(f"/inventaris/{sid}/linies/{p}", json={"grams": "40"}, headers=enc)
 
     def tanca(s, u):
-        return inventaris.tancar(s, u, s.get(inventaris.InventorySession, sid))
+        inventaris.guardar(s, u, s.get(inventaris.InventorySession, sid))
+        return inventaris.ajustar(s, u, s.get(inventaris.InventorySession, sid))   # l'ajust bloqueja els productes: no s'ha de creuar amb dispensar
 
     def dispensa(s, u):
         for p in reversed(prods):
