@@ -707,6 +707,22 @@ Object.assign(I18N.es, {
  "Dades personals": "Datos personales",
  "Contacte": "Contacto",
  "Cognoms": "Apellidos",
+ "control d'un sol producte": "control de un solo producto",
+ "inventari complet": "inventario completo",
+ "✓ coincideix amb el sistema": "✓ coincide con el sistema",
+ "sense pesar": "sin pesar",
+ "Comprovació": "Comprobación",
+ "Pes": "Peso",
+ "Lloc": "Lugar",
+ "Qui": "Quién",
+ "Genètiques": "Genéticas",
+ "Desactivats": "Desactivados",
+ "Tots": "Todos",
+ "No s'apliquen descomptes: el preu no canvia mai per a ningú": "No se aplican descuentos: el precio no cambia nunca para nadie",
+ "Genètica": "Genética",
+ "Modificar": "Modificar",
+ "Moure": "Mover",
+ "Guardar": "Guardar",
  "Horaris": "Horarios",
  "Nom, cognoms, DNI/NIE/passaport o passa el carnet pel lector": "Nombre, apellidos, DNI/NIE/pasaporte o pasa el carnet por el lector",
  "⚠ Incidència": "⚠ Incidencia",
@@ -1528,3 +1544,8 @@ I18N.pat.es.push([new RegExp("^(.*)\\ avís\\(os\\)$"), "$1 aviso(s)"]);
 I18N.pat.es.push([new RegExp("^Hi\\ ha\\ diferències\\ molt\\ grans:\\ (.*)$"), "Hay diferencias muy grandes: $1"]);
 I18N.pat.es.push([new RegExp("^(.*):\\ fa\\ (.*)\\ mesos\\ que\\ no\\ retira\\ genètiques\\.$"), "$1: hace $2 meses que no retira genéticas."]);
 I18N.pat.es.push([new RegExp("^(.*):\\ fa\\ (.*)\\ dies\\ que\\ no\\ retira\\ genètiques\\.$"), "$1: hace $2 días que no retira genéticas."]);
+I18N.pat.es.push([new RegExp("^(.*)\\ ·\\ inventari\\ complet\\ ·\\ (.*)\\ de\\ (.*)\\ pesats$"), "$1 · inventario completo · $2 de $3 pesados"]);
+I18N.pat.es.push([new RegExp("^(.*)\\ ·\\ control\\ d'un\\ sol\\ producte\\ ·\\ (.*)\\ de\\ (.*)\\ pesats$"), "$1 · control de un solo producto · $2 de $3 pesados"]);
+I18N.pat.es.push([new RegExp("^Diferència\\ (.*)\\ \\(sistema:\\ (.*)\\)$"), "Diferencia $1 (sistema: $2)"]);
+I18N.pat.es.push([new RegExp("^(.*)\\ ·\\ (.*)\\ ·\\ (.*)$"), "$1 · $2 · $3"]);
+I18N.pat.es.push([new RegExp("^·\\ (.*)\\ de\\ (.*)\\ pesats$"), "· $1 de $2 pesados"]);

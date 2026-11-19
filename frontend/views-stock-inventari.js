@@ -62,7 +62,7 @@ async function pantallaPesatge(sid, tornar) {
     toast('Inventari cancel·lat');
     tornar(null);
   }));
-  return h('div', null, h('div', { class: 'card' }, h('h3', null, d.nom), h('p', { class: 'muted' }, `${INV_TIPUS[d.tipus]} · ${d.control === 'producte' ? 'control d\'un sol producte' : 'inventari complet'} · ${d.comptats} de ${d.total} pesats`),
+  return h('div', null, h('div', { class: 'card' }, h('h3', null, d.nom), h('p', { class: 'muted' }, INV_TIPUS[d.tipus], ' · ', d.control === 'producte' ? "control d'un sol producte" : 'inventari complet', ` · ${d.comptats} de ${d.total} pesats`),
     h('p', { class: 'muted' }, d.tipus === 'dispensari' ? 'Escriu el pes del pot sencer: el programa en resta la tara.' : 'Escriu el pes o agafa\'l de la bàscula.'),
     h('div', { class: 'actions' }, guarda, cancela), out),
   h('div', { class: 'card table-wrap' }, h('table', null, h('thead', null, h('tr', null, ['Producte', 'Tara', 'Pes', 'Comprovació'].map((t) => h('th', null, t)))),
