@@ -102,7 +102,7 @@ function llistaProductes(tots, genetic, recarrega) {
         const ed = h('button', { type: 'button', class: 'small' }, 'Modificar');
         ed.addEventListener('click', () => obreModal(p.nom, (tanca) => productForm(p, async () => { tanca(); await recarrega(); })));
         const acc = [ed, tog];
-        if (isManager()) {
+        if (te('esborrar_productes')) {
           const del = h('button', { type: 'button', class: 'small danger' }, 'Esborrar');
           del.addEventListener('click', () => guard(del, avis, async () => {
             if (!await confirma(`Esborrar «${p.nom}»? No es pot desfer.`, { perill: true, boto: 'Esborrar' })) return;

@@ -10,6 +10,6 @@ VIEWS.socis = async () => {
     return h('div', null, cerca, avis, panel.found, h('h3', null, 'Tots els socis'),
       memberList((m, out) => { panel.show(m, avis); panel.found.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
   }]];
-  if (isManager()) items.push(['alta', 'Alta de soci', async () => altaWizard()]);
+  if (te('gestio_socis')) items.push(['alta', 'Alta de soci', async () => altaWizard()]);
   return h('div', null, pageHead('Socis', 'Cerca un soci per nom, cognoms, DNI/NIE/passaport o carnet, o mira la llista.'), sections('socis', items));
 };

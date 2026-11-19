@@ -27,6 +27,23 @@ function userCard(u) {
   const pRef = h('input', { type: 'checkbox', checked: !!u.pot_reemborsar });
   const pDto = h('input', { type: 'checkbox', checked: !!u.pot_editar_descomptes });
   const pMon = h('input', { inputmode: 'decimal', value: u.moneder_limit_cent === null || u.moneder_limit_cent === undefined ? '' : (u.moneder_limit_cent / 100).toFixed(2).replace('.', ','), placeholder: 'el del local', 'aria-label': 'Límit negatiu del monedero (€)' });
+  // Permisos addicionals (només per als treballadors: la gerència ho pot tot). Es desen amb el seu propi botó.
+  const permBox = h('div', { class: 'permisos' }, h('p', { class: 'muted' }, 'Carregant permisos…'));
+  const permOut = h('div');
+  if (u.role === 'dispensador') {
+    api('/permisos').then((cat) => {
+      const caixes = cat.map((p) => ({ p, c: h('input', { type: 'checkbox', checked: (u.permisos || []).includes(p.clau) }) }));
+      const desa = h('button', { type: 'button', class: 'primary' }, 'Desar permisos');
+      desa.addEventListener('click', () => guard(desa, permOut, async () => {
+        await api(`/usuaris/${u.id}/permisos`, { method: 'PUT', body: { permisos: caixes.filter((x) => x.c.checked).map((x) => x.p.clau) } });
+        toast('Permisos desats: s\'apliquen en la propera sessió del treballador');
+      }));
+      permBox.replaceChildren(...[...new Set(cat.map((p) => p.grup))].map((g) => h('div', null, h('strong', null, g),
+        ...caixes.filter((x) => x.p.grup === g).map((x) => h('label', { class: 'check' }, x.c, ' ' + x.p.etiqueta)))), h('div', { class: 'actions' }, desa), permOut);
+    }).catch((e) => permBox.replaceChildren(msg('err', e.message)));
+  } else {
+    permBox.replaceChildren(h('p', { class: 'muted' }, 'La gerència ja ho pot tot: els permisos addicionals són per als treballadors.'));
+  }
   const save = h('button', { class: 'primary', type: 'button' }, 'Desar rol i locals');
   save.addEventListener('click', () => guard(save, out, async () => {
     const local_ids = checks.map((c) => c.querySelector('input')).filter((i) => i.checked).map((i) => Number(i.value));
@@ -82,6 +99,7 @@ function userCard(u) {
     h('div', null, h('strong', null, u.username), ' ', h('span', { class: 'pill' }, ROL_NOMS[u.role] || u.role), ' ', h('span', { class: 'pill ' + (u.active ? 'ok' : 'warn') }, u.active ? 'actiu' : 'desactivat')),
     h('div', { class: 'row' }, field('Rol', rol), field('Contrasenya nova', pw)),
     h('h3', null, 'Locals amb accés'), h('div', null, checks),
+    h('h3', null, 'Permisos addicionals (informes, historial, esborrar productes…)'), permBox,
     h('h3', null, 'Privilegis (dispensador)'), h('div', null, h('label', null, pRef, ' Pot fer devolucions'), ' ', h('label', null, pDto, ' Pot editar descomptes')),
     field('Límit negatiu del monedero (€)', pMon),
     h('h3', null, "Carnet d'entrada"), blocCarnet,

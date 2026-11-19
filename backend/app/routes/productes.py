@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .. import idempotencia, linies_preu, stock
 from ..models import Product, StockMovement, User
-from .comu import CAN_CREATE_MEMBER, need_dispensari, pot_dispensari
+from .comu import CAN_CREATE_MEMBER, need_dispensari, need_permis, pot_dispensari
 
 
 def register(app, db, current_user, check_local, need_manager, run, member_or_404, product_or_404):
@@ -90,8 +90,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.delete("/productes/{product_id}")
     def esborra_producte(product_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
         """Només la gerència pot esborrar productes, i només si mai no han tingut moviments (si no, es desactiven)."""
-        if user.role not in CAN_CREATE_MEMBER:
-            raise HTTPException(403, "Els treballadors no poden esborrar productes (només activar o desactivar-los)")
+        need_permis(user, 'esborrar_productes')  # els treballadors només activen o desactiven; esborrar és de la gerència o amb permís
         p = product_or_404(s, user, product_id)
         if s.scalar(select(StockMovement.id).where(StockMovement.product_id == p.id).limit(1)):
             raise HTTPException(422, "El producte ja té moviments d'estoc: no es pot esborrar, desactiva'l")
@@ -192,8 +191,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/moviments/{movement_id}/correccio", status_code=201)
     def correccio(movement_id: int, body: CorreccioIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        if user.role not in CAN_CREATE_MEMBER:
-            raise HTTPException(403, "El teu rol no pot corregir moviments")
+        need_permis(user, 'corregir_estoc')
         orig = s.get(StockMovement, movement_id)
         if not orig:
             raise HTTPException(404, "Moviment inexistent")

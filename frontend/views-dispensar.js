@@ -76,7 +76,7 @@ function memberCard(m, out, onChange) {
     m.telefon ? h('div', { class: 'muted' }, m.telefon) : null)));
   const bar = h('div', { class: 'actions' });
   const tools = onChange ? memberTools(m, out, onChange) : null;
-  if (isManager()) {
+  if (te('gestio_socis')) {
     // L'estat i el tipus de membre es canvien directament a la fitxa (sense botons de confirmació); «Expulsar» impedeix l'entrada.
     const ESTATS = [['actiu', 'Actiu'], ['suspes', 'Suspès'], ['baixa', 'Baixa'], ['expulsat', 'Expulsar']];
     const sel = h('select', { 'aria-label': 'Estat del soci' }, ESTATS.map(([e, t]) => h('option', { value: e, selected: e === m.estat }, t)));

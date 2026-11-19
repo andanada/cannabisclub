@@ -244,3 +244,34 @@ def test_ajustar_un_inventari_de_no_genetics_reparteix_la_falta_entre_dispensari
     assert client.post(f"/inventaris/{sid}/ajustar", headers=enc).json() == {"ajustos": 1}
     ex = {p["id"]: p for p in client.get("/locals/1/existencies", headers=enc).json()["productes"]}[aigua]
     assert (ex["dispensari_g"], ex["magatzem_g"]) == ("0", "40")                     # primer surt del dispensari i la resta del magatzem
+
+
+# ---------- permisos per usuari ----------
+
+def test_permisos_per_usuari_informes_historial_i_esborrar_productes(ctx):
+    client, factory, sec = ctx
+    enc, flor, aigua, mid = _escena(client, sec)
+    adm = token(client, sec, "admin")
+    disp = token(client, sec, "disp")
+    uid = [u["id"] for u in client.get("/usuaris", headers=adm).json() if u["username"] == "disp"][0]
+    rang = {"des": "2020-01-01", "fins": "2099-01-01"}
+    lliure = client.post("/productes", json={"local_id": 1, "nom": "Lliure", "preu_cent_per_g": 5}, headers=enc).json()["id"]
+    # sense permisos addicionals
+    assert client.get("/locals/1/informe", params=rang, headers=disp).status_code == 403
+    assert client.get("/locals/1/moviments", params=rang, headers=disp).status_code == 403
+    assert client.delete(f"/productes/{lliure}", headers=disp).status_code == 403
+    assert client.get("/me", headers=disp).json()["permisos"] == []
+    # només l'administrador els assigna, i només claus conegudes
+    assert client.put(f"/usuaris/{uid}/permisos", json={"permisos": ["informes"]}, headers=enc).status_code == 403
+    assert client.put(f"/usuaris/{uid}/permisos", json={"permisos": ["volar"]}, headers=adm).status_code == 422
+    uid_enc = [u["id"] for u in client.get("/usuaris", headers=adm).json() if u["username"] == "enc"][0]
+    assert client.put(f"/usuaris/{uid_enc}/permisos", json={"permisos": ["informes"]}, headers=adm).status_code == 422   # la gerència ja ho pot tot
+    r = client.put(f"/usuaris/{uid}/permisos", json={"permisos": ["informes", "esborrar_productes", "informes"]}, headers=adm)
+    assert r.status_code == 200 and r.json() == {"permisos": ["esborrar_productes", "informes"]}
+    disp = token(client, sec, "disp")                                                  # nova sessió amb els permisos
+    assert client.get("/me", headers=disp).json()["permisos"] == ["esborrar_productes", "informes"]
+    assert client.get("/locals/1/informe", params=rang, headers=disp).status_code == 200
+    assert client.get("/locals/1/moviments", params=rang, headers=disp).status_code == 403       # no li'n va donar
+    assert client.delete(f"/productes/{lliure}", headers=disp).status_code == 200
+    assert [x["clau"] for x in client.get("/permisos", headers=disp).json()][0] == "informes"
+    assert client.get("/me", headers=enc).json()["permisos"] == sorted(x["clau"] for x in client.get("/permisos", headers=enc).json())   # la gerència els té tots

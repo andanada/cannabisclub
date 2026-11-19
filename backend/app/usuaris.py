@@ -15,7 +15,8 @@ def _local_ids(db: Session, user_id: int) -> list[int]:
 def list_users(db: Session) -> list[dict]:
     amb_carnet = set(db.scalars(select(UserCard.user_id)))
     return [{"id": u.id, "username": u.username, "role": u.role, "active": u.active, "local_ids": _local_ids(db, u.id), "te_carnet": u.id in amb_carnet,
-             "pot_reemborsar": u.pot_reemborsar, "pot_editar_descomptes": u.pot_editar_descomptes, "moneder_limit_cent": u.moneder_limit_cent}
+             "pot_reemborsar": u.pot_reemborsar, "pot_editar_descomptes": u.pot_editar_descomptes, "moneder_limit_cent": u.moneder_limit_cent,
+             "permisos": __import__("app.permisos", fromlist=["x"]).llegeix(u)}
             for u in db.scalars(select(User).order_by(User.username))]
 
 

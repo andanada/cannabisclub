@@ -7,12 +7,13 @@ from sqlalchemy.orm import Session
 
 from .. import cash, estadistiques, informes, informes_socis, personal, service, stock
 from ..models import User
+from .comu import need_permis
 
 
 def register(app, db, current_user, check_local, need_manager, run, member_or_404, empleat_valid, personal_del_local, rang):
     @app.get("/locals/{local_id}/informe")
     def informe(local_id: int, des: date, fins: date, usuari: int | None = None, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'informes')
         check_local(s, user, local_id)
         if fins < des:
             raise HTTPException(422, "Rang de dates invàlid")
@@ -21,7 +22,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.get("/locals/{local_id}/apunts.csv")
     def apunts_csv(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'informes')
         check_local(s, user, local_id)
         service.audit_append(s, {"accio": "exportar_csv", "informe": "apunts", "local": local_id, "per": user.id})
         s.commit()
@@ -29,14 +30,14 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.get("/locals/{local_id}/personal")
     def llista_personal(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'informes')
         check_local(s, user, local_id)
         return [{"id": u.id, "username": u.username, "role": u.role} for u in personal_del_local(s, local_id)]
 
     @app.get("/locals/{local_id}/apunts")
     def llista_apunts(local_id: int, des: date, fins: date, limit: int = Query(default=100, ge=1, le=500),
                       user: User = Depends(current_user), s: Session = Depends(db)):
-        from .comu import need_recepcio
+        from .comu import need_permis, need_recepcio
         need_recepcio(user)  # recepció (o gerència): és el llibre de la caixa
         check_local(s, user, local_id)
         rang(des, fins)
@@ -45,7 +46,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.get("/locals/{local_id}/moviments")
     def llista_moviments(local_id: int, des: date, fins: date, limit: int = Query(default=100, ge=1, le=500),
                          user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'historial')
         check_local(s, user, local_id)
         rang(des, fins)
         return stock.movements_list(s, local_id, des, fins, limit)
@@ -53,7 +54,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     # Informes de gestió (JSON i CSV). Només responsables; el CSV queda a l'auditoria.
     def registra_informe(nom: str, fn, csv_fn, amb_rang: bool):
         def calcula(local_id: int, des: date | None, fins: date | None, user: User, s: Session, usuari: int | None = None):
-            need_manager(user)
+            need_permis(user, 'informes')
             check_local(s, user, local_id)
             if not amb_rang:
                 return fn(s, local_id)
@@ -91,7 +92,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.get("/socis/{member_id}/consum")
     def consum_del_soci(member_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
         if not user.pot_reemborsar:  # qui pot fer devolucions ha de poder veure què retorna
-            need_manager(user)
+            need_permis(user, 'informes')
         rang(des, fins)
         return informes_socis.consumption(s, member_or_404(s, user, member_id), des, fins, actor=user)
     registra_informe("hores", informes.staff_hours, informes.hours_csv, True)
@@ -100,7 +101,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         def _registra(nom, fn):
             @app.get(f"/locals/{{local_id}}/estadistiques/{nom}", name=f"estadistiques_{nom}")
             def estadistica(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-                need_manager(user)
+                need_permis(user, 'informes')
                 check_local(s, user, local_id)
                 return fn(s, user, local_id)
         _registra(_nom, _fn)
@@ -108,7 +109,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.get("/locals/{local_id}/estadistiques/finances")
     def estadistica_finances(local_id: int, any: int | None = Query(default=None, ge=2000, le=2100),
                              user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'informes')
         check_local(s, user, local_id)
         return estadistiques.finances(s, user, local_id, any)
 
@@ -123,6 +124,6 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.get("/locals/{local_id}/hores")
     def hores(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'informes')
         check_local(s, user, local_id)
         return personal.hours(s, local_id, des, fins)

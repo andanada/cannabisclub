@@ -707,6 +707,18 @@ Object.assign(I18N.es, {
  "Dades personals": "Datos personales",
  "Contacte": "Contacto",
  "Cognoms": "Apellidos",
+ "Carregant permisos…": "Cargando permisos…",
+ "Desar permisos": "Guardar permisos",
+ "Permisos desats: s'apliquen en la propera sessió del treballador": "Permisos guardados: se aplican en la próxima sesión del trabajador",
+ "La gerència ja ho pot tot: els permisos addicionals són per als treballadors.": "La gerencia ya lo puede todo: los permisos adicionales son para los trabajadores.",
+ "Permisos addicionals (informes, historial, esborrar productes…)": "Permisos adicionales (informes, historial, borrar productos…)",
+ "Veure informes i estadístiques": "Ver informes y estadísticas",
+ "Veure l'historial de moviments d'estoc": "Ver el historial de movimientos de stock",
+ "Veure els resultats dels inventaris i ajustar l'estoc": "Ver los resultados de los inventarios y ajustar el stock",
+ "Esborrar productes": "Borrar productos",
+ "Corregir apunts de caixa": "Corregir apuntes de caja",
+ "Corregir moviments d'estoc": "Corregir movimientos de stock",
+ "Donar d'alta i editar socis (dades, estat, foto, carnet, documents)": "Dar de alta y editar socios (datos, estado, foto, carnet, documentos)",
  "Connecta la bàscula (Dispensar › carret › Bàscula) o escriu el pes a mà": "Conecta la báscula (Dispensar › carrito › Báscula) o escribe el peso a mano",
  "Avís d'estoc baix": "Aviso de stock bajo",
  "Dies sense retirar genètiques": "Días sin retirar genéticas",
@@ -1555,3 +1567,4 @@ I18N.pat.es.push([new RegExp("^(.*)\\ ·\\ control\\ d'un\\ sol\\ producte\\ ·\
 I18N.pat.es.push([new RegExp("^Diferència\\ (.*)\\ \\(sistema:\\ (.*)\\)$"), "Diferencia $1 (sistema: $2)"]);
 I18N.pat.es.push([new RegExp("^(.*)\\ ·\\ (.*)\\ ·\\ (.*)$"), "$1 · $2 · $3"]);
 I18N.pat.es.push([new RegExp("^·\\ (.*)\\ de\\ (.*)\\ pesats$"), "· $1 de $2 pesados"]);
+I18N.pat.es.push([new RegExp("^No\\ tens\\ el\\ permís\\ «(.*)»:\\ demana\\-li\\ a\\ l'administrador$"), "No tienes el permiso «$1»: pídeselo al administrador"]);

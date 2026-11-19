@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from .. import ajustos, carnet_login, service, versio
+from .. import ajustos, carnet_login, permisos, service, versio
 from ..models import Local, User, UserCard, UserLocal
 
 log = logging.getLogger("club")
@@ -106,7 +106,7 @@ def register(app, db, current_user, ip_limiter):
         else:
             ids = [r.local_id for r in s.scalars(select(UserLocal).where(UserLocal.user_id == user.id))]
             locs = [s.get(Local, i) for i in ids]
-        return {"id": user.id, "username": user.username, "role": user.role, "rol_dia": getattr(user, "rol_dia", None), "te_carnet": s.get(UserCard, user.id) is not None,
+        return {"id": user.id, "username": user.username, "role": user.role, "rol_dia": getattr(user, "rol_dia", None), "permisos": permisos.efectius(user), "te_carnet": s.get(UserCard, user.id) is not None,
                 "pot_reemborsar": user.role in ("admin", "encarregat") or user.pot_reemborsar,
                 "pot_editar_descomptes": user.role in ("admin", "encarregat") or user.pot_editar_descomptes,
                 "locals": [{"id": l.id, "nom": l.nom, "limit_diari_mg": l.limit_diari_mg,

@@ -137,7 +137,7 @@ async function historialSection() {
   const carrega = async () => {
     const rows = await api(`/locals/${S.local}/moviments?des=${des.value}&fins=${fins.value}&limit=500`);
     res.replaceChildren(taula([['Data'], ['Tipus'], ['Producte'], ['Quantitat', true], ['Import', true], ['Qui'], ['Nota'], ['']], rows.map((m) => {
-      const corregible = m.tipus !== 'correccio' && !m.corregit;
+      const corregible = te('corregir_estoc') && m.tipus !== 'correccio' && !m.corregit;
       const b = corregible ? h('button', { type: 'button', class: 'small' }, 'Corregir') : null;
       if (b) b.addEventListener('click', () => guard(b, out, () => demanaCorreccio(`/moviments/${m.id}/correccio`, carrega)));
       return [horaCa(m.ts), h('span', null, m.tipus, ' ', m.corregit ? h('span', { class: 'pill warn' }, 'corregit') : null), m.producte, gText(m.grams), m.import_cent == null ? '' : eur(m.import_cent), m.usuari || '', m.nota || '', b];
@@ -152,7 +152,8 @@ async function historialSection() {
 
 VIEWS.estoc = async () => {
   const items = [['productes', 'Productes', productesSection], ['existencies', 'Existències i moviments', existenciesSection], ['inventari', 'Inventaris', inventariSection]];
-  if (isManager()) items.push(['resultats', 'Resultats d\'inventaris', resultatsSection], ['historial', 'Historial', historialSection]);
+  if (te('resultats_inventari')) items.push(['resultats', 'Resultats d\'inventaris', resultatsSection]);
+  if (te('historial')) items.push(['historial', 'Historial', historialSection]);
   return h('div', null, pageHead('Estoc', 'Productes, existències, inventaris i historial.'), sections('estoc', items));
 };
 

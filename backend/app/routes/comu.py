@@ -27,6 +27,14 @@ def pot_dispensari(user: User) -> bool:
     return acces_complet(user) or getattr(user, "rol_dia", None) == "dispensari"
 
 
+def need_permis(user: User, clau: str) -> None:
+    """La gerència ho pot tot; un treballador necessita el permís que l'administrador li hagi donat (vegeu permisos.py)."""
+    from .. import permisos
+    if not permisos.te(user, clau):
+        etiqueta = next((e for c, e, _ in permisos.CATALEG if c == clau), clau)
+        raise HTTPException(403, f"No tens el permís «{etiqueta}»: demana-li a l'administrador")
+
+
 def need_recepcio(user: User) -> None:
     if not pot_recepcio(user):
         raise HTTPException(403, "Aquesta acció és de recepció: tria el rol «Recepció» o demana-ho a recepció")

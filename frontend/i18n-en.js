@@ -707,6 +707,18 @@ Object.assign(I18N.en, {
  "Dades personals": "Personal details",
  "Contacte": "Contact",
  "Cognoms": "Surname",
+ "Carregant permisos…": "Loading permissions…",
+ "Desar permisos": "Save permissions",
+ "Permisos desats: s'apliquen en la propera sessió del treballador": "Permissions saved: they apply on the worker's next session",
+ "La gerència ja ho pot tot: els permisos addicionals són per als treballadors.": "Management can already do everything: extra permissions are for workers.",
+ "Permisos addicionals (informes, historial, esborrar productes…)": "Extra permissions (reports, history, delete products…)",
+ "Veure informes i estadístiques": "View reports and statistics",
+ "Veure l'historial de moviments d'estoc": "View the stock movement history",
+ "Veure els resultats dels inventaris i ajustar l'estoc": "View inventory results and adjust stock",
+ "Esborrar productes": "Delete products",
+ "Corregir apunts de caixa": "Correct cash entries",
+ "Corregir moviments d'estoc": "Correct stock movements",
+ "Donar d'alta i editar socis (dades, estat, foto, carnet, documents)": "Register and edit members (data, status, photo, card, documents)",
  "Connecta la bàscula (Dispensar › carret › Bàscula) o escriu el pes a mà": "Connect the scale (Dispense › cart › Scale) or type the weight by hand",
  "Avís d'estoc baix": "Low-stock alert",
  "Dies sense retirar genètiques": "Days without withdrawing genetics",
@@ -1555,3 +1567,4 @@ I18N.pat.en.push([new RegExp("^(.*)\\ ·\\ control\\ d'un\\ sol\\ producte\\ ·\
 I18N.pat.en.push([new RegExp("^Diferència\\ (.*)\\ \\(sistema:\\ (.*)\\)$"), "Difference $1 (system: $2)"]);
 I18N.pat.en.push([new RegExp("^(.*)\\ ·\\ (.*)\\ ·\\ (.*)$"), "$1 · $2 · $3"]);
 I18N.pat.en.push([new RegExp("^·\\ (.*)\\ de\\ (.*)\\ pesats$"), "· $1 of $2 weighed"]);
+I18N.pat.en.push([new RegExp("^No\\ tens\\ el\\ permís\\ «(.*)»:\\ demana\\-li\\ a\\ l'administrador$"), "You do not have the «$1» permission: ask the administrator"]);

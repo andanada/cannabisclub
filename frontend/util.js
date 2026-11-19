@@ -95,6 +95,8 @@ function novaRef() {
 }
 
 const isManager = () => ['admin', 'encarregat'].includes(S.me.role);
+// Permís concret: la gerència els té tots; un treballador, només els que l'administrador li ha donat (S.me.permisos).
+const te = (clau) => isManager() || (S.me.permisos || []).includes(clau);
 
 // Icones de la navegació (SVG construït amb el DOM: la CSP no permet innerHTML ni estils en línia).
 const ICONS = {

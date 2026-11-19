@@ -228,7 +228,7 @@ function memberTools(m, out, onChange) {
   // Tot el personal pot consultar el soci i afegir incidències; Donacions és de recepció (i va el primer); la resta d'eines, de la gerència.
   const donacions = potRecepcio() ? [toggle('Donacions', () => walletPanel(m))] : [];
   const comu = [toggle('Historial de consum', () => memberConsumption(m)), toggle('Incidències', () => memberIncidents(m))];
-  if (!isManager()) return { bar: [...donacions, ...comu], panel };
+  if (!te('gestio_socis')) return { bar: [...donacions, ...comu], panel };
   return { bar: [...donacions, ...photoUploader(m, out, reload), toggle('Carnet', () => cardManager(m, out, reload)), toggle('Editar dades', () => editForm(m, out, reload)),
     ...comu, toggle('Avalats', () => memberAvalats(m)), toggle('Documents', () => memberDocuments(m))], panel };
 }

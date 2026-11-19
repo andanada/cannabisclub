@@ -25,7 +25,7 @@ async function cashHistory(reload) {
   const rows = await api(`/locals/${S.local}/apunts?des=${dia(-2)}&fins=${dia(1)}&limit=60`);
   const out = h('div');
   const files = rows.map((e) => {
-    const corregible = e.tipus !== 'correccio' && !e.corregit;
+    const corregible = te('corregir_caixa') && e.tipus !== 'correccio' && !e.corregit;
     const btn = corregible ? h('button', { type: 'button' }, 'Corregir') : null;
     if (btn) btn.addEventListener('click', () => guard(btn, out, () => demanaCorreccio(`/caixa/apunts/${e.id}/correccio`, reload)));
     const estat = e.corregit ? h('span', { class: 'pill warn' }, 'corregit') : (e.tipus === 'correccio' ? h('span', { class: 'pill' }, 'correcció') : null);
@@ -42,7 +42,7 @@ async function stockHistory(reload) {
   const rows = await api(`/locals/${S.local}/moviments?des=${dia(-2)}&fins=${dia(1)}&limit=60`);
   const out = h('div');
   const files = rows.map((m) => {
-    const corregible = m.tipus !== 'correccio' && !m.corregit;
+    const corregible = te('corregir_estoc') && m.tipus !== 'correccio' && !m.corregit;
     const btn = corregible ? h('button', { type: 'button' }, 'Corregir') : null;
     if (btn) btn.addEventListener('click', () => guard(btn, out, () => demanaCorreccio(`/moviments/${m.id}/correccio`, reload)));
     const estat = m.corregit ? h('span', { class: 'pill warn' }, 'corregit') : (m.tipus === 'correccio' ? h('span', { class: 'pill' }, 'correcció') : null);

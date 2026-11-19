@@ -89,6 +89,21 @@ def register(app, db, current_user, need_admin, run, usuari_or_404):
         run(usuaris.update_user, s, user, usuari_or_404(s, user_id), body.active, body.role, body.local_ids, privilegis)
         return {"ok": True}
 
+    class PermisosIn(BaseModel):
+        permisos: list[str] = Field(max_length=50)
+
+    @app.get("/permisos")
+    def cataleg_permisos(user: User = Depends(current_user)):
+        """Els permisos que l'administrador pot donar a un treballador."""
+        from .. import permisos
+        return [{"clau": c, "etiqueta": e, "grup": g} for c, e, g in permisos.CATALEG]
+
+    @app.put("/usuaris/{user_id}/permisos")
+    def assigna_permisos(user_id: int, body: PermisosIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_admin(user)
+        from .. import permisos
+        return {"permisos": run(permisos.assigna, s, user, usuari_or_404(s, user_id), body.permisos)}
+
     @app.post("/usuaris/{user_id}/totp")
     def reinicia_totp(user_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
         need_admin(user)

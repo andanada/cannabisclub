@@ -107,9 +107,9 @@ const TABS = [
   ['acces', 'Accés', potRecepcio],
   ['caixa', 'Caixa', potRecepcio],
   ['dispensar', 'Dispensar', potDispensari],
-  ['estoc', 'Estoc', potDispensari, () => [['productes', 'Productes'], ['existencies', 'Existències i moviments'], ['inventari', 'Inventaris'], ...(isManager() ? [['resultats', "Resultats d'inventaris"], ['historial', 'Historial']] : [])]],
+  ['estoc', 'Estoc', potDispensari, () => [['productes', 'Productes'], ['existencies', 'Existències i moviments'], ['inventari', 'Inventaris'], ...(te('resultats_inventari') ? [['resultats', "Resultats d'inventaris"]] : []), ...(te('historial') ? [['historial', 'Historial']] : [])]],
   ['fitxatge', 'Horaris', () => true],
-  ['estinf', 'Estadístiques i informes', isManager, [
+  ['estinf', 'Estadístiques i informes', () => te('informes'), [
     ['est:membres', 'Estadístiques · Socis'], ['est:dispensari', 'Estadístiques · Dispensari i bar'], ['est:finances', 'Estadístiques · Finances'],
     ['inf:vendes', 'Informes · Vendes'], ['inf:dispensacions', 'Informes · Dispensacions'], ['inf:evolucio', 'Informes · Evolució del club'], ['inf:demografia', 'Informes · Demografia'],
     ['inf:caixa', 'Informes · Caixa'], ['inf:estoc', 'Informes · Estoc valorat'], ['inf:assistencia', 'Informes · Assistència'], ['inf:visites', 'Informes · Visites de socis'], ['inf:hores', 'Informes · Hores']]],

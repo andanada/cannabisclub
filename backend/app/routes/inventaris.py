@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from .. import inventaris
 from ..models import InventorySession, User
-from .comu import need_dispensari
+from .comu import need_dispensari, need_permis
 
 
 def register(app, db, current_user, check_local, need_manager, run):
@@ -37,7 +37,7 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.get("/locals/{local_id}/inventaris/resultats")
     def resultats_inventaris(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)  # només qui té accés complet
+        need_permis(user, 'resultats_inventari')
         check_local(s, user, local_id)
         return inventaris.resultats(s, local_id)
 
@@ -61,7 +61,7 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.post("/inventaris/{inventari_id}/ajustar")
     def ajusta_inventari(inventari_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'resultats_inventari')
         return run(inventaris.ajustar, s, user, inventari_or_404(s, user, inventari_id))
 
     @app.post("/inventaris/{inventari_id}/cancelar")

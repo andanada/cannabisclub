@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .. import cash, idempotencia
 from ..models import CashEntry, CashRegister, StockMovement, User
-from .comu import CAN_CREATE_MEMBER, need_recepcio, pot_dispensari, pot_recepcio
+from .comu import CAN_CREATE_MEMBER, need_permis, need_recepcio, pot_dispensari, pot_recepcio
 
 
 class CorreccioIn(BaseModel):
@@ -77,7 +77,7 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.post("/caixa/apunts/{entry_id}/correccio", status_code=201)
     def correccio_apunt(entry_id: int, body: CorreccioIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)  # anul·lar un apunt de caixa és de la gerència: qui cobra no pot desfer-ho tot sol
+        need_permis(user, 'corregir_caixa')  # anul·lar un apunt de caixa: gerència o permís explícit (qui cobra no ho pot fer tot sol)
         orig = s.get(CashEntry, entry_id)
         if not orig:
             raise HTTPException(404, "Apunt inexistent")

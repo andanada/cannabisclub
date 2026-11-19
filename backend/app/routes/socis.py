@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from .. import documents, incidencies, quotes, service, socis
 from ..models import Member, MemberDocument, MemberIncident, User
-from .comu import CAN_CREATE_MEMBER
+from .comu import CAN_CREATE_MEMBER, need_permis
 
 
 def register(app, db, current_user, check_local, need_manager, run, member_or_404, member_payload):
@@ -28,8 +28,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/socis", status_code=201)
     def alta_soci(body: MemberIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        if user.role not in CAN_CREATE_MEMBER:
-            raise HTTPException(403, "El teu rol no pot donar d'alta socis")
+        need_permis(user, 'gestio_socis')
         check_local(s, user, body.local_id)
         try:
             m = service.create_member(s, user, body.local_id, body.nom, body.document,
@@ -85,12 +84,12 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.get("/socis/{member_id}/documents")
     def llista_documents(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         return {"tipus": documents.TIPUS, "documents": documents.llista(s, user, member_or_404(s, user, member_id))}
 
     @app.post("/socis/{member_id}/documents", status_code=201)
     def puja_document(member_id: int, body: DocumentIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         return {"id": run(documents.pujar, s, user, member_or_404(s, user, member_id), body.tipus, body.nom, body.data_base64).id}
 
     def _document(s, user, document_id):
@@ -102,24 +101,24 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.get("/documents/{document_id}")
     def veure_document(document_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         return documents.llegir(s, user, _document(s, user, document_id))
 
     @app.delete("/documents/{document_id}")
     def esborra_document(document_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         documents.esborrar(s, user, _document(s, user, document_id))
         return {"ok": True}
 
     @app.get("/socis/{member_id}/contracte")
     def contracte(member_id: int, idioma: str = "ca", user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         cos = documents.contracte_html(s, user, member_or_404(s, user, member_id), idioma)
         return Response(cos, media_type="text/html; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="contracte-{member_id}.html"'})
 
     @app.get("/socis/{member_id}/avalats")
     def llista_avalats(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         return incidencies.avalats(s, user, member_or_404(s, user, member_id))
 
     class SignaturaIn(BaseModel):
@@ -128,13 +127,13 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/socis/{member_id}/signatura", status_code=201)
     def signar(member_id: int, body: SignaturaIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         sig = run(service.save_signature, s, user, member_or_404(s, user, member_id), body.png_base64, body.text_sha256)
         return {"id": sig.id, "sha256": sig.sha256}
 
     @app.get("/socis/{member_id}/signatura")
     def veure_signatura(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         r = service.read_signature(s, user, member_or_404(s, user, member_id))
         if not r:
             raise HTTPException(404, "Sense signatura")
@@ -142,7 +141,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/socis/{member_id}/estat")
     def canvi_estat(member_id: int, body: EstatIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         run(service.set_member_status, s, user, member_or_404(s, user, member_id), body.estat)
         return {"ok": True}
 
@@ -253,7 +252,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.patch("/socis/{member_id}")
     def edita_soci(member_id: int, body: MemberUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         m = member_or_404(s, user, member_id)
         # només els camps enviats: un camp enviat com a null buida el telèfon o el correu
         run(socis.update_member, s, user, m, {k: getattr(body, k) for k in body.model_fields_set})
@@ -264,7 +263,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/socis/{member_id}/foto", status_code=201)
     def pujar_foto(member_id: int, body: FotoIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         f = run(socis.save_photo, s, user, member_or_404(s, user, member_id), body.image_base64)
         return {"id": f.id, "sha256": f.sha256}
 
@@ -280,13 +279,13 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/socis/{member_id}/carnet", status_code=201)
     def assignar_carnet(member_id: int, body: CarnetIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         c = run(socis.assign_card, s, user, member_or_404(s, user, member_id), body.codi)
         return {"id": c.id}
 
     @app.delete("/socis/{member_id}/carnet")
     def retirar_carnet(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         run(socis.revoke_card, s, user, member_or_404(s, user, member_id))
         return {"ok": True}
 
@@ -295,6 +294,6 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/socis/{member_id}/carnet/generar", status_code=201)
     def generar_carnet(member_id: int, body: CarnetGenerarIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_permis(user, 'gestio_socis')
         codi = run(socis.generate_and_assign_card, s, user, member_or_404(s, user, member_id), body.prefix)
         return {"codi": codi}  # l'única vegada que es mostra: a la base de dades només queda l'empremta

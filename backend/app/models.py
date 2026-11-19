@@ -27,6 +27,7 @@ class User(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     pot_reemborsar: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())   # privilegi d'un dispensador
     pot_editar_descomptes: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    permisos: Mapped[str | None] = mapped_column(Text, nullable=True)  # llista JSON de permisos addicionals (vegeu permisos.py)
     moneder_limit_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)  # saldo negatiu que pot deixar aquest empleat (None = el del local)
     last_totp_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)  # darrer pas TOTP consumit (antireutilització persistent)
 
