@@ -166,11 +166,15 @@ def missing_columns(engine) -> list[str]:
 
 def add_missing_columns(engine) -> list[str]:
     afegides = missing_columns(engine)
+    antic_ajustat = "inventory_sessions.ajustat" in afegides
     with engine.begin() as c:
         for tc in afegides:
             taula, col = tc.split(".")
             ddl = dict(COLUMNES_NOVES[taula])[col]
             c.execute(text(f"ALTER TABLE {taula} ADD COLUMN {col} {ddl[engine.dialect.name] if engine.dialect.name in ddl else ddl['default']}"))
+        if antic_ajustat:
+            # Els inventaris tancats abans de la columna ja havien ajustat l'estoc (l'antic «tancar»): no s'han de poder ajustar una segona vegada.
+            c.execute(text("UPDATE inventory_sessions SET ajustat = " + ("TRUE" if engine.dialect.name == "postgresql" else "1") + " WHERE estat = 'tancat'"))
     return afegides
 
 

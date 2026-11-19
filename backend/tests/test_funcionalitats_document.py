@@ -198,3 +198,49 @@ def test_existencies_per_lloc_avis_d_estoc_baix_i_moviments_amb_historial(ctx):
     client.put("/locals/1/config", json={"estoc_baix_mg": 1000}, headers=token(client, sec, "admin"))
     estat = {p["nom"]: p["estat"] for p in client.get("/locals/1/existencies", headers=enc).json()["productes"]}
     assert estat == {"Flor": "baix", "Aigua": "ok"}                                                      # límit personalitzable
+
+
+# ---------- revisió independent: mínim privilegi ----------
+
+def test_sense_rol_del_dia_un_treballador_no_te_acces_ni_a_recepcio_ni_al_dispensari(ctx):
+    client, _, sec = ctx
+    enc, flor, aigua, mid = _escena(client, sec)
+    _recarrega(client, enc, mid, 2000)
+    sense = token(client, sec, "disp", rol=False)                                    # no ha triat rol
+    assert _recarrega(client, sense, mid, 100).status_code == 403
+    assert client.post("/caixa/tancar", json={"local_id": 1, "counted_cent": 0}, headers=sense).status_code == 403
+    assert client.post("/productes", json={"local_id": 1, "nom": "X", "preu_cent_per_g": 1}, headers=sense).status_code == 403
+    assert client.post("/dispensacions/carret", json={"member_id": mid, "linies": [{"product_id": flor, "grams": "1"}]}, headers=sense).status_code == 403
+    assert client.post("/dispensacions", json={"member_id": mid, "product_id": flor, "grams": "1", "metode": "monedero"}, headers=sense).status_code == 403
+    rec = token(client, sec, "disp", rol="recepcio")                                 # recepció no dispensa
+    assert client.post("/dispensacions/carret", json={"member_id": mid, "linies": [{"product_id": flor, "grams": "1"}]}, headers=rec).status_code == 403
+
+
+def test_les_correccions_de_caixa_son_de_la_gerencia_i_les_observacions_les_tanca_qui_les_va_crear(ctx):
+    client, _, sec = ctx
+    enc, flor, aigua, mid = _escena(client, sec)
+    rec = token(client, sec, "disp", rol="recepcio")
+    ap = client.post("/despeses", json={"local_id": 1, "cent": 500, "metode": "efectiu", "categoria": "neteja", "concepte": "lleixiu"}, headers=rec)
+    assert ap.status_code == 201                                                     # recepció registra despeses
+    assert client.post(f"/caixa/apunts/{ap.json()['apunt']}/correccio", json={"nota": "m'ho quedo"}, headers=rec).status_code == 403
+    assert client.post(f"/caixa/apunts/{ap.json()['apunt']}/correccio", json={"nota": "import equivocat"}, headers=enc).status_code == 201
+    disp = token(client, sec, "disp")
+    altre = client.post(f"/socis/{mid}/incidencies", json={"descripcio": "Mal comportament", "tipus": "comportament", "alerta": True}, headers=enc).json()["id"]
+    propia = client.post(f"/socis/{mid}/incidencies", json={"descripcio": "Ha deixat les claus", "tipus": "objecte"}, headers=disp).json()["id"]
+    assert client.post(f"/incidencies/{altre}/tanca", headers=disp).status_code == 403   # no pot esborrar l'avís d'un altre
+    assert client.post(f"/incidencies/{propia}/tanca", headers=disp).status_code == 200  # la seva sí
+    assert client.post(f"/incidencies/{altre}/tanca", headers=enc).status_code == 200
+
+
+def test_ajustar_un_inventari_de_no_genetics_reparteix_la_falta_entre_dispensari_i_magatzem(ctx):
+    client, _, sec = ctx
+    enc, flor, aigua, mid = _escena(client, sec)                                     # Aigua: 50 u al dispensari
+    mag = client.get("/locals/1/existencies", headers=enc).json()["magatzem_id"]
+    client.post("/moviments/traspas", json={"product_id": aigua, "de": None, "a": mag, "grams": "45"}, headers=enc)   # 5 u al dispensari, 45 al magatzem
+    sid = client.post("/locals/1/inventaris", json={"tipus": "no_genetiques"}, headers=enc).json()["id"]
+    assert client.put(f"/inventaris/{sid}/linies/{aigua}", json={"grams": "40"}, headers=enc).status_code == 200      # falten 10 u
+    assert client.put(f"/inventaris/{sid}/linies/{aigua}", json={"grams": "40.5"}, headers=enc).status_code == 422    # unitats senceres
+    client.post(f"/inventaris/{sid}/guardar", headers=enc)
+    assert client.post(f"/inventaris/{sid}/ajustar", headers=enc).json() == {"ajustos": 1}
+    ex = {p["id"]: p for p in client.get("/locals/1/existencies", headers=enc).json()["productes"]}[aigua]
+    assert (ex["dispensari_g"], ex["magatzem_g"]) == ("0", "40")                     # primer surt del dispensari i la resta del magatzem

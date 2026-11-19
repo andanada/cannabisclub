@@ -100,8 +100,13 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         service.audit_append(s, {"accio": "esborra_producte", "producte": p.id, "nom": p.nom, "per": user.id})
         for img in s.scalars(select(ProductImage).where(ProductImage.product_id == p.id)):
             s.delete(img)
+        from sqlalchemy.exc import IntegrityError
         s.delete(p)
-        s.commit()
+        try:
+            s.commit()
+        except IntegrityError:
+            s.rollback()
+            raise HTTPException(422, "El producte té dades associades (lots, descomptes, regles…): desactiva'l en lloc d'esborrar-lo")
         return {"ok": True}
 
     class ImatgeIn(BaseModel):
@@ -166,6 +171,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.post("/dispensacions", status_code=201)
     def dispensacio(body: DispensacioIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_dispensari(user)
         product_or_404(s, user, body.product_id)
 
         def fes():
@@ -176,6 +182,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.post("/dispensacions/carret", status_code=201)
     def dispensacio_carret(body: CarretIn, user: User = Depends(current_user), s: Session = Depends(db)):
         """Dispensa diversos productes d'una vegada i els paga del monedero del soci (tot o res)."""
+        need_dispensari(user)
         for l in body.linies:
             product_or_404(s, user, l.product_id)
 

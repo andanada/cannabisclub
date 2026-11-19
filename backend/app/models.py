@@ -695,6 +695,8 @@ Index("ix_movement_warehouses_wh", MovementWarehouse.warehouse_id)
 Index("ix_containers_local", Container.local_id)
 Index("ix_member_price_lines_line", MemberPriceLine.price_line_id)
 Index("ix_inventory_sessions_local", InventorySession.local_id, InventorySession.estat)
+Index("uq_inventory_sessions_obert", InventorySession.local_id, unique=True, postgresql_where=(InventorySession.estat == "obert"),
+      sqlite_where=(InventorySession.estat == "obert"))  # un sol inventari obert per local (dues peticions alhora no en creen dos)
 
 
 # ---------- RGPD, controls de club, traçabilitat, ancoratges ----------

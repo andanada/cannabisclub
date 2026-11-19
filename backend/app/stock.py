@@ -386,8 +386,13 @@ def dispense_cart(db: Session, actor: User, member_id: int, linies: list[dict]) 
     if len(set(ids)) != len(ids):
         raise ValueError("Hi ha un producte repetit al carret: ajunta'n les quantitats")
     _lock_member(db, member_id)
+    locals_ = set()
     for pid in sorted(ids):
-        _lock_product(db, pid)
+        locals_.add(_lock_product(db, pid).local_id)
+    if any(not l.get("regal") for l in linies):
+        from . import cash as _cash
+        for lid in locals_:  # la caixa es bloqueja ABANS de qualsevol auditoria de les línies: no es pot creuar amb tancar caixa o una despesa
+            _cash._require_open(db, lid, actor)
     resultat, subtotal, descompte, total = [], 0, 0, 0
     try:
         for l in linies:

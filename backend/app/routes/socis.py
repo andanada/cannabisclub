@@ -73,6 +73,8 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         if not i:
             raise HTTPException(404, "No existeix")
         check_local(s, user, i.local_id)
+        if user.role not in CAN_CREATE_MEMBER and i.creat_per != user.id:
+            raise HTTPException(403, "Només la gerència o qui l'ha creada pot tancar aquesta observació")
         run(incidencies.tanca, s, user, i)
         return {"ok": True}
 

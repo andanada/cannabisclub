@@ -62,10 +62,13 @@ def ctx(env):
         admin.dispose()
 
 
-def token(client, secrets_, name):
+def token(client, secrets_, name, rol=None):
     r = client.post("/auth/login", json={"username": name, "password": PASS, "totp": pyotp.TOTP(secrets_[name]).now()})
     assert r.status_code == 200
-    return {"Authorization": f"Bearer {r.json()['token']}"}
+    h = {"Authorization": f"Bearer {r.json()['token']}"}
+    if name == "disp" and rol is not False:  # un treballador ha de triar el rol del dia: per defecte, dispensari (els tests de recepció el canvien)
+        assert client.post("/auth/rol-dia", json={"rol": rol or "dispensari"}, headers=h).status_code == 200
+    return h
 
 
 SOCI = {"local_id": 1, "nom": "Anna Prova", "document": "12345678Z", "naixement": "1990-05-20",

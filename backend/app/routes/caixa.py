@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .. import cash, idempotencia
 from ..models import CashEntry, CashRegister, StockMovement, User
-from .comu import CAN_CREATE_MEMBER, need_recepcio, pot_recepcio
+from .comu import CAN_CREATE_MEMBER, need_recepcio, pot_dispensari, pot_recepcio
 
 
 class CorreccioIn(BaseModel):
@@ -56,6 +56,8 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.post("/cobraments", status_code=201)
     def cobrament(body: CobramentIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        if not (pot_recepcio(user) or pot_dispensari(user)):  # cal haver triat el rol del dia (recepció o dispensari)
+            raise HTTPException(403, "Tria el teu rol del dia per cobrar")
         mv = s.get(StockMovement, body.movement_id)
         if not mv:
             raise HTTPException(404, "Moviment inexistent")
@@ -75,7 +77,7 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.post("/caixa/apunts/{entry_id}/correccio", status_code=201)
     def correccio_apunt(entry_id: int, body: CorreccioIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_recepcio(user)  # recepció (o gerència): el dispensari no toca la caixa
+        need_manager(user)  # anul·lar un apunt de caixa és de la gerència: qui cobra no pot desfer-ho tot sol
         orig = s.get(CashEntry, entry_id)
         if not orig:
             raise HTTPException(404, "Apunt inexistent")

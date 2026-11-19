@@ -18,23 +18,23 @@ def acces_complet(user: User) -> bool:
 
 def pot_recepcio(user: User) -> bool:
     """Caixa i donacions. Un treballador que ha triat «dispensari» no hi accedeix (per no descuadrar la caixa de recepció).
-    Sense rol triat (sessions antigues) es permet com abans."""
-    return acces_complet(user) or getattr(user, "rol_dia", None) in (None, "recepcio")
+    Sense rol triat no té accés ni a recepció ni al dispensari: cal triar-lo en iniciar sessió."""
+    return acces_complet(user) or getattr(user, "rol_dia", None) == "recepcio"
 
 
 def pot_dispensari(user: User) -> bool:
-    """Productes, estoc i inventaris: dispensari o gerència."""
-    return acces_complet(user) or getattr(user, "rol_dia", None) in (None, "dispensari")
+    """Productes, estoc, inventaris i dispensar: dispensari o gerència."""
+    return acces_complet(user) or getattr(user, "rol_dia", None) == "dispensari"
 
 
 def need_recepcio(user: User) -> None:
     if not pot_recepcio(user):
-        raise HTTPException(403, "Aquesta acció és de recepció: canvia de rol o demana-ho a recepció")
+        raise HTTPException(403, "Aquesta acció és de recepció: tria el rol «Recepció» o demana-ho a recepció")
 
 
 def need_dispensari(user: User) -> None:
     if not pot_dispensari(user):
-        raise HTTPException(403, "Aquesta acció és del dispensari: canvia de rol o demana-ho al dispensari")
+        raise HTTPException(403, "Aquesta acció és del dispensari: tria el rol «Dispensari» o demana-ho al dispensari")
 
 
 def check_local(s: Session, user: User, local_id: int) -> None:

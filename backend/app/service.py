@@ -417,7 +417,8 @@ def inactivitat(db: Session, member: Member, avui: datetime | None = None) -> di
         return None
     ara = avui or datetime.now(timezone.utc)
     ultima = db.scalar(select(func.max(StockMovement.ts)).join(Product, Product.id == StockMovement.product_id)
-                       .where(StockMovement.member_id == member.id, StockMovement.tipus == "dispensacio", Product.es_genetic.is_(True)))
+                       .where(StockMovement.member_id == member.id, StockMovement.tipus == "dispensacio", Product.es_genetic.is_(True),
+                              StockMovement.id.not_in(select(StockMovement.corregeix_id).where(StockMovement.corregeix_id.is_not(None)))))
     base = ultima or member.creat
     base = base if base.tzinfo else base.replace(tzinfo=timezone.utc)
     dies = (ara - base).days

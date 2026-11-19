@@ -114,6 +114,8 @@ def comptar(db: Session, actor: User, s: InventorySession, product_id: int, gram
     brut = unitats.g_to_mg(grams)
     if brut < 0 or brut > MAX_MG:
         raise ValueError("Quantitat no vàlida")
+    if p.unitat == "u" and brut % 1000:
+        raise ValueError("Aquest producte es compta per unitats senceres")
     tara = _tara(s, p)
     if brut < tara:
         raise ValueError(f"El pes és inferior a la tara del pot ({_g(tara)} g)")
@@ -176,7 +178,10 @@ def resultats(db: Session, local_id: int, limit: int = 30) -> list[dict]:
 
 def ajustar(db: Session, actor: User, s: InventorySession) -> dict:
     """Només gerència: deixa l'estoc de l'àmbit exactament com s'ha comptat (un moviment d'ajust per producte amb diferència).
-    Tot o res; mai deixa l'estoc negatiu (si després del recompte hi ha hagut vendes, no s'esborren)."""
+    Tot o res; mai deixa l'estoc negatiu (si després del recompte hi ha hagut vendes, no s'esborren). Al magatzem se suposa un de sol
+    (el que crea `magatzem_unic`); en no genètics, una falta surt primer del dispensari i després del magatzem."""
+    from . import magatzems
+    magatzem_id = magatzems.magatzem_unic(db, s.local_id).id   # abans de bloquejar res: pot fer commit
     _lock_session(db, s)
     if s.estat != "tancat":
         raise ValueError("Primer cal guardar l'inventari")
@@ -184,29 +189,37 @@ def ajustar(db: Session, actor: User, s: InventorySession) -> dict:
         raise ValueError("Aquest inventari ja s'ha ajustat")
     comptes = list(db.scalars(select(InventoryCount).where(InventoryCount.session_id == s.id).order_by(InventoryCount.product_id)))
     productes = {c.product_id: stock._lock_product_row(db, c.product_id) for c in comptes}
-    magatzem_id = None
-    if s.tipus == "magatzem":
-        from . import magatzems
-        magatzem_id = magatzems.magatzem_unic(db, s.local_id).id
     ajustos = 0
     for c in comptes:
         p = productes[c.product_id]
         if not p:
             continue
-        actual = {"dispensari": stock.stock_mg(db, p.id), "magatzem": stock.stock_in_mg(db, p.id, magatzem_id) if magatzem_id else 0,
-                  "no_genetiques": stock.stock_mg(db, p.id)}[s.tipus]
+        principal = stock.stock_mg(db, p.id)
+        total = stock.stock_total_mg(db, p.id)
+        actual = {"dispensari": principal, "magatzem": total - principal, "no_genetiques": total}[s.tipus]
         esperat = c.expected_mg if c.expected_mg is not None else actual
         delta = max(c.counted_mg - esperat, -actual)
         if delta == 0:
             continue
-        m = StockMovement(local_id=p.local_id, product_id=p.id, tipus="ajust", delta_mg=delta, user_id=actor.id, nota=f"Inventari #{s.id}")
-        db.add(m)
-        db.flush()
-        if magatzem_id is not None:
-            db.add(MovementWarehouse(movement_id=m.id, warehouse_id=magatzem_id))
-        pla = lots.attach_outflow(db, m, p, -delta) if (delta < 0 and magatzem_id is None) else []
-        service.audit_append(db, {"accio": "ajust_inventari", "moviment": m.id, "producte": p.id, "delta_mg": delta, "inventari": s.id,
-                                  **({"lots": [[b, x] for b, x in pla]} if pla else {}), "per": actor.id})
+        # repartiment per lloc: [(warehouse_id|None, delta)]
+        if s.tipus == "dispensari":
+            parts = [(None, delta)]
+        elif s.tipus == "magatzem":
+            parts = [(magatzem_id, delta)]
+        elif delta > 0:
+            parts = [(None, delta)]
+        else:
+            del_principal = min(-delta, principal)
+            parts = [(None, -del_principal)] + ([(magatzem_id, -(-delta - del_principal))] if -delta - del_principal else [])
+        for wid, d in parts:
+            m = StockMovement(local_id=p.local_id, product_id=p.id, tipus="ajust", delta_mg=d, user_id=actor.id, nota=f"Inventari #{s.id}")
+            db.add(m)
+            db.flush()
+            if wid is not None:
+                db.add(MovementWarehouse(movement_id=m.id, warehouse_id=wid))
+            pla = lots.attach_outflow(db, m, p, -d) if (d < 0 and wid is None) else []
+            service.audit_append(db, {"accio": "ajust_inventari", "moviment": m.id, "producte": p.id, "delta_mg": d, "inventari": s.id,
+                                      **({"lots": [[b, x] for b, x in pla]} if pla else {}), "per": actor.id})
         ajustos += 1
     s.ajustat = True
     service.audit_append(db, {"accio": "ajusta_inventari", "inventari": s.id, "ajustos": ajustos, "per": actor.id})
