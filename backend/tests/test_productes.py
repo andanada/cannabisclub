@@ -91,6 +91,7 @@ def test_llista_completa_nomes_per_a_responsables_i_del_seu_local(ctx):
     enc, disp, admin = token(client, sec, "enc"), token(client, sec, "disp"), token(client, sec, "admin")
     pid = nou(client, enc, "Producte")
     assert client.get("/locals/1/productes", headers=enc).status_code == 200
+    client.post("/auth/rol-dia", json={"rol": "recepcio"}, headers=disp)   # recepció no gestiona productes
     assert client.get("/locals/1/productes", headers=disp).status_code == 403
     assert client.get("/locals/2/productes", headers=enc).status_code == 403
     assert client.patch(f"/productes/{pid}", json={"preu_cent_per_g": 1}, headers=disp).status_code == 403

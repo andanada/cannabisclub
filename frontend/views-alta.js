@@ -82,7 +82,7 @@ function altaWizard() {
     h('div', { class: 'row' }, field('Nom', f.nom), field('Cognoms', f.cognoms)),
     h('div', { class: 'row' }, doc.node, naix.node),
     h('h3', null, 'Contacte'), h('div', { class: 'row' }, tel.node, mail.node),
-    h('h3', null, 'Adreça i tipus de membre'), perfil.node,
+    h('h3', null, 'Tipus de membre'), perfil.node,
     h('h3', null, 'Protecció de dades'),
     h('label', { class: 'check' }, f.docv, " S'ha exhibit el document d'identitat original i coincideix amb les dades."), avalBox,
     h('label', { class: 'check' }, f.rgpd, ' El soci ha estat informat del tractament de les seves dades (tractament bàsic, necessari per ser soci) i ho accepta.'),

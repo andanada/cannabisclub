@@ -1,4 +1,4 @@
-"""Rutes: inventaris (extretes de main.py sense canviar-ne el comportament)."""
+"""Rutes: inventaris (control de l'estoc amb pesos reals)."""
 from decimal import Decimal
 
 from fastapi import Depends, HTTPException
@@ -7,17 +7,22 @@ from sqlalchemy.orm import Session
 
 from .. import inventaris
 from ..models import InventorySession, User
+from .comu import need_dispensari
 
 
 def register(app, db, current_user, check_local, need_manager, run):
     class InventariIn(BaseModel):
         nom: str | None = Field(default=None, max_length=60)
+        tipus: str = Field(default="dispensari", max_length=14)      # dispensari | magatzem | no_genetiques
+        control: str = Field(default="complet", max_length=10)       # complet | producte
+        product_id: int | None = None
 
     class RecompteIn(BaseModel):
-        grams: Decimal = Field(ge=0, le=1_000_000, decimal_places=3)
+        grams: Decimal = Field(ge=0, le=1_000_000, decimal_places=3)  # pes de la bàscula (al dispensari, amb la tara)
+        nota: str | None = Field(default=None, max_length=300)
 
     def inventari_or_404(s: Session, user: User, inventari_id: int) -> InventorySession:
-        need_manager(user)
+        need_dispensari(user)
         inv = s.get(InventorySession, inventari_id)
         if not inv:
             raise HTTPException(404, "Inventari inexistent")
@@ -26,15 +31,21 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.get("/locals/{local_id}/inventaris")
     def llista_inventaris(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_dispensari(user)
         check_local(s, user, local_id)
         return inventaris.llista(s, local_id)
 
+    @app.get("/locals/{local_id}/inventaris/resultats")
+    def resultats_inventaris(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)  # només qui té accés complet
+        check_local(s, user, local_id)
+        return inventaris.resultats(s, local_id)
+
     @app.post("/locals/{local_id}/inventaris", status_code=201)
     def obre_inventari(local_id: int, body: InventariIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_dispensari(user)
         check_local(s, user, local_id)
-        return {"id": run(inventaris.obrir, s, user, local_id, body.nom).id}
+        return {"id": run(inventaris.obrir, s, user, local_id, body.nom, body.tipus, body.control, body.product_id).id}
 
     @app.get("/inventaris/{inventari_id}")
     def detall_inventari(inventari_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -42,12 +53,16 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.put("/inventaris/{inventari_id}/linies/{product_id}")
     def compta_producte(inventari_id: int, product_id: int, body: RecompteIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        run(inventaris.comptar, s, user, inventari_or_404(s, user, inventari_id), product_id, body.grams)
-        return {"ok": True}
+        return run(inventaris.comptar, s, user, inventari_or_404(s, user, inventari_id), product_id, body.grams, body.nota)
 
-    @app.post("/inventaris/{inventari_id}/tancar")
-    def tanca_inventari(inventari_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        return run(inventaris.tancar, s, user, inventari_or_404(s, user, inventari_id))
+    @app.post("/inventaris/{inventari_id}/guardar")
+    def guarda_inventari(inventari_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        return run(inventaris.guardar, s, user, inventari_or_404(s, user, inventari_id))
+
+    @app.post("/inventaris/{inventari_id}/ajustar")
+    def ajusta_inventari(inventari_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        return run(inventaris.ajustar, s, user, inventari_or_404(s, user, inventari_id))
 
     @app.post("/inventaris/{inventari_id}/cancelar")
     def cancella_inventari(inventari_id: int, user: User = Depends(current_user), s: Session = Depends(db)):

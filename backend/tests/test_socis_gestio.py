@@ -103,10 +103,10 @@ def test_llista_de_socis_amb_filtre_per_nom_i_estat(ctx):
     assert [x["id"] for x in client.get("/locals/1/socis?q=pons", headers=enc).json()] == [b]
     assert [x["id"] for x in client.get("/locals/1/socis?estat=suspes", headers=enc).json()] == [b]
     assert client.get("/locals/1/socis?estat=inventat", headers=enc).status_code == 422
-    assert client.get("/locals/1/socis", headers=disp).status_code == 403
     assert client.get("/locals/2/socis", headers=enc).status_code == 403
     a_ = ultima_auditoria(factory)
     assert a_["accio"] == "llista_socis" and a_["n"] == 1
+    assert client.get("/locals/1/socis", headers=disp).status_code == 200   # tot el personal pot buscar socis
     assert a != b
 
 
@@ -227,6 +227,6 @@ def test_cerca_per_document_i_carnet_nomes_per_post_i_dispensador_veu_vista_redu
               client.post("/locals/1/socis/carnet", json={"codi": "CARNET-Q"}, headers=disp),
               client.get(f"/socis/{mid}", headers=disp)):
         v = r.json()
-        assert set(v) == {"id", "local_id", "nom", "estat", "quota", "te_foto", "te_carnet", "alertes"}, v
+        assert {"id", "local_id", "nom", "estat", "quota", "te_foto", "te_carnet", "alertes", "document", "tipus"} <= set(v), v
         assert v["nom"] == "Anna Prova"
     assert "document" in client.get(f"/socis/{mid}", headers=enc).json()

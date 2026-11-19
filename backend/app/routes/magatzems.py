@@ -53,7 +53,8 @@ def register(app, db, current_user, check_local, need_manager, run, product_or_4
 
     @app.post("/moviments/traspas", status_code=201)
     def traspas_estoc(body: TraspasIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        from .comu import need_dispensari
+        need_dispensari(user)
         p = product_or_404(s, user, body.product_id)
         run(magatzems.transfer, s, user, p, body.de, body.a, body.grams)
         return {"ok": True}

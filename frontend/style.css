@@ -461,3 +461,54 @@ button.gran { min-height: 64px; font-size: 1.2rem; padding: 12px 32px; }
 .dis-cobra .dis-pagaments { flex: 1 1 360px; margin: 0; }
 .dis-cobra button.pagar { min-height: 56px; }
 .dis-fet .actions { justify-content: center; }
+
+/* Selecció del rol del dia */
+.rol-grup { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0; }
+.rol-targeta { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 190px; padding: 22px 14px; text-align: center; border-radius: 16px; border: 2px solid var(--line); background: var(--card); }
+.rol-targeta:hover:not(:disabled) { border-color: var(--brand); box-shadow: 0 0 0 3px var(--ring, rgba(27, 107, 80, .2)); }
+.rol-targeta strong { font-size: 1.3rem; }
+.rol-icona { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--brand); color: var(--brand-ink); font-size: 1.8rem; }
+@media (max-width: 560px) { .rol-grup { grid-template-columns: 1fr; } }
+
+/* Finestres de moviments i edició de producte; inventari */
+dialog.dialeg.gran { max-width: min(760px, 96vw); width: 100%; max-height: 92vh; overflow: auto; }
+.modal-cap { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.modal-cap h3 { margin: 0; }
+.modal-x { min-width: 44px; }
+.inv-pes { max-width: 130px; text-align: right; }
+.inv-nota { min-width: 220px; margin-top: 6px; }
+label.check { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+label.check input { width: auto; min-height: 0; }
+
+/* Cerca de soci, llista de socis dins i finestra de dispensació amb carret */
+.foto-soci { width: var(--m, 64px); height: var(--m, 64px); flex: none; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--brand-soft); color: var(--brand); font-weight: 800; font-size: 1.4rem; }
+.foto-soci img { width: 100%; height: 100%; object-fit: cover; }
+.cerca-fila { display: flex; gap: 10px; }
+.cerca-fila .card-input { flex: 1; min-height: 56px; font-size: 1.1rem; }
+.llista-dins-cap { display: flex; align-items: center; gap: 10px; }
+.llista-dins { list-style: none; margin: 8px 0 0; padding: 0; }
+.fila-dins-box { border-top: 1px solid var(--line); }
+.fila-dins { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 76px; text-align: left; border: 0; background: transparent; border-radius: 0; }
+.fila-dins:hover { background: var(--brand-soft); }
+.fila-dins-nom { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.fila-dins-hora { font-weight: 700; font-variant-numeric: tabular-nums; }
+.nom-soci { border: 0; background: transparent; padding: 0; min-height: 0; font-size: 1.5rem; font-weight: 800; text-align: left; text-decoration: underline dotted; color: var(--ink); }
+.dis-soci-xifres { display: flex; gap: 28px; margin-top: 6px; flex-wrap: wrap; }
+.dis-soci-accions { display: flex; flex-direction: column; gap: 8px; }
+.dis-cos { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 16px; align-items: start; }
+.dis-carret { position: sticky; top: 8px; }
+.carret-linia { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.carret-nom { flex: 1 1 140px; display: flex; flex-direction: column; }
+.carret-ctrl { display: flex; align-items: center; gap: 6px; }
+input.carret-q { width: 88px; text-align: center; font-weight: 700; }
+.carret-fila { display: flex; justify-content: space-between; padding: 4px 0; }
+.carret-fila.desc { color: var(--brand); }
+.carret-fila.total { font-size: 1.6rem; font-weight: 800; border-top: 2px solid var(--line); margin-top: 6px; padding-top: 8px; }
+@media (max-width: 900px) { .dis-cos { grid-template-columns: 1fr; } .dis-carret { position: static; } }
+
+/* Accés: avisos de l'entrada */
+.acces-avis { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; margin: 12px 0; border-radius: 12px; border: 2px solid var(--line); }
+.acces-avis.ok { border-color: var(--brand); background: var(--brand-soft); }
+.acces-avis.expulsat { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, var(--card)); font-size: 1.15rem; }
+.acces-avis.inactiu { border-color: #c98a00; background: color-mix(in srgb, #f5b301 16%, var(--card)); }
+.acces-avis .actions input { max-width: 130px; }

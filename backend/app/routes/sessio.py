@@ -86,6 +86,19 @@ def register(app, db, current_user, ip_limiter):
             raise HTTPException(422, str(e))
         return {"ok": True}
 
+    class RolDiaIn(BaseModel):
+        rol: str = Field(max_length=12)
+
+    @app.post("/auth/rol-dia")
+    def rol_dia(body: RolDiaIn, user: User = Depends(current_user), authorization: str = Header(default=""), s: Session = Depends(db)):
+        """El treballador tria el rol del dia (recepcio o dispensari). La gerència no n'ha de triar."""
+        _, _, token = authorization.partition(" ")
+        try:
+            service.set_rol_dia(s, token, user, body.rol)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        return {"rol_dia": body.rol}
+
     @app.get("/me")
     def me(user: User = Depends(current_user), s: Session = Depends(db)):
         if user.role == "admin":
@@ -93,7 +106,7 @@ def register(app, db, current_user, ip_limiter):
         else:
             ids = [r.local_id for r in s.scalars(select(UserLocal).where(UserLocal.user_id == user.id))]
             locs = [s.get(Local, i) for i in ids]
-        return {"id": user.id, "username": user.username, "role": user.role, "te_carnet": s.get(UserCard, user.id) is not None,
+        return {"id": user.id, "username": user.username, "role": user.role, "rol_dia": getattr(user, "rol_dia", None), "te_carnet": s.get(UserCard, user.id) is not None,
                 "pot_reemborsar": user.role in ("admin", "encarregat") or user.pot_reemborsar,
                 "pot_editar_descomptes": user.role in ("admin", "encarregat") or user.pot_editar_descomptes,
                 "locals": [{"id": l.id, "nom": l.nom, "limit_diari_mg": l.limit_diari_mg,

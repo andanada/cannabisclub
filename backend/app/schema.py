@@ -117,7 +117,16 @@ def missing_indexes(engine) -> list[str]:
 
 # Columnes afegides després de crear la taula. create_all no les afegeix a taules que ja existeixen, així que
 # s'afegeixen amb ALTER TABLE (sempre amb valor per defecte: les files existents continuen valent).
-COLUMNES_NOVES = {"products": [("es_genetic", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"}),
+COLUMNES_NOVES = {"sessions": [("rol_dia", {"default": "VARCHAR(12)"})],
+                  "inventory_sessions": [("tipus", {"default": "VARCHAR(14) NOT NULL DEFAULT 'dispensari'"}),
+                                         ("control", {"default": "VARCHAR(10) NOT NULL DEFAULT 'complet'"}),
+                                         ("product_id", {"default": "INTEGER"}),
+                                         ("ajustat", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"})],
+                  "inventory_counts": [("brut_mg", {"default": "INTEGER"}), ("nota", {"default": "VARCHAR(300)"})],
+                  "products": [("preu_entrada_cent", {"default": "INTEGER"}),
+                               ("tara_mg", {"default": "INTEGER NOT NULL DEFAULT 0"}),
+                               ("sense_descomptes", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"}),
+                               ("es_genetic", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"}),
                                ("regalable", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"}),
                                ("unitat", {"default": "VARCHAR(1) NOT NULL DEFAULT 'g'"}),
                                ("granel", {"postgresql": "BOOLEAN NOT NULL DEFAULT TRUE", "default": "BOOLEAN NOT NULL DEFAULT 1"})],

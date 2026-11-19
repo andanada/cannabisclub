@@ -20,13 +20,14 @@ def _saldo(client, enc, mid):
     return client.get(f"/socis/{mid}/moneder", headers=enc).json()["saldo_cent"]
 
 
-def test_moneder_desactivat_per_defecte(ctx):
+def test_el_monedero_esta_sempre_actiu_i_sense_saldo_no_es_dispensa(ctx):
     client, _, sec = ctx
     enc = token(client, sec, "enc")
     pid, mid = _prepara(client, enc)
-    r = client.post(f"/socis/{mid}/moneder/recarrega", json={"import_cent": 1000, "metode": "efectiu"}, headers=enc)
-    assert r.status_code == 422
+    # cada soci té el seu compte: dispensar es paga del saldo. Sense saldo, no es pot pagar amb el monedero
     assert client.post("/dispensacions", json={"member_id": mid, "product_id": pid, "grams": "1", "metode": "monedero"}, headers=enc).status_code == 422
+    r = client.post(f"/socis/{mid}/moneder/recarrega", json={"import_cent": 1000, "metode": "efectiu"}, headers=enc)
+    assert r.status_code == 201
 
 
 def test_recarrega_paga_i_no_duplica_ingressos(ctx):

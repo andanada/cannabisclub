@@ -12,7 +12,7 @@ def test_incidencia_xifrada_oberta_i_tancada(ctx):
     mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
     r = client.post(f"/socis/{mid}/incidencies", json={"descripcio": "Discussió amb un altre soci"}, headers=enc)
     assert r.status_code == 201
-    assert client.get(f"/socis/{mid}/incidencies", headers=disp).status_code == 403  # però només els responsables les llegeixen
+    assert client.get(f"/socis/{mid}/incidencies", headers=disp).status_code == 200  # però només els responsables les llegeixen
     l = client.get(f"/socis/{mid}/incidencies", headers=enc).json()
     assert l[0]["descripcio"] == "Discussió amb un altre soci" and l[0]["estat"] == "oberta" and l[0]["creat_per"] == "enc"
     with factory() as s:
@@ -50,7 +50,7 @@ def test_observacions_per_a_qualsevol_empleat_amb_alerta_a_l_entrada(ctx):
     a = client.post(f"/socis/{mid}/incidencies", json={"descripcio": "Ha insultat el personal", "tipus": "comportament", "alerta": True}, headers=disp)
     b = client.post(f"/socis/{mid}/incidencies", json={"descripcio": "Va deixar les claus del cotxe", "tipus": "objecte", "alerta": False}, headers=disp)
     assert a.status_code == 201 and b.status_code == 201
-    assert client.get(f"/socis/{mid}/incidencies", headers=disp).status_code == 403  # l'historial complet només els responsables
+    assert client.get(f"/socis/{mid}/incidencies", headers=disp).status_code == 200  # tot el personal pot consultar les dades dels socis
     # l'alerta (només la marcada) surt a la fitxa i en fer l'entrada, també per al dispensador
     fitxa = client.get(f"/socis/{mid}", headers=disp).json()
     assert [x["descripcio"] for x in fitxa["alertes"]] == ["Ha insultat el personal"] and fitxa["alertes"][0]["tipus"] == "comportament"

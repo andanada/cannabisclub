@@ -39,6 +39,8 @@ def register(app, db, current_user, need_admin, run, member_or_404):
 
     @app.post("/socis/{member_id}/moneder/recarrega", status_code=201)
     def recarregar_moneder(member_id: int, body: RecarregaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        from .comu import need_recepcio
+        need_recepcio(user)  # les donacions entren a la caixa de recepció: el dispensari no n'afegeix
         m = member_or_404(s, user, member_id)
 
         def fes():
@@ -59,6 +61,8 @@ def register(app, db, current_user, need_admin, run, member_or_404):
         perdua_maxima_mg: int | None = Field(default=None, ge=0, le=10_000_000)
         moneder_actiu: bool | None = None
         consum_exigit: bool | None = None
+        estoc_baix_mg: int | None = Field(default=None, ge=0, le=10_000_000)
+        cuota_inactivitat_dies: int | None = Field(default=None, ge=0, le=3650)
         moneder_limit_cent: int | None = Field(default=None, ge=0, le=1_000_000)
         quota_obligatoria: bool | None = None
         quota_cent: int | None = Field(default=None, ge=0, le=quotes.MAX_IMPORT_CENT)

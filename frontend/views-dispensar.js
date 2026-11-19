@@ -36,21 +36,19 @@ function quotaForm(m, out, onDone) {
   h('div', { class: 'actions' }, btn), res);
 }
 
-// Monedero del soci: saldo, recàrrega (entra a la caixa oberta) i darrers moviments. Només si el local el té activat.
+// Donacions del soci: saldo, crèdit afegit (entra a la caixa de recepció) i darrers moviments. Cada soci ha de tenir saldo per dispensar.
 function walletPanel(m) {
-  const lc = S.me.locals.find((l) => l.id === S.local) || {};
-  if (!lc.moneder_actiu) return null;
   const box = h('div', { class: 'card' });
   const out = h('div');
-  const imp = h('input', { inputmode: 'decimal', placeholder: '0,00', 'aria-label': 'Import a recarregar' });
+  const imp = h('input', { inputmode: 'decimal', placeholder: '0,00', 'aria-label': 'Import de la donació' });
   const met = h('select', { 'aria-label': 'Mètode de pagament' }, ['efectiu', 'targeta', 'bizum'].map((x) => h('option', { value: x }, x)));
-  const btn = h('button', { class: 'primary', type: 'submit' }, 'Recarregar');
+  const btn = h('button', { class: 'primary', type: 'submit' }, 'Afegir donació');
   const ref = { v: novaRef() };   // una recàrrega = una referència; es renova quan s'ha fet
   const pinta = async () => {
     const w = await api(`/socis/${m.id}/moneder`);
     m.saldo_cent = w.saldo_cent;
     const tipus = { recarrega: 'Recàrrega', pagament: 'Pagament', correccio: 'Correcció' };
-    box.replaceChildren(h('h3', null, 'Monedero'),
+    box.replaceChildren(h('h3', null, 'Donacions'),
       h('div', { class: 'big' }, eur(w.saldo_cent)),
       h('form', { onsubmit: (e) => {
         e.preventDefault();
@@ -58,10 +56,10 @@ function walletPanel(m) {
           await api(`/socis/${m.id}/moneder/recarrega`, { method: 'POST', body: { client_ref: ref.v, import_cent: parseEur(imp.value), metode: met.value } });
           ref.v = novaRef();
           imp.value = '';
-          toast('Monedero recarregat');
+          toast('Donació afegida: el saldo del soci i la caixa s\'han actualitzat');
           await pinta();
         });
-      } }, h('div', { class: 'row' }, field('Import (€)', imp), field('Mètode', met)), h('div', { class: 'actions' }, btn)),
+      } }, ...(potRecepcio() ? [h('div', { class: 'row' }, field('Import (€)', imp), field('Mètode', met)), h('div', { class: 'actions' }, btn)] : [h('p', { class: 'muted' }, 'Les donacions les afegeix recepció.')])),
       out,
       ...(w.historial.length ? [h('table', null, h('tbody', null, w.historial.slice(0, 5).map((x) => h('tr', null,
         h('td', null, new Date(x.ts).toLocaleString(loc())), h('td', null, tipus[x.tipus] || x.tipus), h('td', { class: 'num' }, eur(x.import_cent))))))] : []));
@@ -77,21 +75,29 @@ function memberCard(m, out, onChange) {
       m.document ? h('span', { class: 'muted' }, ' ' + m.document + (m.naixement ? ' · ' + m.naixement : '')) : null),
     m.telefon ? h('div', { class: 'muted' }, m.telefon) : null)));
   const bar = h('div', { class: 'actions' });
-  const tools = (isManager() || S.me.pot_reemborsar) && onChange ? memberTools(m, out, onChange) : null;
-  const entrada = h('button', { onclick: () => guard(entrada, out, async () => {
-    await api(`/socis/${m.id}/entrada`, { method: 'POST' });
-    out.replaceChildren(msg('ok', 'Entrada registrada'));
-  }) }, 'Registrar entrada');
-  bar.append(entrada);
+  const tools = onChange ? memberTools(m, out, onChange) : null;
   if (isManager()) {
-    const sel = h('select', { 'aria-label': 'Nou estat' }, ['actiu', 'suspes', 'baixa'].map((e) => h('option', { value: e, selected: e === m.estat }, e)));
-    const set = h('button', { onclick: () => guard(set, out, async () => {
-      await api(`/socis/${m.id}/estat`, { method: 'POST', body: { estat: sel.value } });
+    // L'estat i el tipus de membre es canvien directament a la fitxa (sense botons de confirmació); «Expulsar» impedeix l'entrada.
+    const ESTATS = [['actiu', 'Actiu'], ['suspes', 'Suspès'], ['baixa', 'Baixa'], ['expulsat', 'Expulsar']];
+    const sel = h('select', { 'aria-label': 'Estat del soci' }, ESTATS.map(([e, t]) => h('option', { value: e, selected: e === m.estat }, t)));
+    sel.addEventListener('change', () => guard(sel, out, async () => {
+      if (sel.value === 'expulsat' && !await confirma(`Expulsar ${m.nom}? No podrà entrar al club.`, { perill: true, boto: 'Expulsar' })) { sel.value = m.estat; return; }
+      try { await api(`/socis/${m.id}/estat`, { method: 'POST', body: { estat: sel.value } }); } catch (e) { sel.value = m.estat; throw e; }
       m.estat = sel.value;
       toast('Estat actualitzat');
       if (onChange) onChange(m);
-    }) }, 'Canviar estat');
-    bar.append(sel, set);
+    }));
+    const TIPUS = [['Ordinari', 'Ordinari'], ['Terapèutic', 'Terapèutic (20 % de descompte)'], ['Família', 'Família (30 % de descompte)']];
+    const tip = h('select', { 'aria-label': 'Tipus de membre' }, TIPUS.map(([e, t]) => h('option', { value: e, selected: e === m.tipus }, t)));
+    tip.addEventListener('change', () => guard(tip, out, async () => {
+      try { await api(`/socis/${m.id}`, { method: 'PATCH', body: { tipus: tip.value } }); } catch (e) { tip.value = m.tipus; throw e; }
+      m.tipus = tip.value;
+      toast('Tipus de membre actualitzat');
+      if (onChange) onChange(await api(`/socis/${m.id}`));
+    }));
+    card.append(h('div', { class: 'row' }, field('Estat', sel), field('Tipus de membre', tip)));
+  } else if (m.tipus) {
+    card.append(h('p', { class: 'muted' }, 'Tipus de membre: ' + m.tipus));
   }
   if (tools) bar.append(...tools.bar);
   card.append(bar);

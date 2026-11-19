@@ -13,7 +13,8 @@ MAX_RECARREGA_CENT = 1_000_000
 
 
 def actiu(db: Session, local_id: int) -> bool:
-    return bool(ajustos.get(db, local_id)["moneder_actiu"])
+    """Cada soci té el seu compte: dispensar es paga del saldo (sense caixa al dispensari). Ja no es pot desactivar."""
+    return True
 
 
 def limit_negatiu_cent(db: Session, local_id: int) -> int:

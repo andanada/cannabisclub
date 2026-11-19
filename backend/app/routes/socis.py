@@ -59,7 +59,6 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.get("/socis/{member_id}/incidencies")
     def llista_incidencies(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
         return incidencies.llista(s, user, member_or_404(s, user, member_id))
 
     @app.post("/socis/{member_id}/incidencies", status_code=201)
@@ -145,11 +144,29 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         run(service.set_member_status, s, user, member_or_404(s, user, member_id), body.estat)
         return {"ok": True}
 
+    @app.get("/socis/{member_id}/resum-dispensar")
+    def resum_dispensar(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        """Per a la pantalla de dispensar: consum genètic d'aquest mes, saldo i les darreres retirades (de la més recent a la més antiga)."""
+        from decimal import Decimal
+        from datetime import datetime, timezone
+        from sqlalchemy import select
+        from .. import moneder, stock, unitats
+        from ..models import Product, StockMovement
+        m = member_or_404(s, user, member_id)
+        mes = stock.dispensed_mg(s, m.id, "mes", datetime.now(timezone.utc))
+        corregits = set(s.scalars(select(StockMovement.corregeix_id).where(StockMovement.member_id == m.id, StockMovement.corregeix_id.is_not(None))))
+        ult = s.execute(select(StockMovement, Product.nom, Product.unitat).join(Product, Product.id == StockMovement.product_id)
+                        .where(StockMovement.member_id == m.id, StockMovement.tipus == "dispensacio").order_by(StockMovement.id.desc()).limit(40)).all()
+        return {"mes_g": str(Decimal(mes) / 1000), "saldo_cent": moneder.saldo(s, m.id),
+                "darreres": [{"id": x.id, "ts": x.ts.isoformat(), "producte": nom, "quantitat": unitats.mg_to_g(-x.delta_mg), "unitat": un,
+                              "import_cent": x.import_cent, "regal": x.regal, "corregida": x.id in corregits}
+                             for x, nom, un in ult if x.id not in corregits][:20]}
+
     @app.post("/socis/{member_id}/entrada", status_code=201)
     def entrada_soci(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
         m = member_or_404(s, user, member_id)
         c = run(service.check_in, s, user, m)
-        return {"id": c.id, "alertes": incidencies.alertes(s, m.id)}
+        return {"id": c.id, "alertes": incidencies.alertes(s, m.id), "inactivitat": service.inactivitat(s, m), "quota": quotes.status(s, m.id)}
 
     @app.post("/socis/{member_id}/sortida", status_code=201)
     def sortida_soci(member_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
@@ -158,8 +175,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.get("/locals/{local_id}/acces")
     def estat_acces(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)  # és un cens nominal del club: el dispensador només fa servir el quiosc per carnet
-        check_local(s, user, local_id)
+        check_local(s, user, local_id)  # recepció i dispensari veuen qui hi ha dins (el dispensari el necessita per dispensar)
         return service.access_state(s, user, local_id)
 
     @app.post("/locals/{local_id}/acces/sortir-tots")
@@ -184,7 +200,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         run(service.check_out if dins else service.check_in, s, user, m, "rfid")
         return {"soci_id": m.id, "nom": service.member_name(m), "accio": "sortida" if dins else "entrada",
                 "quota": quotes.status(s, m.id), "te_foto": socis.has_photo(s, m.id),
-                **({"alertes": incidencies.alertes(s, m.id)} if not dins else {})}
+                **({"alertes": incidencies.alertes(s, m.id), "inactivitat": service.inactivitat(s, m)} if not dins else {})}
 
     class CercaDocumentIn(BaseModel):
         document: str = Field(min_length=1, max_length=30)
@@ -215,7 +231,6 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
 
     @app.get("/locals/{local_id}/socis")
     def llista_socis(local_id: int, q: str | None = None, estat: str | None = None, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
         check_local(s, user, local_id)
         return run(socis.list_members, s, user, local_id, q, estat)
 

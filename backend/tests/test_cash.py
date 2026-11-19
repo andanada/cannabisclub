@@ -46,6 +46,7 @@ def test_cicle_complet_quadrament_i_diferencia(ctx):
 def test_dispensador_no_pot_obrir_ni_gastar_ni_veure_informes(ctx):
     client, factory, sec = ctx
     h = token(client, sec, "disp")
+    assert client.post("/auth/rol-dia", json={"rol": "dispensari"}, headers=h).status_code == 200  # el rol triat del dia: dispensari
     assert client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=h).status_code == 403
     assert client.post("/despeses", json={"local_id": 1, "cent": 1, "metode": "efectiu", "categoria": "x", "concepte": "abc"}, headers=h).status_code == 403
     assert client.get("/locals/1/informe", params={"des": "2020-01-01", "fins": "2099-01-01"}, headers=h).status_code == 403
@@ -116,7 +117,8 @@ def test_deutes_de_sessions_anteriors_surten_a_l_estat_de_la_caixa_fins_que_es_c
     st = client.get("/locals/1/caixa", headers=enc).json()       # caixa tancada
     assert st["oberta"] is False and [p["moviment"] for p in st["sense_cobrar_anteriors"]] == [d]
     assert st["sense_cobrar_anteriors_cent"] == cent
-    assert "sense_cobrar_anteriors" not in client.get("/locals/1/caixa", headers=disp_h).json()   # només per a gestors
+    client.post("/auth/rol-dia", json={"rol": "dispensari"}, headers=disp_h)
+    assert "sense_cobrar_anteriors" not in client.get("/locals/1/caixa", headers=disp_h).json()   # el dispensari no veu la caixa de recepció
     assert client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=enc).status_code == 201
     st = client.get("/locals/1/caixa", headers=enc).json()       # nova sessió: la deute de l'anterior continua visible
     assert st["oberta"] is True and [p["moviment"] for p in st["sense_cobrar_anteriors"]] == [d] and st["sense_cobrar"] == []

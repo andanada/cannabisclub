@@ -108,7 +108,8 @@ def test_validacio_permisos_i_auditoria(ctx):
     assert magatzem(client, enc, nom="Principal").status_code == 422             # reservat
     saf = magatzem(client, enc).json()["id"]
     assert magatzem(client, enc).status_code == 422                               # repetit
-    assert traspas(client, disp, pid, None, saf, "1").status_code == 403
+    client.post("/auth/rol-dia", json={"rol": "recepcio"}, headers=disp)
+    assert traspas(client, disp, pid, None, saf, "1").status_code == 403         # recepció no mou estoc
     assert client.put("/magatzems/9999", json={"actiu": False}, headers=enc).status_code == 404
     assert client.put(f"/magatzems/{saf}", json={}, headers=enc).status_code == 422
     traspas(client, enc, pid, None, saf, "1")

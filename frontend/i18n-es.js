@@ -707,6 +707,112 @@ Object.assign(I18N.es, {
  "Dades personals": "Datos personales",
  "Contacte": "Contacto",
  "Cognoms": "Apellidos",
+ "Carret": "Carrito",
+ "Subtotal": "Subtotal",
+ "Notes": "Notas",
+ "Estoc baix": "Stock bajo",
+ "Sense categoria": "Sin categoría",
+ "Cap producte.": "Ningún producto.",
+ "No genètiques": "No genéticas",
+ "No genètics": "No genéticos",
+ "On entra": "Dónde entra",
+ "D'on surt": "De dónde sale",
+ "Comentaris (opcional)": "Comentarios (opcional)",
+ "Confirmar moviment": "Confirmar movimiento",
+ "Una sortida necessita un comentari (mínim 3 caràcters)": "Una salida necesita un comentario (mínimo 3 caracteres)",
+ "Tipus de moviment": "Tipo de movimiento",
+ "Darrers moviments": "Últimos movimientos",
+ "Cap moviment.": "Ningún movimiento.",
+ "Connecta la bàscula a «Dispensar › Més opcions» o escriu el pes a mà": "Conecta la báscula o escribe el peso a mano",
+ "Comentari de la diferència": "Comentario de la diferencia",
+ "Inventari guardat": "Inventario guardado",
+ "Es perdrà el que has pesat. Cancel·lar l'inventari?": "Se perderá lo que has pesado. ¿Cancelar el inventario?",
+ "Escriu el pes del pot sencer: el programa en resta la tara.": "Escribe el peso del bote entero: el programa resta la tara.",
+ "Escriu el pes o agafa'l de la bàscula.": "Escribe el peso o tómalo de la báscula.",
+ "Productes pesats": "Productos pesados",
+ "Amb diferència": "Con diferencia",
+ "Sense pesar": "Sin pesar",
+ "Tipus de control": "Tipo de control",
+ "Inventari complet (final de torn o de dia)": "Inventario completo (final de turno o de día)",
+ "Control d'un sol producte": "Control de un solo producto",
+ "Quin inventari?": "¿Qué inventario?",
+ "S'obre amb la llista dels productes actius d'aquest lloc. Els resultats es guarden amb el botó «Guardar»; l'estoc no es toca.": "Se abre con la lista de los productos activos de este lugar. Los resultados se guardan con el botón «Guardar»; el stock no se toca.",
+ "Ajustar estoc al comptat": "Ajustar stock a lo contado",
+ "L'estoc quedarà com s'ha comptat. Ajustar?": "El stock quedará como se ha contado. ¿Ajustar?",
+ "Cap línia.": "Ninguna línea.",
+ "Encara no hi ha cap inventari guardat.": "Todavía no hay ningún inventario guardado.",
+ "Cap moviment en aquest període.": "Ningún movimiento en este periodo.",
+ "Historial de moviments": "Historial de movimientos",
+ "Resultats d'inventaris": "Resultados de inventarios",
+ "Productes, existències, inventaris i historial.": "Productos, existencias, inventarios e historial.",
+ "Estoc avançat": "Stock avanzado",
+ "Categories, descomptes, línies de preu, magatzems, contenidors i regles.": "Categorías, descuentos, líneas de precio, almacenes, contenedores y reglas.",
+ "Preu d'entrada": "Precio de entrada",
+ "Preu de dispensació": "Precio de dispensación",
+ "Tipus de producte": "Tipo de producto",
+ "Pes del pot buit del dispensari. A l'inventari de fi de dia, el programa el resta del pes de la bàscula.": "Peso del bote vacío del dispensario. En el inventario de fin de día, el programa lo resta del peso de la báscula.",
+ "Unitat (els no genètics sempre per unitat)": "Unidad (los no genéticos siempre por unidad)",
+ "No genètica": "No genética",
+ "Desar canvis": "Guardar cambios",
+ "Escriu el nom del producte": "Escribe el nombre del producto",
+ "Preu d'entrada (€)": "Precio de entrada (€)",
+ "Preu de dispensació (€ per gram o unitat)": "Precio de dispensación (€ por gramo o unidad)",
+ "Producte activat": "Producto activado",
+ "Producte esborrat": "Producto borrado",
+ "Existències i moviments": "Existencias y movimientos",
+ "Estadístiques i informes": "Estadísticas e informes",
+ "Estadístiques · Socis": "Estadísticas · Socios",
+ "Estadístiques · Dispensari i bar": "Estadísticas · Dispensario y bar",
+ "Estadístiques · Finances": "Estadísticas · Finanzas",
+ "Informes · Vendes": "Informes · Ventas",
+ "Informes · Dispensacions": "Informes · Dispensaciones",
+ "Informes · Evolució del club": "Informes · Evolución del club",
+ "Informes · Demografia": "Informes · Demografía",
+ "Informes · Caixa": "Informes · Caja",
+ "Informes · Estoc valorat": "Informes · Stock valorado",
+ "Informes · Assistència": "Informes · Asistencia",
+ "Informes · Visites de socis": "Informes · Visitas de socios",
+ "Informes · Hores": "Informes · Horas",
+ "Estoc avançat (magatzems, categories, descomptes…)": "Stock avanzado (almacenes, categorías, descuentos…)",
+ "Despeses i comptabilitat": "Gastos y contabilidad",
+ "Privacitat i protecció de dades": "Privacidad y protección de datos",
+ "Canviar de rol": "Cambiar de rol",
+ "Tria el teu rol per avui: només veuràs els botons que necessites.": "Elige tu rol de hoy: solo verás los botones que necesitas.",
+ "Quin és el teu rol avui?": "¿Cuál es tu rol hoy?",
+ "Accés al club, caixa i donacions dels socis.": "Acceso al club, caja y donaciones de los socios.",
+ "Dispensar, estoc i inventaris.": "Dispensar, stock e inventarios.",
+ "Recepció": "Recepción",
+ "Import de la quota": "Importe de la cuota",
+ "No cobrar": "No cobrar",
+ "Cobrar la quota?": "¿Cobrar la cuota?",
+ "La quota no està al dia.": "La cuota no está al día.",
+ "Es registrarà la sortida de tots els socis que són dins. Continuar?": "Se registrará la salida de todos los socios que están dentro. ¿Continuar?",
+ "Passa el carnet o busca el soci per registrar-ne l'entrada o la sortida.": "Pasa el carnet o busca al socio para registrar su entrada o salida.",
+ "Encara no ha retirat res.": "Todavía no ha retirado nada.",
+ "Consumit aquest mes": "Consumido este mes",
+ "Soci expulsat: no es pot dispensar.": "Socio expulsado: no se puede dispensar.",
+ "La quota del soci no està al dia: cal cobrar-la a recepció abans de dispensar.": "La cuota del socio no está al día: hay que cobrarla en recepción antes de dispensar.",
+ "Agafar el pes de la bàscula": "Tomar el peso de la báscula",
+ "El carret és buit. Toca un producte per afegir-lo.": "El carrito está vacío. Toca un producto para añadirlo.",
+ "Saldo del soci": "Saldo del socio",
+ "No s'ha trobat cap soci amb aquesta cerca.": "No se ha encontrado ningún socio con esta búsqueda.",
+ "Socis al club · per ordre d'entrada": "Socios en el club · por orden de entrada",
+ "Ara mateix no hi ha ningú dins.": "Ahora mismo no hay nadie dentro.",
+ "Busca el soci o tria'l de la llista dels que són dins.": "Busca al socio o elígelo de la lista de los que están dentro.",
+ "Import de la donació": "Importe de la donación",
+ "Afegir donació": "Añadir donación",
+ "Donació afegida: el saldo del soci i la caixa s'han actualitzat": "Donación añadida: el saldo del socio y la caja se han actualizado",
+ "Les donacions les afegeix recepció.": "Las donaciones las añade recepción.",
+ "Estat del soci": "Estado del socio",
+ "Terapèutic (20 % de descompte)": "Terapéutico (20 % de descuento)",
+ "Família (30 % de descompte)": "Familia (30 % de descuento)",
+ "Tipus de membre actualitzat": "Tipo de miembro actualizado",
+ "Efectiu inicial": "Efectivo inicial",
+ "Efectiu comptat": "Efectivo contado",
+ "Compta l'efectiu del calaix i escriu-lo: el programa calcula la diferència. Les donacions dels socis ja hi són sumades.": "Cuenta el efectivo del cajón y escríbelo: el programa calcula la diferencia. Las donaciones de los socios ya están sumadas.",
+ "Caixa única de recepció: donacions dels socis, despeses, apunts i tancament.": "Caja única de recepción: donaciones de los socios, gastos, apuntes y cierre.",
+ "Cercar i llista": "Buscar y lista",
+ "Tots els socis": "Todos los socios",
  "Regal": "Regalo",
  "Fitxa i eines del soci (monedero, observacions, devolucions)": "Ficha y herramientas del socio (monedero, observaciones, devoluciones)",
  "Canviar de soci": "Cambiar de socio",
@@ -1397,3 +1503,25 @@ I18N.pat.es.push([new RegExp("^Aquest\\ club\\ només\\ admet\\ (.*)\\ decimals\
 I18N.pat.es.push([new RegExp("^Aquest\\ club\\ només\\ admet\\ (.*)\\ decimal\\ en\\ els\\ grams\\.$"), "Este club solo admite $1 decimal en los gramos."]);
 I18N.pat.es.push([new RegExp("^(.*)\\ de\\ (.*)\\ a\\ (.*)\\ ·$"), "$1 de $2 a $3 ·"]);
 I18N.pat.es.push([new RegExp("^Monedero\\ (.*)$"), "Monedero $1"]);
+I18N.pat.es.push([new RegExp("^Descompte\\ aplicat:\\ −(.*)$"), "Descuento aplicado: −$1"]);
+I18N.pat.es.push([new RegExp("^Dispensat\\ a\\ (.*)$"), "Dispensado a $1"]);
+I18N.pat.es.push([new RegExp("^Saldo\\ que\\ li\\ queda:\\ (.*)$"), "Saldo que le queda: $1"]);
+I18N.pat.es.push([new RegExp("^Descompte\\ de\\ membre\\ \\((.*)\\ %\\)$"), "Descuento de miembro ($1 %)"]);
+I18N.pat.es.push([new RegExp("^Saldo\\ insuficient:\\ falten\\ (.*)\\.\\ El\\ soci\\ ha\\ de\\ fer\\ una\\ donació\\ a\\ recepció\\.$"), "Saldo insuficiente: faltan $1. El socio debe hacer una donación en recepción."]);
+I18N.pat.es.push([new RegExp("^Quantitat\\ no\\ vàlida\\ a\\ «(.*)»$"), "Cantidad no válida en «$1»"]);
+I18N.pat.es.push([new RegExp("^No\\ hi\\ ha\\ prou\\ estoc\\ de\\ «(.*)»\\ \\(en\\ queden\\ (.*)\\)$"), "No hay suficiente stock de «$1» (quedan $2)"]);
+I18N.pat.es.push([new RegExp("^«(.*)»\\ només\\ admet\\ (.*)$"), "«$1» solo admite $2"]);
+I18N.pat.es.push([new RegExp("^Historial\\ de\\ consum\\ ·\\ (.*)$"), "Historial de consumo · $1"]);
+I18N.pat.es.push([new RegExp("^Expulsar\\ (.*)\\?\\ No\\ podrà\\ entrar\\ al\\ club\\.$"), "¿Expulsar a $1? No podrá entrar al club."]);
+I18N.pat.es.push([new RegExp("^(.*):\\ fa\\ (.*)\\ que\\ no\\ retira\\ genètiques\\.$"), "$1: hace $2 que no retira genéticas."]);
+I18N.pat.es.push([new RegExp("^(.*)\\ ha\\ entrat\\.$"), "$1 ha entrado."]);
+I18N.pat.es.push([new RegExp("^(.*):\\ entrada\\ registrada$"), "$1: entrada registrada"]);
+I18N.pat.es.push([new RegExp("^(.*):\\ sortida\\ registrada$"), "$1: salida registrada"]);
+I18N.pat.es.push([new RegExp("^(.*)\\ socis\\ han\\ sortit$"), "$1 socios han salido"]);
+I18N.pat.es.push([new RegExp("^(.*)\\ productes\\ per\\ acabar\\ o\\ esgotats\\ \\(l'avís\\ es\\ configura\\ a\\ Configuració\\ ›\\ Normes\\ del\\ club\\)\\.$"), "$1 productos por agotarse o agotados (el aviso se configura en Configuración › Normas del club)."]);
+I18N.pat.es.push([new RegExp("^Esborrar\\ «(.*)»\\?\\ No\\ es\\ pot\\ desfer\\.$"), "¿Borrar «$1»? No se puede deshacer."]);
+I18N.pat.es.push([new RegExp("^(.*)\\ ajustos\\ fets$"), "$1 ajustes hechos"]);
+I18N.pat.es.push([new RegExp("^(.*)\\ avís\\(os\\)$"), "$1 aviso(s)"]);
+I18N.pat.es.push([new RegExp("^Hi\\ ha\\ diferències\\ molt\\ grans:\\ (.*)$"), "Hay diferencias muy grandes: $1"]);
+I18N.pat.es.push([new RegExp("^(.*):\\ fa\\ (.*)\\ mesos\\ que\\ no\\ retira\\ genètiques\\.$"), "$1: hace $2 meses que no retira genéticas."]);
+I18N.pat.es.push([new RegExp("^(.*):\\ fa\\ (.*)\\ dies\\ que\\ no\\ retira\\ genètiques\\.$"), "$1: hace $2 días que no retira genéticas."]);

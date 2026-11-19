@@ -136,20 +136,45 @@ UNITATS = {"g", "u"}
 def _valida_unitat(unitat: str, es_genetic: bool) -> None:
     if unitat not in UNITATS:
         raise ValueError("La unitat ha de ser g (grams) o u (unitats)")
-    if unitat == "u" and es_genetic:
+    if unitat == "u" and es_genetic and not _GENETIC_EN_UNITATS:
         raise ValueError("Un producte genètic es dispensa en grams (els límits per soci són de pes)")
 
 
+_GENETIC_EN_UNITATS = True  # un genètic també es pot vendre per unitat (p. ex. un preroll); el límit per soci compta 1 unitat = 1 g
+
+
+CATEGORIES = {True: ("Weed", "Hash", "Ice", "Rosin", "Preroll"), False: ("Parafernalia", "Beguda", "Menjar", "Merch")}
+
+
+def valida_categoria(categoria: str, es_genetic: bool) -> None:
+    """Les categories depenen del tipus: genètica (Weed, Hash, Ice, Rosin, Preroll) o no genètica (Parafernalia, Beguda, Menjar, Merch)."""
+    if categoria and categoria not in CATEGORIES[bool(es_genetic)]:
+        raise ValueError("Categoria no vàlida per a un producte " + ("genètic" if es_genetic else "no genètic") + ": " + ", ".join(CATEGORIES[bool(es_genetic)]))
+
+
 def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: str, preu_cent_per_g: int, es_genetic: bool = False,
-                regalable: bool = False, unitat: str = "g", granel: bool = True) -> Product:
-    _valida_unitat(unitat, es_genetic)
+                regalable: bool = False, unitat: str = "g", granel: bool = True, *, preu_entrada_cent: int | None = None,
+                tara_g: Decimal | None = None, sense_descomptes: bool = False, estricte: bool = False) -> Product:
+    """Amb `estricte` (el formulari nou) s'apliquen les regles del producte: un no genètic sempre es ven per unitat, la categoria
+    depèn del tipus, la tara és només de genètics i «a granel» és sinònim de vendre en grams."""
+    if estricte:
+        if not es_genetic and unitat == "g":
+            raise ValueError("Un producte no genètic sempre es ven per unitat, mai en grams")
+        valida_categoria(categoria, es_genetic)
+        granel = unitat == "g"
+    _valida_unitat(unitat, es_genetic if not estricte else False)
+    tara_mg = grams_to_mg(tara_g) if tara_g else 0
+    if tara_mg and not es_genetic:
+        raise ValueError("La tara només és per als productes genètics")
+    if tara_mg and unitat == "u":
+        raise ValueError("La tara només és per als productes que es venen en grams")
     nom = nom.strip()
     if not nom:
         raise ValueError("El nom del producte no pot estar buit")
     if not _nom_lliure(db, local_id, nom):
         raise ValueError("Ja existeix un producte amb aquest nom en aquest local")
     p = Product(local_id=local_id, nom=nom, categoria=categoria, preu_cent_per_g=preu_cent_per_g, es_genetic=es_genetic, regalable=regalable,
-                unitat=unitat, granel=granel)
+                unitat=unitat, granel=granel, preu_entrada_cent=preu_entrada_cent, tara_mg=tara_mg, sense_descomptes=sense_descomptes)
     db.add(p)
     flush_or_error(db, "Ja existeix un producte amb aquest nom en aquest local")
     service.audit_append(db, {"accio": "alta_producte", "producte": p.id, "local": local_id, "per": actor.id})
@@ -159,7 +184,9 @@ def add_product(db: Session, actor: User, local_id: int, nom: str, categoria: st
 
 def update_product(db: Session, actor: User, product_id: int, nom: str | None = None, categoria: str | None = None,
                    preu_cent_per_g: int | None = None, actiu: bool | None = None, es_genetic: bool | None = None,
-                   regalable: bool | None = None, unitat: str | None = None, granel: bool | None = None) -> Product:
+                   regalable: bool | None = None, unitat: str | None = None, granel: bool | None = None, *,
+                   preu_entrada_cent: int | None = None, tara_g: Decimal | None = None, sense_descomptes: bool | None = None,
+                   estricte: bool = False) -> Product:
     """Canvia el nom, la categoria, el preu o l'estat d'un producte. El preu només afecta les dispensacions
     noves: les antigues guarden el seu import. Per desactivar, l'estoc ha de ser zero (sinó quedaria encallat)."""
     p = db.scalar(select(Product).where(Product.id == product_id).with_for_update())
@@ -186,8 +213,28 @@ def update_product(db: Session, actor: User, product_id: int, nom: str | None = 
         if db.scalar(select(StockMovement.id).where(StockMovement.product_id == p.id).limit(1)):
             raise ValueError("No es pot canviar la unitat d'un producte que ja té moviments d'estoc: crea'n un de nou")
         canvis["unitat"] = [p.unitat, unitat]
-    elif es_genetic and p.unitat == "u":
+    elif es_genetic and p.unitat == "u" and not _GENETIC_EN_UNITATS:
         raise ValueError("Un producte en unitats no pot ser genètic")
+    if estricte and (unitat is not None or es_genetic is not None or categoria is not None):  # només si es toquen aquests camps (un canvi de preu no ha de fallar per un producte antic)
+        nou_gen = es_genetic if es_genetic is not None else p.es_genetic
+        nova_unitat = unitat if unitat is not None else p.unitat
+        if not nou_gen and nova_unitat == "g":
+            raise ValueError("Un producte no genètic sempre es ven per unitat, mai en grams")
+        if categoria is not None or es_genetic is not None:
+            valida_categoria(categoria if categoria is not None else p.categoria, nou_gen)
+        granel = nova_unitat == "g"
+    if preu_entrada_cent is not None and preu_entrada_cent != p.preu_entrada_cent:
+        if preu_entrada_cent < 0:
+            raise ValueError("El preu d'entrada no pot ser negatiu")
+        canvis["preu_entrada_cent"] = [p.preu_entrada_cent, preu_entrada_cent]
+    if tara_g is not None:
+        tara_mg = grams_to_mg(tara_g)
+        if tara_mg and not (es_genetic if es_genetic is not None else p.es_genetic):
+            raise ValueError("La tara només és per als productes genètics")
+        if tara_mg != p.tara_mg:
+            canvis["tara_mg"] = [p.tara_mg, tara_mg]
+    if sense_descomptes is not None and sense_descomptes != p.sense_descomptes:
+        canvis["sense_descomptes"] = [p.sense_descomptes, sense_descomptes]
     if granel is not None and granel != p.granel:
         canvis["granel"] = [p.granel, granel]
     if regalable is not None and regalable != p.regalable:
@@ -235,7 +282,7 @@ def receive(db: Session, actor: User, product_id: int, grams: Decimal, nota: str
 
 def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: Decimal,
              pes_bascula_g: Decimal | None, now: datetime | None = None, discount_id: int | None = None,
-             metode: str | None = None, batch_id: int | None = None, regal: bool = False) -> StockMovement:
+             metode: str | None = None, batch_id: int | None = None, regal: bool = False, commit: bool = True) -> StockMovement:
     """Dispensa. Amb `metode` (efectiu/targeta/bizum) també cobra en la mateixa transacció: o es fa tot o res.
     Amb `regal` l'import és 0 (cal que el producte sigui regalable); no es pot combinar amb cobrament ni descompte."""
     if regal and (metode is not None or discount_id is not None):
@@ -291,13 +338,17 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     regles.check(db, member_id, p, mg, now)
     from . import lots
     pla_lots = lots.plan_dispense(db, p, mg, batch_id)  # lot manual o FIFO (buit si el producte no té lots)
-    original = int((Decimal(mg) * linies_preu.price_for(db, member_id, p) / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    sense_desc = bool(p.sense_descomptes)  # «no aplicar descomptes»: el preu no canvia mai per a ningú, sigui quin sigui el tipus de membre
+    preu = p.preu_cent_per_g if sense_desc else linies_preu.price_for(db, member_id, p)
+    original = int((Decimal(mg) * preu / 1000).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     descompte, rebaixa = None, 0
+    if discount_id is not None and sense_desc:
+        raise ValueError("Aquest producte no admet descomptes")
     if discount_id is not None:
         from . import descomptes
         descompte, rebaixa = descomptes.apply(db, discount_id, p, original, mg, now.astimezone(TZ).date())
     rebaixa_chosen = rebaixa
-    if member.descompte_pct and not regal:  # descompte permanent del soci, sumat al triat (mai per sobre de l'import)
+    if member.descompte_pct and not regal and not sense_desc:  # descompte permanent del soci, sumat al triat (mai per sobre de l'import)
         rebaixa = min(original, rebaixa + int((Decimal(original) * member.descompte_pct / 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)))
     m = StockMovement(
         ts=now, local_id=p.local_id, product_id=p.id, tipus="dispensacio", delta_mg=-mg, member_id=member_id,
@@ -314,14 +365,47 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
     lots.attach_dispense(db, m, pla_lots)
     service.audit_append(db, {"accio": "dispensacio", "moviment": m.id, "soci": member_id, "producte": p.id,
                               "mg": mg, "import_cent": m.import_cent, "descompte": descompte.id if descompte else None,
-                              **({"descompte_soci_pct": member.descompte_pct} if member.descompte_pct and not regal else {}),
+                              **({"descompte_soci_pct": member.descompte_pct} if member.descompte_pct and not regal and not sense_desc else {}),
                               **({"regal": True} if regal else {}),
                               **({"lots": [[b, x] for b, x in pla_lots]} if pla_lots else {}), "per": actor.id})
     if metode is not None:
         from . import cash
         cash.charge_in_tx(db, actor, m, metode)
-    db.commit()
+    if commit:
+        db.commit()
     return m
+
+
+def dispense_cart(db: Session, actor: User, member_id: int, linies: list[dict]) -> dict:
+    """Dispensa un carret (diversos productes) i el paga del monedero del soci: o es fa tot o res (una sola transacció).
+    Cada línia: {product_id, grams, regal}. Es bloquegen primer el soci i tots els productes (per ordre d'id) i després la caixa
+    i l'auditoria, com a `dispense`, perquè no es puguin creuar amb una altra operació."""
+    if not linies:
+        raise ValueError("El carret és buit")
+    ids = [int(l["product_id"]) for l in linies]
+    if len(set(ids)) != len(ids):
+        raise ValueError("Hi ha un producte repetit al carret: ajunta'n les quantitats")
+    _lock_member(db, member_id)
+    for pid in sorted(ids):
+        _lock_product(db, pid)
+    resultat, subtotal, descompte, total = [], 0, 0, 0
+    try:
+        for l in linies:
+            regal = bool(l.get("regal"))
+            m = dispense(db, actor, member_id, int(l["product_id"]), l["grams"], None, None, None, None if regal else "monedero", None, regal, commit=False)
+            p = db.get(Product, m.product_id)
+            rebaixa = getattr(m, "descompte_cent", 0) or 0
+            resultat.append({"id": m.id, "product_id": p.id, "producte": p.nom, "quantitat": unitats.mg_to_g(-m.delta_mg), "unitat": p.unitat,
+                             "import_cent": m.import_cent, "descompte_cent": rebaixa, "regal": regal})
+            subtotal += m.import_cent + rebaixa
+            descompte += rebaixa
+            total += m.import_cent
+    except Exception:
+        db.rollback()
+        raise
+    db.commit()
+    from . import moneder
+    return {"linies": resultat, "subtotal_cent": subtotal, "descompte_cent": descompte, "total_cent": total, "saldo_cent": moneder.saldo(db, member_id)}
 
 
 def correct(db: Session, actor: User, movement_id: int, nota: str, commit: bool = True) -> StockMovement:
@@ -381,16 +465,21 @@ def refund(db: Session, actor: User, movement_id: int, nota: str) -> dict:
     return {"correccio": corr.id, "retornat_cent": (orig.import_cent or 0) if cobrament is not None else 0}
 
 
-def shrink(db: Session, actor: User, product_id: int, grams: Decimal, nota: str) -> StockMovement:
+def shrink(db: Session, actor: User, product_id: int, grams: Decimal, nota: str, warehouse_id: int | None = None) -> StockMovement:
+    """Sortida d'estoc (merma, ús intern…). Per defecte del dispensari (magatzem principal); amb `warehouse_id`, d'aquell magatzem."""
     p = _lock_product(db, product_id)
     mg = grams_to_mg(grams)
-    if stock_mg(db, p.id) < mg:
-        raise ValueError("La merma supera l'estoc")
+    from . import magatzems
+    magatzems.check_active(db, p.local_id, warehouse_id)
+    if stock_in_mg(db, p.id, warehouse_id) < mg:
+        raise ValueError("La sortida supera l'estoc" if warehouse_id is not None else "La merma supera l'estoc")
     m = StockMovement(local_id=p.local_id, product_id=p.id, tipus="merma", delta_mg=-mg, user_id=actor.id, nota=nota)
     db.add(m)
     db.flush()
+    if warehouse_id is not None:
+        db.add(MovementWarehouse(movement_id=m.id, warehouse_id=warehouse_id))
     from . import lots
-    pla = lots.attach_outflow(db, m, p, mg)
+    pla = lots.attach_outflow(db, m, p, mg) if warehouse_id is None else []
     service.audit_append(db, {"accio": "merma", "moviment": m.id, "producte": p.id, "mg": mg,
                               **({"lots": [[b, x] for b, x in pla]} if pla else {}), "per": actor.id})
     db.commit()

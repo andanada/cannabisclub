@@ -16,7 +16,7 @@ def _escena(client, enc, **k):
 def test_producte_en_unitats_nomes_enters_i_no_genetic(ctx):
     client, _, sec = ctx
     enc = token(client, sec, "enc")
-    assert _prod(client, enc, nom="Clon", unitat="u", es_genetic=True).status_code == 422
+    assert _prod(client, enc, nom="Clon", unitat="u", es_genetic=True).status_code == 201   # un genètic també es pot vendre per unitat (preroll)
     assert _prod(client, enc, nom="X", unitat="kg").status_code == 422
     pid, mid = _escena(client, enc, nom="Aigua", unitat="u")
     disp = lambda q: client.post("/dispensacions", json={"member_id": mid, "product_id": pid, "grams": q, "metode": "efectiu"}, headers=enc)  # noqa: E731

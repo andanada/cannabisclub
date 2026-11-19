@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .. import cash, idempotencia
 from ..models import CashEntry, CashRegister, StockMovement, User
-from .comu import CAN_CREATE_MEMBER
+from .comu import CAN_CREATE_MEMBER, need_recepcio, pot_recepcio
 
 
 class CorreccioIn(BaseModel):
@@ -41,14 +41,14 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.post("/caixa/obrir", status_code=201)
     def obrir_caixa(body: ObrirIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_recepcio(user)  # recepció (o gerència): el dispensari no toca la caixa
         check_local(s, user, body.local_id)
         cs = run(cash.open_session, s, user, body.local_id, body.opening_cent, body.register_id, body.assigned_to)
         return {"sessio": cs.id}
 
     @app.post("/caixa/tancar")
     def tancar_caixa(body: TancarIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_recepcio(user)  # recepció (o gerència): el dispensari no toca la caixa
         check_local(s, user, body.local_id)
         cs = run(cash.close_session, s, user, body.local_id, body.counted_cent, body.session_id)
         return {"sessio": cs.id, "esperat_cent": cs.expected_cent, "comptat_cent": cs.counted_cent, "diferencia_cent": cs.diff_cent,
@@ -65,7 +65,7 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.post("/despeses", status_code=201)
     def despesa(body: DespesaIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_recepcio(user)  # recepció (o gerència): el dispensari no toca la caixa
         check_local(s, user, body.local_id)
 
         def fes():
@@ -75,7 +75,7 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.post("/caixa/apunts/{entry_id}/correccio", status_code=201)
     def correccio_apunt(entry_id: int, body: CorreccioIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_recepcio(user)  # recepció (o gerència): el dispensari no toca la caixa
         orig = s.get(CashEntry, entry_id)
         if not orig:
             raise HTTPException(404, "Apunt inexistent")
@@ -90,7 +90,7 @@ def register(app, db, current_user, check_local, need_manager, run):
             cs = cash.current_session(s, local_id, actor=user)
         except ValueError as e:   # diverses caixes obertes i cap assignada a l'usuari
             return {"oberta": False, "ambigua": True, "motiu": str(e)}
-        gestor = user.role in CAN_CREATE_MEMBER
+        gestor = pot_recepcio(user)
         # Deutes de sessions anteriors (o fets amb la caixa tancada): no han de quedar invisibles; es cobren amb la caixa oberta.
         anteriors = cash.unpaid_dispensations(s, local_id, None, cs.opened_at if cs else None) if gestor else None
         extra = {} if anteriors is None else {"sense_cobrar_anteriors": anteriors, "sense_cobrar_anteriors_cent": sum(p["import_cent"] for p in anteriors)}
@@ -135,7 +135,7 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.get("/locals/{local_id}/caixa/sessions")
     def resum_sessions(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        need_recepcio(user)  # recepció (o gerència): el dispensari no toca la caixa
         check_local(s, user, local_id)
         if fins < des:
             raise HTTPException(422, "Rang de dates invàlid")

@@ -41,8 +41,8 @@ def test_perdua_maxima_a_l_inventari(ctx):
     def inventari(g):
         sid = client.post("/locals/1/inventaris", json={}, headers=enc).json()["id"]
         client.put(f"/inventaris/{sid}/linies/{pid}", json={"grams": g}, headers=enc)
-        return client.post(f"/inventaris/{sid}/tancar", headers=enc).json()
+        return client.post(f"/inventaris/{sid}/guardar", headers=enc).json()
     petita = inventari("19.8")   # falten 0,2 g: dins del que es tolera
-    assert petita["alertes_perdua"] == []
+    assert petita["alertes"] == []
     gran = inventari("18.8")     # falta 1 g: per sobre dels 0,5 g
-    assert gran["alertes_perdua"] == [{"producte": "Flor", "perdua_mg": 1000}]
+    assert gran["alertes"] == [{"producte": "Flor", "diferencia_mg": -1200}]

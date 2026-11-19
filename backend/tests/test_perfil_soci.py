@@ -41,13 +41,13 @@ def test_edicio_parcial_i_validacions(ctx):
     assert client.patch(f"/socis/{mid}", json={"tipus": "Convidat"}, headers=enc).status_code == 200
 
 
-def test_el_dispensador_no_veu_el_perfil(ctx):
+def test_tot_el_personal_consulta_el_perfil_del_soci(ctx):
     client, _, sec = ctx
     enc = token(client, sec, "enc")
     mid = client.post("/socis", json={**SOCI, **PERFIL}, headers=enc).json()["id"]
     d = token(client, sec, "disp")
     f = client.get(f"/socis/{mid}", headers=d).json()
-    assert "adreca" not in f and "ciutat" not in f
+    assert "adreca" in f and "ciutat" in f   # recepció i dispensari poden consultar les dades dels socis
 
 
 def test_exportacio_inclou_el_perfil(ctx):

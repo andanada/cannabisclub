@@ -235,7 +235,27 @@ def user_from_token(db: Session, token: str) -> User | None:
     if exp < datetime.now(timezone.utc):
         return None
     u = db.get(User, s.user_id)
-    return u if u and u.active else None
+    if not (u and u.active):
+        return None
+    u.rol_dia = s.rol_dia  # atribut de la petició (no és una columna): el rol triat en iniciar la sessió
+    return u
+
+
+ROLS_DIA = {"recepcio", "dispensari"}
+
+
+def set_rol_dia(db: Session, token: str, user: User, rol: str) -> None:
+    """El treballador (no la gerència) tria el rol del dia en iniciar sessió: recepció o dispensari."""
+    if rol not in ROLS_DIA:
+        raise ValueError("Rol no vàlid (recepcio o dispensari)")
+    if user.role in ("admin", "encarregat"):
+        raise ValueError("La gerència té accés complet: no ha de triar rol")
+    s = db.get(SessionToken, hashlib.sha256(token.encode()).hexdigest())
+    if not s:
+        raise ValueError("Sessió no vàlida")
+    s.rol_dia = rol
+    audit_append(db, {"accio": "rol_dia", "usuari": user.id, "rol": rol})
+    db.commit()
 
 
 LLETRES_DNI = "TRWAGMYFPDXBNJZSQVHLCKE"
@@ -286,12 +306,33 @@ def codi_soci(m: Member, nom: str) -> str:
     return f"{ini}{m.id}"
 
 
+# Tipus de membre amb descompte propi: Ordinari 0 %, Terapèutic 20 %, Família 30 %. Un altre text es conserva sense descompte.
+TIPUS_MEMBRE = {"Ordinari": 0, "Terapèutic": 20, "Família": 30}
+
+
+def _clau_tipus(t: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", t.strip().casefold()) if unicodedata.category(c) != "Mn")
+
+
+_ALIES = {"ordinari": "Ordinari", "ordinario": "Ordinari", "ordinary": "Ordinari", "terapeutic": "Terapèutic", "terapeutico": "Terapèutic",
+          "therapeutic": "Terapèutic", "familia": "Família", "family": "Família"}
+
+
+def tipus_canonic(t: str) -> str:
+    return _ALIES.get(_clau_tipus(t), t)
+
+
+def descompte_del_tipus(t: str) -> int | None:
+    return TIPUS_MEMBRE.get(tipus_canonic(t))
+
+
 def create_member(db: Session, actor: User, local_id: int, nom: str, document: str,
                   naixement: date, telefon: str | None, email: str | None, *,
                   perfil: dict | None = None, tipus: str | None = None) -> Member:
     validate_document(document)
     perfil = normalitza_perfil(perfil)
-    tipus = (tipus or "Ordinari").strip()[:40] or "Ordinari"
+    tipus = tipus_canonic((tipus or "Ordinari").strip()[:40] or "Ordinari")
     avui = date.today()
     edat = avui.year - naixement.year - ((avui.month, avui.day) < (naixement.month, naixement.day))
     from . import ajustos
@@ -306,6 +347,7 @@ def create_member(db: Session, actor: User, local_id: int, nom: str, document: s
         document_idx=idx, naixement_enc=crypto.encrypt(naixement.isoformat()),
         telefon_enc=crypto.encrypt(telefon), email_enc=crypto.encrypt(email), creat_per=actor.id,
         perfil_enc=crypto.encrypt(json.dumps(perfil, ensure_ascii=False)) if any(perfil.values()) else None, tipus=tipus,
+        descompte_pct=descompte_del_tipus(tipus) or 0,
     )
     from . import ajustos
     if ajustos.get(db, local_id)["alta_pendent"]:
@@ -330,7 +372,7 @@ def member_view(m: Member) -> dict:
     }
 
 
-ESTATS = {"pendent", "actiu", "suspes", "baixa"}
+ESTATS = {"pendent", "actiu", "suspes", "baixa", "expulsat"}
 
 
 def set_member_status(db: Session, actor: User, member: Member, estat: str, motiu: str | None = None) -> None:
@@ -353,6 +395,8 @@ def set_member_status(db: Session, actor: User, member: Member, estat: str, moti
 
 def check_in(db: Session, actor: User, member: Member, via: str = "manual"):
     from .models import CheckIn
+    if member.estat == "expulsat":
+        raise ValueError("Soci expulsat: no pot entrar al club")
     if member.estat != "actiu":
         raise ValueError("El soci no està actiu")
     c = CheckIn(local_id=member.local_id, member_id=member.id, user_id=actor.id, tipus="entrada", via=via)
@@ -361,6 +405,25 @@ def check_in(db: Session, actor: User, member: Member, via: str = "manual"):
     audit_append(db, {"accio": "entrada_soci", "soci": member.id, "via": via, "per": actor.id})
     db.commit()
     return c
+
+
+def inactivitat(db: Session, member: Member, avui: datetime | None = None) -> dict | None:
+    """Si el soci porta més dies del límit sense retirar genètics, torna {dies, ultima}; si no, None. Sense cap retirada,
+    compta des de l'alta. El límit (per defecte 90 dies) és un ajust del club; 0 el desactiva."""
+    from . import ajustos
+    from .models import Product, StockMovement
+    limit = ajustos.get(db, member.local_id)["cuota_inactivitat_dies"]
+    if not limit:
+        return None
+    ara = avui or datetime.now(timezone.utc)
+    ultima = db.scalar(select(func.max(StockMovement.ts)).join(Product, Product.id == StockMovement.product_id)
+                       .where(StockMovement.member_id == member.id, StockMovement.tipus == "dispensacio", Product.es_genetic.is_(True)))
+    base = ultima or member.creat
+    base = base if base.tzinfo else base.replace(tzinfo=timezone.utc)
+    dies = (ara - base).days
+    if dies < limit:
+        return None
+    return {"dies": dies, "ultima": ultima.isoformat() if ultima else None, "limit": limit}
 
 
 DINS_MAX_HORES = 24  # una entrada sense sortida de fa més d'això ja no compta com «dins» (s'han oblidat de fitxar la sortida)
@@ -402,11 +465,14 @@ def check_out_all(db: Session, actor: User, local_id: int) -> int:
 def access_state(db: Session, actor: User, local_id: int) -> dict:
     """Pantalla d'accés manual: socis actius dins (amb hora d'entrada) i fora. Els noms es desxifren aquí (una consulta)."""
     dins = _dins_ids(db, local_id)
+    from .models import MemberIncident
+    amb_incidencia = set(db.scalars(select(MemberIncident.member_id).where(MemberIncident.local_id == local_id, MemberIncident.estat == "oberta")))
     out_dins, out_fora = [], []
     for m in db.scalars(select(Member).where(Member.local_id == local_id, Member.estat == "actiu")):
         nom = crypto.decrypt(m.nom_enc)
         if m.id in dins:
-            out_dins.append({"id": m.id, "nom": nom, "entrada": dins[m.id].isoformat()})
+            out_dins.append({"id": m.id, "nom": nom, "entrada": dins[m.id].isoformat(), "codi": codi_soci(m, nom), "tipus": m.tipus,
+                             "incidencia": m.id in amb_incidencia})
         else:
             out_fora.append({"id": m.id, "nom": nom})
     out_dins.sort(key=lambda x: x["entrada"])

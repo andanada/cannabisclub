@@ -43,5 +43,5 @@ test('tots els textos de les vistes tenen traducció a castellà i anglès', () 
       if ((trEs(s) === s && !trEs.te(s)) || (trEn(s) === s && !trEn.te(s))) sensePas.push(`${f}: ${s}`);
     }
   }
-  assert.deepEqual(sensePas.slice(0, 40), [], `${sensePas.length} textos sense traduir`);
+  assert.deepEqual(sensePas.slice(0, 400), [], `${sensePas.length} textos sense traduir`);
 });

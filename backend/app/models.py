@@ -42,6 +42,7 @@ class SessionToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    rol_dia: Mapped[str | None] = mapped_column(String(12), nullable=True)  # rol triat en iniciar sessió: recepcio | dispensari
 
 
 class Member(Base):
@@ -92,6 +93,9 @@ class Product(Base):
     unitat: Mapped[str] = mapped_column(String(1), default="g", server_default="g")
     granel: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())  # a granel = es pot dispensar qualsevol quantitat; si no, només enters
     es_genetic: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # genètic (flor, clons…) o no (accessoris, begudes)
+    preu_entrada_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)  # preu de compra (per gram o unitat), informatiu
+    tara_mg: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # pes del pot buit del dispensari (només genètics)
+    sense_descomptes: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # el preu no canvia per a ningú
 
 
 class StockMovement(Base):
@@ -534,6 +538,10 @@ class InventorySession(Base):
     ts_obert: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     ts_tancat: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    tipus: Mapped[str] = mapped_column(String(14), default="dispensari", server_default="dispensari")  # dispensari | magatzem | no_genetiques
+    control: Mapped[str] = mapped_column(String(10), default="complet", server_default="complet")      # complet | producte
+    product_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # només en un control d'un sol producte
+    ajustat: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())             # l'estoc s'ha ajustat al comptat
 
 
 class InventoryCount(Base):
@@ -542,6 +550,8 @@ class InventoryCount(Base):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), primary_key=True)
     counted_mg: Mapped[int] = mapped_column(Integer)
     expected_mg: Mapped[int | None] = mapped_column(Integer, nullable=True)  # estoc teòric en el moment del recompte
+    brut_mg: Mapped[int | None] = mapped_column(Integer, nullable=True)      # pes escrit o de la bàscula (amb la tara)
+    nota: Mapped[str | None] = mapped_column(String(300), nullable=True)     # comentari quan hi ha diferència
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 

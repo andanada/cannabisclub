@@ -95,38 +95,54 @@ function renderLogin() {
   user.focus();
 }
 
+// Rol del dia: la gerència (admin, encarregat) té accés a tot; la resta de treballadors tria en iniciar sessió Recepció o Dispensari.
+const potRecepcio = () => isManager() || S.me.rol_dia === 'recepcio';
+const potDispensari = () => isManager() || S.me.rol_dia === 'dispensari';
+const homeView = () => (potRecepcio() && !potDispensari() ? 'acces' : 'dispensar');
+
+// Menú: Socis, Accés, Caixa, Dispensar, Estoc, Horaris, Estadístiques i informes, Configuració.
+// Una subentrada pot dur un tercer valor: la vista on porta (així Configuració agrupa pantalles que viuen en altres vistes).
 const TABS = [
-  ['dispensar', 'Dispensar', () => true],
   ['socis', 'Socis', () => true],
-  ['acces', 'Accés', () => true, () => (isManager() ? [['manual', 'Accés manual'], ['quiosc', 'Quiosc RFID']] : [['quiosc', 'Quiosc RFID']])],
-  ['estoc', 'Estoc', isManager, [
-    ['existencies', 'Existències'], ['magatzems', 'Magatzems'], ['linies', 'Línies de preu'], ['contenidors', 'Contenidors'],
-    ['tipus-contenidor', 'Tipus de contenidors'], ['moviment', 'Moviments'], ['inventari', 'Inventaris'], ['descomptes', 'Descomptes'],
-    ['regles', 'Regles'], ['productes', 'Productes'], ['categories', 'Categories'], ['historial', 'Historial']]],
-  ['caixa', 'Caixa', () => true],
-  ['fitxatge', 'Fitxatge', () => true],
-  ['descomptes', 'Descomptes', () => !isManager() && !!S.me.pot_editar_descomptes],
-  ['gastos', 'Despeses', isManager, [['despeses', 'Despeses'], ['categories', 'Categories'], ['tipus', 'Tipus de despesa'], ['comptabilitat', 'Comptabilitat']]],
-  ['estadistiques', 'Estadístiques', isManager, [['membres', 'Socis'], ['dispensari', 'Dispensari i bar'], ['finances', 'Finances']]],
-  ['informe', 'Informes', isManager, [['vendes', 'Vendes'], ['dispensacions', 'Dispensacions'], ['evolucio', 'Evolució del club'], ['demografia', 'Demografia'], ['caixa', 'Caixa'], ['estoc', 'Estoc valorat'], ['assistencia', 'Assistència'], ['visites', 'Visites de socis'], ['hores', 'Hores']]],
-  ['rgpd', 'Privacitat', isManager, () => (S.me.role === 'admin' ? [['soci', "Dades d'un soci"], ['auditoria', "Registre d'accessos"], ['retencio', 'Retenció de dades']] : [['soci', "Dades d'un soci"]])],
-  ['club', 'Controls del club', isManager, [['controls', 'Controls'], ['limits', 'Límits per soci'], ['lots', 'Lots i traçabilitat'], ['llibres', 'Llibres']]],
-  ['config', 'Configuració', isManager, () => (S.me.role === 'admin'
-    ? [['local', 'Local i límits'], ['quotes', 'Quotes'], ['normes', 'Normes del club'], ['monedes', 'Monedes'], ['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura'], ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ['seguretat', 'Seguretat']]
-    : [['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic']])],
-  ['compte', 'Compte', () => true],
+  ['acces', 'Accés', potRecepcio],
+  ['caixa', 'Caixa', potRecepcio],
+  ['dispensar', 'Dispensar', potDispensari],
+  ['estoc', 'Estoc', potDispensari, () => [['productes', 'Productes'], ['existencies', 'Existències i moviments'], ['inventari', 'Inventaris'], ...(isManager() ? [['historial', 'Historial']] : [])]],
+  ['fitxatge', 'Horaris', () => true],
+  ['estinf', 'Estadístiques i informes', isManager, [
+    ['est:membres', 'Estadístiques · Socis'], ['est:dispensari', 'Estadístiques · Dispensari i bar'], ['est:finances', 'Estadístiques · Finances'],
+    ['inf:vendes', 'Informes · Vendes'], ['inf:dispensacions', 'Informes · Dispensacions'], ['inf:evolucio', 'Informes · Evolució del club'], ['inf:demografia', 'Informes · Demografia'],
+    ['inf:caixa', 'Informes · Caixa'], ['inf:estoc', 'Informes · Estoc valorat'], ['inf:assistencia', 'Informes · Assistència'], ['inf:visites', 'Informes · Visites de socis'], ['inf:hores', 'Informes · Hores']]],
+  ['config', 'Configuració', isManager, () => [
+    ['local', 'Local i límits'], ['quotes', 'Quotes'], ['normes', 'Normes del club'],
+    ...(S.me.role === 'admin' ? [['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura']] : []),
+    ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ...(S.me.role === 'admin' ? [['seguretat', 'Seguretat']] : []),
+    ['estoc-avancat', 'Estoc avançat (magatzems, categories, descomptes…)', 'estoc-avancat'],
+    ['gastos', 'Despeses i comptabilitat', 'gastos'], ['club', 'Controls del club', 'club'], ['rgpd', 'Privacitat i protecció de dades', 'rgpd']]],
 ];
+// Pantalles fora del menú: el compte propi (PIN, carnet) i els descomptes d'un treballador amb el privilegi.
+const VIEWS_EXTRA = ['compte', 'descomptes'];
+
+// Vista → grup del menú que s'ha de desplegar quan hi ets.
+function grupDe(view) {
+  if (view === 'estadistiques' || view === 'informe') return 'estinf';
+  const t = TABS.find(([id, , , subs]) => { const l = typeof subs === 'function' ? subs() : subs; return id === view || (l || []).some((x) => x[2] === view); });
+  return t ? t[0] : view;
+}
 
 // Marca l'entrada activa del menú (i la subentrada, si n'hi ha) i desplega el grup de la vista actual.
 function marcaMenu() {
+  const grup = grupDe(S.view);
   document.querySelectorAll('nav.tabs button[data-view]').forEach((b) => {
-    const actual = b.dataset.view === S.view;
     const sub = b.dataset.sub;
-    const triada = sessionStorage.getItem('s:' + S.view);
-    const marcat = sub ? actual && triada === sub : actual && !b.classList.contains('has-sub');
-    if (marcat || (actual && b.classList.contains('has-sub') && !triada)) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    let marcat = false;
+    if (!sub) marcat = b.dataset.view === grup && !b.classList.contains('has-sub');
+    else if (b.dataset.target) marcat = b.dataset.target === S.view;
+    else if (b.dataset.view === 'estinf') marcat = (S.view === 'estadistiques' ? 'est:' : 'inf:') + sessionStorage.getItem('s:' + S.view) === sub;
+    else marcat = b.dataset.view === S.view && sessionStorage.getItem('s:' + S.view) === sub;
+    if (marcat || (!sub && b.dataset.view === grup && b.classList.contains('has-sub') && !document.querySelector(`nav.tabs button.sub[data-view="${grup}"][aria-current]`))) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
-  document.querySelectorAll('nav.tabs .sub-group').forEach((g) => { g.hidden = g.dataset.view !== S.view; });
+  document.querySelectorAll('nav.tabs .sub-group').forEach((g) => { g.hidden = g.dataset.view !== grup; });
 }
 
 function localSelect() {
@@ -141,14 +157,24 @@ function renderShell() {
       const subs = typeof subsDef === 'function' ? subsDef() : subsDef;
       const main = h('button', { 'data-view': id, class: subs ? 'has-sub' : '', onclick: () => show(id) }, icon(id), h('span', null, label));
       if (!subs) return [main];
-      const grup = h('div', { class: 'sub-group', 'data-view': id, hidden: true }, subs.map(([sid, slabel]) =>
-        h('button', { 'data-view': id, 'data-sub': sid, class: 'sub', onclick: () => { sessionStorage.setItem('s:' + id, sid); show(id); } }, h('span', null, slabel))));
+      const grup = h('div', { class: 'sub-group', 'data-view': id, hidden: true }, subs.map(([sid, slabel, target]) => {
+        const atr = { 'data-view': id, 'data-sub': sid, class: 'sub' };
+        if (target) atr['data-target'] = target;
+        atr.onclick = () => {
+          if (target) { show(target); return; }                       // porta a una altra vista (la pròpia tria el seu apartat)
+          if (id === 'estinf') { const [tipus, apartat] = sid.split(':'); const v = tipus === 'est' ? 'estadistiques' : 'informe'; sessionStorage.setItem('s:' + v, apartat); show(v); return; }
+          sessionStorage.setItem('s:' + id, sid); show(id);
+        };
+        return h('button', atr, h('span', null, slabel));
+      }));
       return [main, grup];
     }));
   const side = h('aside', { class: 'side' }, h('div', { class: 'side-in' },
     h('div', { class: 'brand' }, h('img', { class: 'brand-logo', src: '/logo-petit.png', alt: '' }), h('div', null, 'Més que un Club', h('small', null, 'Gestió del club'))),
     nav,
-    h('div', { class: 'who' }, h('div', null, h('strong', null, S.me.username), ' · ', S.me.role), localSelect(), langSelect(),
+    h('div', { class: 'who' }, h('div', null, h('strong', null, S.me.username), ' · ', isManager() ? S.me.role : (S.me.rol_dia === 'recepcio' ? 'Recepció' : 'Dispensari')), localSelect(), langSelect(),
+      ...(isManager() ? [] : [h('button', { class: 'small', onclick: () => renderRolDia() }, 'Canviar de rol')]),
+      h('button', { class: 'small', onclick: () => show('compte') }, 'Compte'),
       h('button', { class: 'small', onclick: logout }, "Canviar d'usuari"))));
   const topbar = h('div', { class: 'topbar' }, h('span', { class: 'topbar-marca' }, h('img', { src: '/logo-petit.png', alt: '', width: 30, height: 32 }), h('strong', null, 'Més que un Club')),
     h('div', { class: 'row' }, localSelect(), langSelect(), h('button', { class: 'small', onclick: logout }, 'Sortir')));
@@ -181,6 +207,32 @@ function renderFirstLocal() {
   nom.focus();
 }
 
+// Selecció del rol del dia (només per a treballadors; la gerència entra directament amb accés complet).
+function renderRolDia() {
+  const out = h('div');
+  const tria = (rol) => async () => {
+    try {
+      await api('/auth/rol-dia', { method: 'POST', body: { rol } });
+      S.me.rol_dia = rol;
+      S.view = rol === 'recepcio' ? 'acces' : 'dispensar';
+      await boot();
+    } catch (e) { out.replaceChildren(msg('err', e.message)); }
+  };
+  const targeta = (rol, titol, text, icona) => {
+    const b = h('button', { type: 'button', class: 'rol-targeta', onclick: tria(rol) }, h('div', { class: 'rol-icona', 'aria-hidden': 'true' }, icona), h('strong', null, titol), h('span', { class: 'muted' }, text));
+    return b;
+  };
+  $('#app').replaceChildren(h('div', { class: 'auth' },
+    h('aside', { class: 'auth-brand' }, h('img', { class: 'auth-logo', src: '/logo.png', alt: 'Més que un Club' }), h('h1', { class: 'sr-only' }, 'Més que un Club'),
+      h('p', null, 'Tria el teu rol per avui: només veuràs els botons que necessites.')),
+    h('main', { class: 'auth-panel' }, h('div', { class: 'auth-lang' }, langSelect()),
+      h('div', { class: 'card login' }, h('h2', { class: 'auth-title' }, 'Quin és el teu rol avui?'), h('p', { class: 'muted' }, S.me ? S.me.username : ''),
+        h('div', { class: 'rol-grup' },
+          targeta('recepcio', 'Recepció', 'Accés al club, caixa i donacions dels socis.', '▤'),
+          targeta('dispensari', 'Dispensari', 'Dispensar, estoc i inventaris.', '✚')),
+        out, h('div', { class: 'actions' }, h('button', { type: 'button', class: 'small', onclick: logout }, 'Sortir'))))));
+}
+
 async function boot() {
   try {
     S.me = await api('/me');
@@ -189,8 +241,10 @@ async function boot() {
   if (!S.me.locals.length) { $('#app').replaceChildren(msg('err', 'Aquest usuari no té cap local assignat.'), h('button', { onclick: logout }, 'Sortir')); return; }
   const saved = Number(sessionStorage.getItem('l'));
   S.local = S.me.locals.some((l) => l.id === saved) ? saved : S.me.locals[0].id;
+  if (!isManager() && !S.me.rol_dia) { renderRolDia(); return; }   // el treballador tria Recepció o Dispensari abans d'entrar
   renderShell();
-  show(S.view);
+  const permesa = VIEWS_EXTRA.includes(S.view) || TABS.some(([id, , ok]) => ok() && (id === S.view || grupDe(S.view) === id));
+  show(permesa ? S.view : homeView());
 }
 
 // Versió nova: el service worker nou pren el control (skipWaiting + claim) però la pàgina oberta continua amb el JS vell fins

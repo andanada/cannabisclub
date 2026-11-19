@@ -21,6 +21,49 @@ def llista(db: Session, local_id: int) -> list[dict]:
     return out
 
 
+NOM_MAGATZEM = "Magatzem"  # «Almacén»: el dispensari és el magatzem principal; aquest és l'únic altre lloc on hi ha estoc
+
+
+def magatzem_unic(db: Session, local_id: int) -> Warehouse:
+    """El magatzem del local (el primer actiu); si no n'hi ha cap, es crea. Així hi ha sempre dos llocs: Magatzem i Dispensari."""
+    w = db.scalar(select(Warehouse).where(Warehouse.local_id == local_id, Warehouse.actiu.is_(True)).order_by(Warehouse.id))
+    if w is None:
+        w = Warehouse(local_id=local_id, nom=NOM_MAGATZEM)
+        db.add(w)
+        db.commit()
+    return w
+
+
+def existencies(db: Session, local_id: int) -> dict:
+    """Llista d'existències: per producte actiu, el que hi ha al dispensari i al magatzem (pesos reals, sense tara) i un avís quan
+    s'acaba o està a punt d'acabar-se (límit: ajust `estoc_baix_mg`)."""
+    from . import ajustos
+    w = magatzem_unic(db, local_id)
+    baix = ajustos.get(db, local_id)["estoc_baix_mg"]
+    prods = list(db.scalars(select(Product).where(Product.local_id == local_id, Product.actiu.is_(True)).order_by(Product.categoria, Product.nom)))
+    ids = [p.id for p in prods]
+    dispensari = stock.stock_by_product(db, ids)
+    total = stock.stock_by_product(db, ids, total=True)
+    out = []
+    for p in prods:
+        d, t = dispensari[p.id], total[p.id]
+        estat = "esgotat" if t <= 0 else ("baix" if baix and d < baix else "ok")
+        out.append({"id": p.id, "nom": p.nom, "categoria": p.categoria, "es_genetic": p.es_genetic, "unitat": p.unitat,
+                    "dispensari_g": _g(d), "magatzem_g": _g(t - d), "estat": estat})
+    return {"magatzem_id": w.id, "baix_g": _g(baix), "productes": out}
+
+
+def moviments_producte(db: Session, product: Product, limit: int = 10) -> list[dict]:
+    """Els darrers moviments d'un producte (de qualsevol lloc), del més recent al més antic."""
+    noms = {i: n for i, n in db.execute(select(User.id, User.username))}
+    llocs = {wid: nom for wid, nom in db.execute(select(Warehouse.id, Warehouse.nom).where(Warehouse.local_id == product.local_id))}
+    rows = db.execute(select(StockMovement, MovementWarehouse.warehouse_id)
+                      .outerjoin(MovementWarehouse, MovementWarehouse.movement_id == StockMovement.id)
+                      .where(StockMovement.product_id == product.id).order_by(StockMovement.id.desc()).limit(limit)).all()
+    return [{"id": m.id, "ts": m.ts.isoformat(), "tipus": m.tipus, "grams": _g(m.delta_mg), "nota": m.nota, "usuari": noms.get(m.user_id),
+             "lloc": llocs.get(wid) if wid is not None else "Dispensari"} for m, wid in rows]
+
+
 def check_active(db: Session, local_id: int, warehouse_id: int | None) -> None:
     if warehouse_id is None:
         return

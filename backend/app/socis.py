@@ -66,12 +66,16 @@ def update_member(db: Session, actor: User, member: Member, canvis: dict) -> Mem
                 setattr(member, camp + "_enc", crypto.encrypt(nou))
                 fets.append(camp)
     if "tipus" in canvis:
-        tipus = (canvis["tipus"] or "").strip()[:40]
+        tipus = service.tipus_canonic((canvis["tipus"] or "").strip()[:40])
         if not tipus:
             raise ValueError("El tipus de membre no pot estar buit")
         if tipus != member.tipus:
             member.tipus = tipus
             fets.append("tipus")
+            auto = service.descompte_del_tipus(tipus)
+            if auto is not None and auto != member.descompte_pct:  # el tipus de membre fixa el descompte (Terapèutic 20 %, Família 30 %)
+                member.descompte_pct = auto
+                fets.append("descompte_pct")
     if "descompte_pct" in canvis:
         pct = canvis["descompte_pct"]
         if not isinstance(pct, int) or isinstance(pct, bool) or not 0 <= pct <= 100:

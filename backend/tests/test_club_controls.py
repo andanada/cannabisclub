@@ -71,7 +71,7 @@ def test_alta_pendent_i_aprovacio_per_un_altre_gestor(ctx):
     enc, adm = token(client, sec, "enc"), token(client, sec, "admin")
     cfg(client, adm, alta_pendent=True)
     mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
-    pid = client.post("/productes", json={"local_id": 1, "nom": "P", "preu_cent_per_g": 100}, headers=enc).json()["id"]
+    pid = client.post("/productes", json={"local_id": 1, "nom": "P", "preu_cent_per_g": 100, "es_genetic": True}, headers=enc).json()["id"]
     client.post("/moviments/entrada", json={"product_id": pid, "grams": "5"}, headers=enc)
     assert client.get(f"/socis/{mid}", headers=enc).json()["estat"] == "pendent"
     assert "pendent d'aprovació" in disp(client, enc, mid, pid).json()["detail"]
@@ -264,7 +264,8 @@ def test_merma_ajust_i_inventari_tambe_baixen_les_existencies_dels_lots(ctx):
     # inventari: comptats 4 g (teòric 6 g) -> -2 g, primer el que queda d'A i després B
     sid = client.post("/locals/1/inventaris", json={}, headers=enc).json()["id"]
     assert client.put(f"/inventaris/{sid}/linies/{pid}", json={"grams": "4"}, headers=enc).status_code == 200
-    assert client.post(f"/inventaris/{sid}/tancar", headers=enc).status_code == 200
+    assert client.post(f"/inventaris/{sid}/guardar", headers=enc).status_code == 200
+    assert client.post(f"/inventaris/{sid}/ajustar", headers=enc).status_code == 200
     assert queden() == (0, 2999)
     # la suma dels lots mai supera l'estoc del producte
     with factory() as s:

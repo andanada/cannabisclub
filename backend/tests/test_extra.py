@@ -17,6 +17,7 @@ def test_merma_i_ajust(ctx):
     assert client.post("/moviments/merma", json={"product_id": pid, "grams": "0.5", "nota": "humitat"}, headers=enc).status_code == 201
     assert Decimal(estoc(client, enc)) == Decimal("9.5")
     assert client.post("/moviments/merma", json={"product_id": pid, "grams": "50", "nota": "massa"}, headers=enc).status_code == 422
+    client.post("/auth/rol-dia", json={"rol": "recepcio"}, headers=disp)  # recepció no toca l'estoc
     assert client.post("/moviments/merma", json={"product_id": pid, "grams": "1", "nota": "no puc"}, headers=disp).status_code == 403
     assert client.post("/moviments/ajust", json={"product_id": pid, "grams_reals": "9.5", "nota": "recompte"}, headers=enc).status_code == 422
     assert client.post("/moviments/ajust", json={"product_id": pid, "grams_reals": "8", "nota": "recompte"}, headers=enc).status_code == 201

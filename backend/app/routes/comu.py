@@ -11,6 +11,32 @@ from ..models import Member, Product, User, UserLocal
 CAN_CREATE_MEMBER = {"admin", "encarregat"}
 
 
+def acces_complet(user: User) -> bool:
+    """Gerència (admin i encarregat): accés a tot, sense triar rol del dia."""
+    return user.role in CAN_CREATE_MEMBER
+
+
+def pot_recepcio(user: User) -> bool:
+    """Caixa i donacions. Un treballador que ha triat «dispensari» no hi accedeix (per no descuadrar la caixa de recepció).
+    Sense rol triat (sessions antigues) es permet com abans."""
+    return acces_complet(user) or getattr(user, "rol_dia", None) in (None, "recepcio")
+
+
+def pot_dispensari(user: User) -> bool:
+    """Productes, estoc i inventaris: dispensari o gerència."""
+    return acces_complet(user) or getattr(user, "rol_dia", None) in (None, "dispensari")
+
+
+def need_recepcio(user: User) -> None:
+    if not pot_recepcio(user):
+        raise HTTPException(403, "Aquesta acció és de recepció: canvia de rol o demana-ho a recepció")
+
+
+def need_dispensari(user: User) -> None:
+    if not pot_dispensari(user):
+        raise HTTPException(403, "Aquesta acció és del dispensari: canvia de rol o demana-ho al dispensari")
+
+
 def check_local(s: Session, user: User, local_id: int) -> None:
     if user.role == "admin":
         return
@@ -24,9 +50,8 @@ def member_payload(s: Session, m: Member, user: User) -> dict:
     from .. import incidencies
     base = {"quota": quotes.status(s, m.id), "te_foto": socis.has_photo(s, m.id), "te_carnet": socis.has_card(s, m.id),
             "alertes": incidencies.alertes(s, m.id)}
-    if user.role in CAN_CREATE_MEMBER:
-        return {**service.member_view(m), **base}
-    return {"id": m.id, "local_id": m.local_id, "nom": service.member_name(m), "estat": m.estat, **base}
+    # Tot el personal (recepció i dispensari) pot consultar les dades dels socis; editar-les és de la gerència.
+    return {**service.member_view(m), **base}
 
 
 def product_or_404(s: Session, user: User, product_id: int) -> Product:

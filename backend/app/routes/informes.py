@@ -36,7 +36,8 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.get("/locals/{local_id}/apunts")
     def llista_apunts(local_id: int, des: date, fins: date, limit: int = Query(default=100, ge=1, le=500),
                       user: User = Depends(current_user), s: Session = Depends(db)):
-        need_manager(user)
+        from .comu import need_recepcio
+        need_recepcio(user)  # recepció (o gerència): és el llibre de la caixa
         check_local(s, user, local_id)
         rang(des, fins)
         return cash.entries_list(s, local_id, des, fins, limit)

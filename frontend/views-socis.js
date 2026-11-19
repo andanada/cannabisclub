@@ -71,20 +71,12 @@ function cardManager(m, out, reload) {
 // Camps de perfil (gènere, adreça i tipus de membre), compartits per l'alta i l'edició.
 // `valors()` torna un objecte amb tots els camps; `canvis(m)` només els que difereixen de la fitxa `m`.
 function campsPerfil(m = {}) {
-  const t = (v, a = {}) => h('input', { value: v || '', autocomplete: 'off', maxlength: 120, ...a });
-  const f = {
-    genere: h('select', null, [['', '—'], ['home', 'Home'], ['dona', 'Dona'], ['altre', 'Altre']].map(([v, x]) => h('option', { value: v, selected: v === (m.genere || '') }, x))),
-    adreca: t(m.adreca), ciutat: t(m.ciutat), codi_postal: t(m.codi_postal, { maxlength: 12, inputmode: 'numeric' }),
-    provincia: t(m.provincia), pais: t(m.pais),
-    tipus: t(m.tipus || 'Ordinari', { maxlength: 40, list: 'tipus-membre' }),
-  };
-  const llista = h('datalist', { id: 'tipus-membre' }, ['Ordinari', 'Terapèutic', 'Convidat'].map((x) => h('option', { value: x })));
-  const valors = () => Object.fromEntries(Object.entries(f).map(([k, i]) => [k, i.value.trim()]));
-  const canvis = (orig) => Object.fromEntries(Object.entries(valors()).filter(([k, v]) => v !== (orig[k] || (k === 'tipus' ? 'Ordinari' : ''))));
-  const node = h('div', null, llista,
-    h('div', { class: 'row' }, field('Tipus de membre', f.tipus), field('Gènere', f.genere)),
-    h('div', { class: 'row' }, field('Adreça', f.adreca), field('Ciutat', f.ciutat)),
-    h('div', { class: 'row' }, field('Codi postal', f.codi_postal), field('Província', f.provincia), field('País', f.pais)));
+  // El tipus de membre fixa el descompte: Ordinari 0 %, Terapèutic 20 %, Família 30 %. (Gènere i adreça ja no es demanen.)
+  const TIPUS = [['Ordinari', 'Ordinari'], ['Terapèutic', 'Terapèutic (20 % de descompte)'], ['Família', 'Família (30 % de descompte)']];
+  const tipus = h('select', { 'aria-label': 'Tipus de membre' }, TIPUS.map(([v, t]) => h('option', { value: v, selected: v === (m.tipus || 'Ordinari') }, t)));
+  const valors = () => ({ tipus: tipus.value });
+  const canvis = (orig) => (tipus.value !== (orig.tipus || 'Ordinari') ? { tipus: tipus.value } : {});
+  const node = h('div', null, h('div', { class: 'row' }, field('Tipus de membre', tipus)));
   return { node, valors, canvis };
 }
 
@@ -94,7 +86,6 @@ function editForm(m, out, reload) {
     naix: h('input', { type: 'date', value: m.naixement }), tel: h('input', { inputmode: 'tel', value: m.telefon || '' }),
     mail: h('input', { type: 'email', value: m.email || '' }) };
   const perfil = campsPerfil(m);
-  const dto = h('input', { type: 'number', min: 0, max: 100, step: 1, value: m.descompte_pct || 0, 'aria-label': 'Descompte permanent del soci (%)' });
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Desar els canvis');
   return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
@@ -106,7 +97,6 @@ function editForm(m, out, reload) {
       if (f.tel.value.trim() !== (m.telefon || '')) body.telefon = f.tel.value.trim() || null;
       if (f.mail.value.trim() !== (m.email || '')) body.email = f.mail.value.trim() || null;
       Object.assign(body, perfil.canvis(m));
-      if (Number(dto.value) !== (m.descompte_pct || 0)) body.descompte_pct = Number(dto.value);
       if (!Object.keys(body).length) throw new Error('No hi ha cap canvi');
       await api(`/socis/${m.id}`, { method: 'PATCH', body });
       toast('Dades actualitzades');
@@ -115,7 +105,7 @@ function editForm(m, out, reload) {
   } }, h('h3', null, 'Editar dades'),
   h('div', { class: 'row' }, field('Nom i cognoms', f.nom), field('Document', f.doc), field('Data de naixement', f.naix)),
   h('div', { class: 'row' }, field('Telèfon', f.tel), field('Correu', f.mail)),
-  perfil.node, field('Descompte permanent (%)', dto),
+  perfil.node,
   h('div', { class: 'actions' }, btn));
 }
 
@@ -235,16 +225,18 @@ function memberTools(m, out, onChange) {
     b.classList.add('tool-toggle');
     return b;
   };
-  // Un dispensador amb el privilegi de devolucions només hi veu l'historial de consum (des d'on es fa la devolució).
-  if (!isManager()) return { bar: [toggle('Historial de consum', () => memberConsumption(m))], panel };
-  return { bar: [...photoUploader(m, out, reload), toggle('Carnet', () => cardManager(m, out, reload)), toggle('Editar dades', () => editForm(m, out, reload)),
-    ...(isManager() ? [toggle('Historial de consum', () => memberConsumption(m)), toggle('Incidències', () => memberIncidents(m)), toggle('Avalats', () => memberAvalats(m)), toggle('Documents', () => memberDocuments(m)), toggle('Línia de preu', () => { const box = h('div'); memberPriceLine(m, out, reload).then((f) => box.replaceChildren(f)).catch((e) => box.replaceChildren(msg('err', e.message))); return box; })] : [])], panel };
+  // Tot el personal pot consultar el soci i afegir incidències; Donacions és de recepció (i va el primer); la resta d'eines, de la gerència.
+  const donacions = potRecepcio() ? [toggle('Donacions', () => walletPanel(m))] : [];
+  const comu = [toggle('Historial de consum', () => memberConsumption(m)), toggle('Incidències', () => memberIncidents(m))];
+  if (!isManager()) return { bar: [...donacions, ...comu], panel };
+  return { bar: [...donacions, ...photoUploader(m, out, reload), toggle('Carnet', () => cardManager(m, out, reload)), toggle('Editar dades', () => editForm(m, out, reload)),
+    ...comu, toggle('Avalats', () => memberAvalats(m)), toggle('Documents', () => memberDocuments(m))], panel };
 }
 
 // Llistat de socis del local amb filtre per nom i estat (només responsables).
 function memberList(onOpen) {
   const q = h('input', { type: 'search', placeholder: 'Cerca per nom', autocomplete: 'off' });
-  const estat = h('select', null, [['', 'Tots els estats'], ['actiu', 'Actius'], ['suspes', 'Suspesos'], ['baixa', 'De baixa']].map(([v, t]) => h('option', { value: v }, t)));
+  const estat = h('select', null, [['', 'Tots els estats'], ['actiu', 'Actius'], ['suspes', 'Suspesos'], ['baixa', 'De baixa'], ['expulsat', 'Expulsats']].map(([v, t]) => h('option', { value: v }, t)));
   const body = h('div', null, h('p', { class: 'muted' }, 'Prem «Carregar» per veure els socis.'));
   const out = h('div');
   const load = h('button', { class: 'primary', type: 'submit' }, 'Carregar');

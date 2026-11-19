@@ -1,83 +1,74 @@
 'use strict';
-// Accés al local: pantalla manual (socis dins / fora, clic per entrar o sortir, «Sortir-ne tots») i mode quiosc RFID
-// (passar el carnet registra entrada o sortida, a pantalla gran). Mai innerHTML: tot el text va com a node de text.
+// Accés: una sola pantalla. Es passa el carnet RFID o es busca el soci (DNI/NIE/passaport, codi, nom o cognoms) i es registra l'entrada;
+// a sota, els socis que són dins per ordre d'entrada amb foto, hora, avís d'incidències i botó de sortida.
+// Un soci expulsat no pot entrar; si fa més de 3 mesos que no retira genètiques, el programa proposa cobrar la quota.
 
-const horaCurta = (iso) => new Date(iso).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' });
-
-// Columna de socis amb comptador i buscador. `accio(soci, boto)` s'executa en prémer un soci.
-function columnaAcces(titol, socis, accio, detall) {
-  const cerca = h('input', { type: 'search', placeholder: 'Buscar…', 'aria-label': 'Buscar soci', autocomplete: 'off' });
-  const llista = h('ul', { class: 'llista-acces' });
-  const compte = h('span', { class: 'pill' });
-  const pinta = () => {
-    const t = cerca.value.trim().toLowerCase();
-    const f = socis.filter((s) => !t || s.nom.toLowerCase().includes(t));
-    compte.textContent = String(socis.length);
-    llista.replaceChildren(...(f.length ? f.map((s) => {
-      const b = h('button', { type: 'button', class: 'fila-acces' }, h('strong', null, s.nom), detall ? h('span', { class: 'muted' }, detall(s)) : null);
-      b.addEventListener('click', () => accio(s, b));
-      return h('li', null, b);
-    }) : [h('li', { class: 'muted' }, 'Ningú')]));
-  };
-  cerca.addEventListener('input', pinta);
-  pinta();
-  return h('div', { class: 'card' }, h('h3', null, titol, ' ', compte), cerca, llista);
-}
-
-async function accesManual() {
+function bannerInactivitat(m, ina, alFinal) {
+  const loc = S.me.locals.find((l) => l.id === S.local) || {};
   const out = h('div');
-  const box = h('div');
-  const carrega = async () => {
-    const e = await api(`/locals/${S.local}/acces`);
-    const entra = (s, b) => guard(b, out, async () => { const r = await api(`/socis/${s.id}/entrada`, { method: 'POST' }); toast(s.nom + ': entrada registrada'); await carrega(); out.replaceChildren(...[alertesSoci(r.alertes)].filter(Boolean)); });
-    const surt = (s, b) => guard(b, out, async () => { await api(`/socis/${s.id}/sortida`, { method: 'POST' }); toast(s.nom + ': sortida registrada'); await carrega(); });
-    const tots = h('button', { type: 'button', class: 'danger' }, 'Sortir-ne tots');
-    tots.addEventListener('click', () => guard(tots, out, async () => {
-      const r = await api(`/locals/${S.local}/acces/sortir-tots`, { method: 'POST' });
-      toast(r.sortits + ' socis han sortit');
-      await carrega();
-    }));
-    box.replaceChildren(h('div', { class: 'row acces-cols' },
-      columnaAcces('Socis sense check-in', e.fora, entra),
-      h('div', null, columnaAcces('Socis amb check-in', e.dins, surt, (s) => 'entrada ' + horaCurta(s.entrada)),
-        isManager() && e.dins.length ? h('div', { class: 'actions' }, tots) : null)));
+  const mesos = Math.floor(ina.dies / 30);
+  const imp = h('input', { inputmode: 'decimal', value: loc.quota_cent ? preuText(loc.quota_cent) : '', placeholder: '0,00', 'aria-label': 'Import de la quota' });
+  const met = h('select', { 'aria-label': 'Mètode' }, ['efectiu', 'targeta', 'bizum'].map((x) => h('option', { value: x }, x)));
+  const cobra = h('button', { class: 'primary', type: 'button' }, 'Cobrar quota');
+  const no = h('button', { type: 'button' }, 'No cobrar');
+  const ref = novaRef();
+  cobra.addEventListener('click', () => guard(cobra, out, async () => {
+    const r = await api(`/socis/${m.id}/quotes`, { method: 'POST', body: { client_ref: ref, import_cent: parseEur(imp.value), metode: met.value, mesos: loc.quota_mesos || 1 } });
+    toast('Quota cobrada: vàlida fins al ' + dataCa(r.valid_fins));
+    alFinal();
+  }));
+  no.addEventListener('click', alFinal);
+  return h('div', { class: 'acces-avis inactiu', role: 'alert' }, h('strong', null, `${m.nom}: fa ${mesos >= 1 ? mesos + ' mesos' : ina.dies + ' dies'} que no retira genètiques.`),
+    h('span', null, 'Cobrar la quota?'), h('div', { class: 'actions' }, imp, met, cobra, no), out);
+}
+
+async function registraEntrada(m, resultat, refresca) {
+  resultat.replaceChildren();
+  try {
+    const r = await api(`/socis/${m.id}/entrada`, { method: 'POST' });
+    toast(m.nom + ': entrada registrada');
+    resultat.replaceChildren(h('div', { class: 'acces-avis ok', role: 'status' }, h('strong', null, m.nom), ' ha entrat.'),
+      alertesSoci(r.alertes), r.quota && !r.quota.al_dia ? msg('err', 'La quota no està al dia.') : null,
+      r.inactivitat ? bannerInactivitat(m, r.inactivitat, () => { resultat.replaceChildren(); refresca(); }) : null);
+  } catch (e) {
+    // Soci expulsat, de baixa, etc.: avís gran i en vermell; no entra.
+    resultat.replaceChildren(h('div', { class: 'acces-avis expulsat', role: 'alert' }, h('strong', null, m.nom), h('span', null, e.message)));
+  }
+  refresca();
+}
+
+async function registraSortida(m, resultat, refresca) {
+  try { await api(`/socis/${m.id}/sortida`, { method: 'POST' }); toast(m.nom + ': sortida registrada'); resultat.replaceChildren(); }
+  catch (e) { resultat.replaceChildren(msg('err', e.message)); }
+  refresca();
+}
+
+VIEWS.acces = async () => {
+  const arrel = h('div');
+  const resultat = h('div');
+  const llista = h('div');
+  const refresca = async () => {
+    const sortidaBtn = (s) => { const b = h('button', { type: 'button', class: 'small' }, 'Sortida'); b.addEventListener('click', () => registraSortida(s, resultat, refresca)); return b; };
+    const dins = await llistaDins(() => {}, sortidaBtn);
+    const tots = isManager() ? h('div', { class: 'actions' }, (() => {
+      const b = h('button', { type: 'button', class: 'danger' }, 'Sortir-ne tots');
+      b.addEventListener('click', () => guard(b, resultat, async () => {
+        if (!await confirma('Es registrarà la sortida de tots els socis que són dins. Continuar?', { perill: true, boto: 'Sortir-ne tots' })) return;
+        const r = await api(`/locals/${S.local}/acces/sortir-tots`, { method: 'POST' });
+        toast(r.sortits + ' socis han sortit');
+        await refresca();
+      }));
+      return b;
+    })()) : null;
+    llista.replaceChildren(dins, tots);
   };
-  await carrega();
-  return h('div', null, box, out);
-}
-
-// Mode quiosc: pantalla gran amb un camp que sempre té el focus (el lector escriu el codi i prem Intro).
-function accesQuiosc() {
-  const codi = h('input', { class: 'card-input', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', 'aria-label': 'Carnet', placeholder: 'Passa el carnet pel lector' });
-  const resultat = h('div', { class: 'quiosc-resultat', role: 'status', 'aria-live': 'polite' }, h('p', { class: 'muted' }, 'Posa el carnet al lector'));
-  const form = h('form', { class: 'quiosc' }, h('h2', null, 'Accés per carnet'), codi, resultat);
-  let timer = null;
-  const refoca = () => { if (document.body.contains(codi)) codi.focus(); };
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const valor = codi.value.trim();
-    codi.value = '';
-    if (!valor) return;
-    clearTimeout(timer);
-    try {
-      const r = await api(`/locals/${S.local}/acces/carnet`, { method: 'POST', body: { codi: normalizeScan(valor, await readerProfile()) } });
-      const entra = r.accio === 'entrada';
-      resultat.replaceChildren(h('div', { class: 'quiosc-ok ' + (entra ? 'entra' : 'surt') }, h('div', { class: 'gran-marca', 'aria-hidden': 'true' }, entra ? '→' : '←'),
-        h('div', { class: 'big' }, r.nom), h('p', null, entra ? 'Benvingut/da. Entrada registrada.' : 'Fins aviat. Sortida registrada.'),
-        entra && r.quota && !r.quota.al_dia ? h('p', { class: 'pill warn' }, 'La quota no està al dia') : null, entra ? alertesSoci(r.alertes) : null));
-    } catch (er) {
-      resultat.replaceChildren(h('div', { class: 'quiosc-ok error' }, h('div', { class: 'gran-marca', 'aria-hidden': 'true' }, '!'), msg('err', er.message)));
-    }
-    timer = setTimeout(() => { resultat.replaceChildren(h('p', { class: 'muted' }, 'Posa el carnet al lector')); refoca(); }, resultat.querySelector('.alerta-soci') ? 20000 : 6000);
-    refoca();
+  // El carnet o la cerca porta al soci: si ja és dins se'n registra la sortida, si no l'entrada.
+  const cerca = capsaCerca(async (m) => {
+    const ids = (await api(`/locals/${S.local}/acces`)).dins.map((x) => x.id);
+    if (ids.includes(m.id)) await registraSortida(m, resultat, refresca);
+    else await registraEntrada(m, resultat, refresca);
   });
-  const pantalla = h('button', { type: 'button' }, 'Pantalla completa');
-  pantalla.addEventListener('click', () => { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); refoca(); });
-  form.addEventListener('click', refoca);
-  setTimeout(refoca, 0);
-  return h('div', null, form, h('div', { class: 'actions' }, pantalla));
-}
-
-VIEWS.acces = async () => h('div', null, pageHead('Accés', 'Entrades i sortides dels socis al local.'), await sections('acces', [
-  ...(isManager() ? [['manual', 'Accés manual', accesManual]] : []), ['quiosc', 'Quiosc RFID', async () => accesQuiosc()],
-]));
+  arrel.append(pageHead('Accés', "Passa el carnet o busca el soci per registrar-ne l'entrada o la sortida."), cerca, resultat, llista);
+  await refresca();
+  return arrel;
+};
