@@ -25,7 +25,7 @@ async function existenciesSection() {
     };
     const cerca = h('input', { type: 'search', placeholder: 'Cercar producte…', 'aria-label': 'Cercar producte', autocomplete: 'off' });
     cerca.addEventListener('input', () => { estat.q = cerca.value; mostra(); });
-    const barra = h('div', { class: 'segments', role: 'tablist' });
+    const barra = h('div', { class: 'pestanyes', role: 'tablist' });
     [[true, 'Genètiques'], [false, 'No genètiques']].forEach(([v, t]) => {
       const b = h('button', { type: 'button', role: 'tab', 'aria-pressed': String(v === estat.genetic) }, t);
       b.addEventListener('click', () => { estat.genetic = v; [...barra.children].forEach((x) => x.setAttribute('aria-pressed', String(x === b))); mostra(); });
@@ -78,7 +78,7 @@ function movimentsModal(p, magatzemId, alTancar) {
           await pinta();
         });
       } }, ...camps, field(`Quantitat (${un})`, q), nota, h('div', { class: 'actions' }, btn), out);
-      const barra = h('div', { class: 'segments', role: 'group', 'aria-label': 'Tipus de moviment' });
+      const barra = h('div', { class: 'pestanyes', role: 'group', 'aria-label': 'Tipus de moviment' });
       [['entrada', 'Entrada'], ['moure', 'Moure'], ['sortida', 'Sortida']].forEach(([v, t]) => {
         const b = h('button', { type: 'button', 'aria-pressed': String(v === estat.tipus) }, t);
         b.addEventListener('click', () => { estat.tipus = v; pinta(); });

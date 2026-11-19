@@ -512,3 +512,8 @@ input.carret-q { width: 88px; text-align: center; font-weight: 700; }
 .acces-avis.expulsat { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, var(--card)); font-size: 1.15rem; }
 .acces-avis.inactiu { border-color: #c98a00; background: color-mix(in srgb, #f5b301 16%, var(--card)); }
 .acces-avis .actions input { max-width: 130px; }
+
+/* Pestanyes pròpies de les pantalles (no les amaga el menú lateral) */
+.pestanyes { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin: 0 0 14px; background: var(--soft); border: 1px solid var(--line); border-radius: 11px; width: fit-content; max-width: 100%; }
+.pestanyes button { min-height: 40px; padding: 6px 16px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.pestanyes button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow), 0 0 0 1px var(--line); }

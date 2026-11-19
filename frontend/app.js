@@ -107,7 +107,7 @@ const TABS = [
   ['acces', 'Accés', potRecepcio],
   ['caixa', 'Caixa', potRecepcio],
   ['dispensar', 'Dispensar', potDispensari],
-  ['estoc', 'Estoc', potDispensari, () => [['productes', 'Productes'], ['existencies', 'Existències i moviments'], ['inventari', 'Inventaris'], ...(isManager() ? [['historial', 'Historial']] : [])]],
+  ['estoc', 'Estoc', potDispensari, () => [['productes', 'Productes'], ['existencies', 'Existències i moviments'], ['inventari', 'Inventaris'], ...(isManager() ? [['resultats', "Resultats d'inventaris"], ['historial', 'Historial']] : [])]],
   ['fitxatge', 'Horaris', () => true],
   ['estinf', 'Estadístiques i informes', isManager, [
     ['est:membres', 'Estadístiques · Socis'], ['est:dispensari', 'Estadístiques · Dispensari i bar'], ['est:finances', 'Estadístiques · Finances'],

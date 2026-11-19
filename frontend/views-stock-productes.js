@@ -30,7 +30,7 @@ function productForm(p, fet) {
   const unitat = h('select', { 'aria-label': 'Unitat de venda' });
   const reg = h('input', { type: 'checkbox', checked: !!(p && p.regalable) });
   const sd = h('input', { type: 'checkbox', checked: !!(p && p.sense_descomptes) });
-  const tipusBox = h('div', { class: 'segments', role: 'group', 'aria-label': 'Tipus de producte' });
+  const tipusBox = h('div', { class: 'pestanyes', role: 'group', 'aria-label': 'Tipus de producte' });
   const taraField = field('Tara / pes del pot (g)', tara);
   const taraAjuda = h('p', { class: 'muted' }, 'Pes del pot buit del dispensari. A l\'inventari de fi de dia, el programa el resta del pes de la bàscula.');
   const lbPreu = h('label', null, '');
@@ -90,7 +90,7 @@ function productForm(p, fet) {
 function llistaProductes(tots, genetic, recarrega) {
   const estat = { v: 'actius' };
   const box = h('div');
-  const barra = h('div', { class: 'segments', role: 'group', 'aria-label': 'Filtre' });
+  const barra = h('div', { class: 'pestanyes', role: 'group', 'aria-label': 'Filtre' });
   const pinta = () => {
     const files = tots.filter((p) => !!p.es_genetic === genetic && (estat.v === 'tots' || (estat.v === 'actius') === p.actiu));
     const cats = [...new Set(files.map((p) => p.categoria || 'Sense categoria'))].sort();
@@ -130,7 +130,7 @@ async function productesSection() {
     const pestanya = { v: sessionStorage.getItem('ps') || 'g' };
     const cos = h('div');
     const mostra = () => cos.replaceChildren(llistaProductes(tots, pestanya.v === 'g', pinta));
-    const barra = h('div', { class: 'segments', role: 'tablist' });
+    const barra = h('div', { class: 'pestanyes', role: 'tablist' });
     [['g', 'Genètiques'], ['n', 'No genètiques']].forEach(([v, t]) => {
       const b = h('button', { type: 'button', role: 'tab', 'aria-pressed': String(v === pestanya.v) }, t);
       b.addEventListener('click', () => { pestanya.v = v; sessionStorage.setItem('ps', v); [...barra.children].forEach((x) => x.setAttribute('aria-pressed', String(x === b))); mostra(); });
