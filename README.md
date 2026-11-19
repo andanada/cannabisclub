@@ -35,14 +35,17 @@ Claus: `CLUB_FIELD_KEY` és una clau Fernet (`python -c "from app.crypto import 
 
 ## Com s'organitza la interfície
 
-Una pantalla = una àrea de treball, i dins de cada àrea cada **subpantalla fa una sola tasca**:
+El menú té vuit entrades: **Socis · Accés · Caixa · Dispensar · Estoc · Horaris · Estadístiques i informes · Configuració**.
 
-- **Dispensar**: identificar el soci → producte i quantitat → cobrar.
-- **Socis**: Cercar · Llista · Alta de soci.
-- **Estoc**: Existències · Moviments · Productes · Descomptes · Línies de preu · Regles · Inventari · Magatzems · Contenidors · Tipus de contenidor · Historial. A la barra lateral es desplega amb una entrada per cada subpantalla.
-- **Caixa**: Estat · Despesa · Apunts · Tancament.
-- **Fitxatge** · **Informes** (Vendes · Dispensacions · Evolució del club · Demografia · Caixa · Estoc valorat · Assistència · Hores) · **Compte**.
-- **Configuració** (administrador; l'encarregat hi veu Carnets i lectors i Diagnòstic): Local i límits · Quotes · Usuaris · **Bàscules** · **Tauletes de signatura** · **Carnets i lectors** · Diagnòstic · Seguretat.
+**Rol del dia.** En iniciar sessió, un treballador tria **Recepció** o **Dispensari** (la gerència —admin i encarregat— té accés complet i no tria). Recepció: Accés (pàgina d'inici), Caixa, Socis. Dispensari: Dispensar (inici), Estoc, Socis. Les donacions (crèdit als socis) i la caixa són de recepció; el dispensari no els toca. Tot el personal pot consultar els socis i afegir-ne incidències.
+
+- **Accés**: una sola pantalla. Carnet RFID o cerca per DNI/NIE/passaport, codi, nom o cognoms; llista dels socis dins per ordre d'entrada amb foto, hora i avís d'incidències. Un soci **expulsat** no pot entrar; si fa més de 3 mesos que no retira genètiques, el programa proposa cobrar la quota.
+- **Socis**: «Cercar i llista» units. Alta sense gènere ni adreça i amb **Tipus de membre** (Ordinari, Terapèutic 20 %, Família 30 % de descompte). A la fitxa, Donacions primer, l'estat (amb Expulsar) i el tipus es canvien directament.
+- **Donacions**: cada soci té un saldo; es carrega a recepció i s'afegeix a la caixa. Dispensar es paga sempre del saldo.
+- **Caixa**: una sola caixa, a recepció: Estat · Despesa · Apunts · Tancament · Resum de sessions.
+- **Dispensar**: cerca única + llista de socis dins; la finestra del soci mostra incidències, consum del mes i historial, categories, productes i **carret** (regal per línia, descompte de membre, total i saldo) i un sol botó «Dispensar».
+- **Estoc**: Productes (genètica/no genètica, categories segons el tipus, preu d'entrada i de dispensació, unitat, tara del pot, «es pot regalar», «no s'apliquen descomptes»; llistes per tipus amb filtre d'estat; esborrar només la gerència) · Existències i moviments (magatzem i dispensari, avís d'estoc baix, entrada/moviment/sortida amb historial) · Inventaris (dispensari amb tara, magatzem, no genètics; complet o d'un sol producte; es guarda amb «Guardar» sense tocar l'estoc; Resultats amb avisos de diferència gran per a la gerència, que pot ajustar l'estoc) · Historial (gerència, amb dates).
+- **Configuració** agrupa: Local i límits · Quotes · Normes del club (inclou l'avís d'estoc baix i els dies d'inactivitat) · Usuaris · Bàscules · Tauletes · Carnets · Diagnòstic · Seguretat · Estoc avançat (magatzems, categories, descomptes, línies de preu, contenidors, regles) · Despeses i comptabilitat · Controls del club · Privacitat.
 
 A l'escriptori hi ha una barra lateral; al mòbil i a la tauleta, pestanyes a baix. Mode fosc automàtic.
 
