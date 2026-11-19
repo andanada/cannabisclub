@@ -33,7 +33,7 @@ async function existenciesSection() {
     });
     mostra();
     arrel.replaceChildren(...[
-      avisos ? msg('err', `${avisos} productes per acabar o esgotats (l'avís es configura a Configuració › Normes del club).`) : null,
+      avisos ? msg('err', isManager() ? `${avisos} productes per acabar o esgotats (l'avís es configura a Configuració › Normes del club).` : `${avisos} productes per acabar o esgotats.`) : null,
       h('div', { class: 'row dis-filtre' }, barra, cerca), cos].filter(Boolean));
   };
   await pinta();

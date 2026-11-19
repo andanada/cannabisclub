@@ -1568,3 +1568,4 @@ I18N.pat.es.push([new RegExp("^Diferència\\ (.*)\\ \\(sistema:\\ (.*)\\)$"), "D
 I18N.pat.es.push([new RegExp("^(.*)\\ ·\\ (.*)\\ ·\\ (.*)$"), "$1 · $2 · $3"]);
 I18N.pat.es.push([new RegExp("^·\\ (.*)\\ de\\ (.*)\\ pesats$"), "· $1 de $2 pesados"]);
 I18N.pat.es.push([new RegExp("^No\\ tens\\ el\\ permís\\ «(.*)»:\\ demana\\-li\\ a\\ l'administrador$"), "No tienes el permiso «$1»: pídeselo al administrador"]);
+I18N.pat.es.push([new RegExp("^(.*)\\ productes\\ per\\ acabar\\ o\\ esgotats\\.$"), "$1 productos por agotarse o agotados."]);

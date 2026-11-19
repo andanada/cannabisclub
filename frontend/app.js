@@ -113,9 +113,10 @@ const TABS = [
     ['est:membres', 'Estadístiques · Socis'], ['est:dispensari', 'Estadístiques · Dispensari i bar'], ['est:finances', 'Estadístiques · Finances'],
     ['inf:vendes', 'Informes · Vendes'], ['inf:dispensacions', 'Informes · Dispensacions'], ['inf:evolucio', 'Informes · Evolució del club'], ['inf:demografia', 'Informes · Demografia'],
     ['inf:caixa', 'Informes · Caixa'], ['inf:estoc', 'Informes · Estoc valorat'], ['inf:assistencia', 'Informes · Assistència'], ['inf:visites', 'Informes · Visites de socis'], ['inf:hores', 'Informes · Hores']]],
-  ['config', 'Configuració', isManager, () => [
-    ...(S.me.role === 'admin' ? [['local', 'Local i límits'], ['quotes', 'Quotes'], ['normes', 'Normes del club'], ['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura']] : []),
-    ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ...(S.me.role === 'admin' ? [['seguretat', 'Seguretat']] : []),
+  // Configuració només per a l'administrador: ni l'encarregat ni els treballadors en veuen cap opció.
+  ['config', 'Configuració', () => S.me.role === 'admin', () => [
+    ['local', 'Local i límits'], ['quotes', 'Quotes'], ['normes', 'Normes del club'], ['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura'],
+    ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ['seguretat', 'Seguretat'],
     ['estoc-avancat', 'Estoc avançat (magatzems, categories, descomptes…)', 'estoc-avancat'],
     ['gastos', 'Despeses i comptabilitat', 'gastos'], ['club', 'Controls del club', 'club'], ['rgpd', 'Privacitat i protecció de dades', 'rgpd']]],
 ];
