@@ -275,3 +275,30 @@ def test_permisos_per_usuari_informes_historial_i_esborrar_productes(ctx):
     assert client.delete(f"/productes/{lliure}", headers=disp).status_code == 200
     assert [x["clau"] for x in client.get("/permisos", headers=disp).json()][0] == "informes"
     assert client.get("/me", headers=enc).json()["permisos"] == sorted(x["clau"] for x in client.get("/permisos", headers=enc).json())   # la gerència els té tots
+
+
+def test_migracio_aplica_el_descompte_del_tipus_als_socis_antics(ctx):
+    from app import service
+    client, factory, sec = ctx
+    enc, flor, aigua, mid = _escena(client, sec)
+    altre = client.post("/socis", json={**SOCI, "document": "87654321X", "nom": "Berta"}, headers=enc).json()["id"]
+    with factory() as s:
+        s.get(Member, mid).tipus, s.get(Member, mid).descompte_pct = "Terapèutic", 0      # soci d'abans del descompte automàtic
+        s.get(Member, altre).tipus, s.get(Member, altre).descompte_pct = "Família", 10     # amb un descompte propi: no es toca
+        s.commit()
+        assert service.sincronitza_descomptes_tipus(s) == 1
+        assert (s.get(Member, mid).descompte_pct, s.get(Member, altre).descompte_pct) == (20, 10)
+        assert service.sincronitza_descomptes_tipus(s) == 0                              # idempotent
+
+
+def test_tope_de_donacions_per_treballador_i_dia(ctx):
+    client, _, sec = ctx
+    enc, flor, aigua, mid = _escena(client, sec)
+    adm = token(client, sec, "admin")
+    rec = token(client, sec, "disp", rol="recepcio")
+    assert client.put("/locals/1/config", json={"donacions_dia_max_cent": 5000}, headers=adm).status_code == 200
+    assert _recarrega(client, rec, mid, 3000).status_code == 201
+    r = _recarrega(client, rec, mid, 2500)                                    # 30 + 25 > 50 €
+    assert r.status_code == 422 and "màxim per dia" in r.text
+    assert _recarrega(client, rec, mid, 2000).status_code == 201              # justa el límit
+    assert _recarrega(client, enc, mid, 9000).status_code == 201              # la gerència no té tope

@@ -22,7 +22,7 @@ function fitxaModal(m) {
 
 async function pantallaDispensar(m, tornar) {
   const loc = S.me.locals.find((l) => l.id === S.local) || {};
-  const [productes, resum] = await Promise.all([api(`/locals/${S.local}/estoc?soci=${m.id}`), api(`/socis/${m.id}/resum-dispensar`), carregaMetaCat()]);
+  const [productes, resum, caixa] = await Promise.all([api(`/locals/${S.local}/estoc?soci=${m.id}`), api(`/socis/${m.id}/resum-dispensar`), api(`/locals/${S.local}/caixa`).catch(() => ({ oberta: true })), carregaMetaCat()]);
   const decimals = loc.decimals_dispensacio ?? 3;
   const pct = m.estat === 'actiu' ? (m.descompte_pct || 0) : 0;
   const carret = new Map();   // product_id -> {p, q (text), regal}
@@ -42,7 +42,8 @@ async function pantallaDispensar(m, tornar) {
         m.tipus && m.tipus !== 'Ordinari' ? h('span', { class: 'pill' }, `${m.tipus}${pct ? ' · ' + pct + ' %' : ''}`) : null),
       h('div', { class: 'dis-soci-xifres' }, kpi('Consumit aquest mes', gText(resum.mes_g)), kpi('Saldo', eur(resum.saldo_cent)))),
     h('div', { class: 'dis-soci-accions' }, histBtn, canvia));
-  const bloc = m.estat !== 'actiu' ? msg('err', m.estat === 'expulsat' ? 'Soci expulsat: no es pot dispensar.' : 'El soci no està actiu: no es pot dispensar.')
+  const bloc = !caixa.oberta && !caixa.ambigua ? msg('err', "La caixa de recepció està tancada: demana a recepció que l'obri per poder dispensar (el pagament entra a la caixa).")
+    : m.estat !== 'actiu' ? msg('err', m.estat === 'expulsat' ? 'Soci expulsat: no es pot dispensar.' : 'El soci no està actiu: no es pot dispensar.')
     : (loc.quota_obligatoria && !(m.quota && m.quota.al_dia) ? msg('err', 'La quota del soci no està al dia: cal cobrar-la a recepció abans de dispensar.') : null);
 
   // ---- productes ----

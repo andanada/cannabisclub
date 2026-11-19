@@ -327,6 +327,21 @@ def descompte_del_tipus(t: str) -> int | None:
     return TIPUS_MEMBRE.get(tipus_canonic(t))
 
 
+def sincronitza_descomptes_tipus(db: Session) -> int:
+    """Migració idempotent: els socis Terapèutic o Família d'abans del descompte automàtic (descompte 0) passen al del seu tipus.
+    No toca els que ja tenen un descompte (ni abaixa res). Torna quants n'ha canviat."""
+    canviats = 0
+    for m in db.scalars(select(Member).where(Member.descompte_pct == 0)):
+        pct = descompte_del_tipus(m.tipus or "")
+        if pct:
+            m.tipus, m.descompte_pct = tipus_canonic(m.tipus), pct
+            canviats += 1
+    if canviats:
+        audit_append(db, {"accio": "sincronitza_descomptes_tipus", "socis": canviats})
+    db.commit()
+    return canviats
+
+
 def create_member(db: Session, actor: User, local_id: int, nom: str, document: str,
                   naixement: date, telefon: str | None, email: str | None, *,
                   perfil: dict | None = None, tipus: str | None = None) -> Member:

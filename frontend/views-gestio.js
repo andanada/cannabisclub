@@ -27,130 +27,7 @@ function productThumb(p, size) {
   return h('div', { class: 'thumb vacia', 'aria-hidden': 'true' }, (p.nom || '?').slice(0, 1).toUpperCase());
 }
 
-// Foto del producte: es redueix a una miniatura de 96 px abans d'enviar-la (el servidor només n'accepta fins a 30 KB).
-function imageRow(p, out) {
-  const file = h('input', { type: 'file', accept: 'image/*', hidden: true, 'aria-label': 'Foto del producte' });
-  const add = h('button', { type: 'button', class: 'small' }, p.imatge ? 'Canviar foto' : 'Afegir foto');
-  add.addEventListener('click', () => file.click());
-  file.addEventListener('change', () => guard(add, out, async () => {
-    if (!file.files[0]) return;
-    const image_base64 = await photoToJpegBase64(file.files[0], 96, 28000);
-    await api(`/productes/${p.id}/imatge`, { method: 'PUT', body: { image_base64 } });
-    toast('Foto desada');
-    show('estoc');
-  }));
-  const items = [productThumb(p, 56), add, file];
-  if (p.imatge) {
-    const del = h('button', { type: 'button', class: 'small danger' }, 'Treure foto');
-    del.addEventListener('click', () => guard(del, out, async () => { await api(`/productes/${p.id}/imatge`, { method: 'DELETE' }); toast('Foto esborrada'); show('estoc'); }));
-    items.push(del);
-  }
-  return h('div', { class: 'actions imgrow' }, ...items);
-}
-
-// Un producte editable (nom, categoria, preu) amb el botó per desactivar-lo o reactivar-lo.
-function productCard(p) {
-  const out = h('div');
-  const nom = h('input', { value: p.nom }), cat = h('input', { value: p.categoria }), preu = h('input', { inputmode: 'decimal', value: preuText(p.preu_cent_per_g) });
-  const gen = h('input', { type: 'checkbox', checked: !!p.es_genetic });
-  const reg = h('input', { type: 'checkbox', checked: !!p.regalable });
-  const uni = h('select', { 'aria-label': 'Unitat' }, [['g', 'Grams'], ['u', 'Unitats']].map(([v, t]) => h('option', { value: v, selected: v === unitTxt(p) }, t)));
-  const gra = h('input', { type: 'checkbox', checked: p.granel !== false });
-  const patch = (btn, body, ok) => guard(btn, out, async () => {
-    await api(`/productes/${p.id}`, { method: 'PATCH', body });
-    toast(ok);
-    show('estoc');
-  });
-  const save = h('button', { class: 'primary', type: 'button' }, 'Desar');
-  save.addEventListener('click', () => guard(save, out, async () => {
-    const body = {};
-    if (nom.value.trim() !== p.nom) body.nom = nom.value.trim();
-    if (cat.value.trim() !== p.categoria) body.categoria = cat.value.trim();
-    const c = parseEur(preu.value);
-    if (c !== p.preu_cent_per_g) body.preu_cent_per_g = c;
-    if (gen.checked !== !!p.es_genetic) body.es_genetic = gen.checked;
-    if (reg.checked !== !!p.regalable) body.regalable = reg.checked;
-    if (uni.value !== unitTxt(p)) body.unitat = uni.value;
-    if (gra.checked !== (p.granel !== false)) body.granel = gra.checked;
-    if (!Object.keys(body).length) throw new Error('No hi ha cap canvi');
-    await api(`/productes/${p.id}`, { method: 'PATCH', body });
-    toast('Producte actualitzat');
-    show('estoc');
-  }));
-  const toggle = h('button', { type: 'button', class: p.actiu ? 'danger' : '' }, p.actiu ? 'Desactivar' : 'Reactivar');
-  toggle.addEventListener('click', () => patch(toggle, { actiu: !p.actiu }, p.actiu ? 'Producte desactivat' : 'Producte reactivat'));
-  return h('div', { class: 'card' },
-    h('div', null, h('strong', null, p.nom), ' ', h('span', { class: 'pill ' + (p.actiu ? 'ok' : 'warn') }, p.actiu ? 'actiu' : 'inactiu'),
-      ' ', h('span', { class: 'muted' }, 'Estoc: ' + p.estoc_g + ' ' + unitTxt(p))),
-    imageRow(p, out),
-    h('div', { class: 'row' }, field('Nom', nom), field('Categoria', cat), field('Preu per gram o unitat (€)', preu), field('Unitat de venda', uni)),
-    h('label', null, gen, ' És genètic'), ' ', h('label', null, reg, ' Es pot regalar'), ' ', h('label', null, gra, ' Dispensació a granel (qualsevol quantitat)'),
-    h('div', { class: 'actions' }, save, toggle), out);
-}
-
 // ---------- Estoc: existències, moviments, productes i historial (una tasca per subpantalla) ----------
-
-async function stockTable() {
-  const prods = await api(`/locals/${S.local}/estoc`);
-  await carregaMetaCat();
-  return h('div', { class: 'card table-wrap' }, h('table', null,
-    h('thead', null, h('tr', null, h('th', null, ''), h('th', null, 'Producte'), h('th', null, 'Categoria'), h('th', { class: 'num' }, 'Preu'), h('th', { class: 'num' }, 'Estoc'))),
-    h('tbody', null, prods.length ? prods.map((p) => h('tr', null, h('td', null, productThumb(p, 36)), h('td', null, p.nom), h('td', { class: 'muted' }, catBadge(p.categoria), ' ', p.categoria),
-      h('td', { class: 'num' }, eur(p.preu_cent_per_g) + '/' + unitTxt(p)), h('td', { class: 'num' }, p.estoc_g + ' ' + unitTxt(p))))
-      : h('tr', null, h('td', { colspan: 5, class: 'empty' }, 'Encara no hi ha productes.')))));
-}
-
-async function stockMoveForm() {
-  const prods = await api(`/locals/${S.local}/estoc`);
-  const out = h('div');
-  const accio = h('select', null, [['entrada', "Entrada d'estoc"], ['merma', 'Merma'], ['ajust', "Ajust d'inventari (quantitat real)"]].map(([v, t]) => h('option', { value: v }, t)));
-  const prod = h('select', null, prods.map((p) => h('option', { value: p.id }, p.nom)));
-  const g = h('input', { inputmode: 'decimal', placeholder: '0,000' });
-  const nota = h('input', { placeholder: 'Motiu o albarà' });
-  const btn = h('button', { class: 'primary', type: 'submit' }, 'Registrar moviment');
-  return h('form', { class: 'card', onsubmit: (e) => {
-    e.preventDefault();
-    guard(btn, out, async () => {
-      if (!prod.value) throw new Error('Crea primer un producte a la subpantalla «Productes»');
-      const a = accio.value;
-      const body = a === 'ajust' ? { product_id: Number(prod.value), grams_reals: parseGrams(g.value), nota: nota.value.trim() }
-        : { product_id: Number(prod.value), grams: parseGrams(g.value), nota: nota.value.trim() || null };
-      await api('/moviments/' + a, { method: 'POST', body });
-      toast('Moviment registrat');
-      show('estoc');
-    });
-  } }, h('h3', null, "Nou moviment d'estoc"), h('div', { class: 'row' }, field('Operació', accio), field('Producte', prod)),
-  h('div', { class: 'row' }, field('Quantitat (g)', g), field('Nota', nota)), h('div', { class: 'actions' }, btn), out);
-}
-
-async function productsSection() {
-  const tots = await api(`/locals/${S.local}/productes`);
-  const out2 = h('div');
-  const n = h('input'), c = h('input'), p = h('input', { inputmode: 'decimal', placeholder: '8,00' });
-  // Elecció explícita (sense valor per defecte): un producte nou no genètic queda fora dels límits per soci sense que ningú ho hagi decidit.
-  const regNou = h('input', { type: 'checkbox' });
-  const uniNou = h('select', { 'aria-label': 'Unitat' }, [['g', 'Grams'], ['u', 'Unitats']].map(([v, t]) => h('option', { value: v }, t)));
-  const graNou = h('input', { type: 'checkbox', checked: true });
-  const genNou = h('select', null, h('option', { value: '' }, 'Tria…'), h('option', { value: 'si' }, 'Sí: compta per als límits per soci'), h('option', { value: 'no' }, 'No: no compta per als límits'));
-  const b2 = h('button', { class: 'primary', type: 'submit' }, 'Crear producte');
-  const nou = h('form', { class: 'card', onsubmit: (e) => {
-    e.preventDefault();
-    guard(b2, out2, async () => {
-      if (!genNou.value) throw new Error('Indica si el producte és genètic (flor, hash, extractes, clons…): decideix si compta per als límits per soci');
-      await api('/productes', { method: 'POST', body: { local_id: S.local, nom: n.value.trim(), categoria: c.value.trim(), preu_cent_per_g: parseEur(p.value), es_genetic: genNou.value === 'si', regalable: regNou.checked, unitat: uniNou.value, granel: graNou.checked } });
-      toast('Producte creat');
-      show('estoc');
-    });
-  } }, h('h3', null, 'Nou producte'), h('div', { class: 'row' }, field('Nom', n), field('Categoria', c), field('Preu per gram (€)', p)), field('És genètic?', genNou), field('Unitat de venda', uniNou), h('label', null, regNou, ' Es pot regalar'), ' ', h('label', null, graNou, ' Dispensació a granel (qualsevol quantitat)'), h('div', { class: 'actions' }, b2), out2);
-  // Els límits per soci només compten productes marcats com a genètics: sense cap, els límits no s'apliquen a res.
-  const lloc = (S.me.locals || []).find((l) => l.id === S.local) || {};
-  const amLimits = lloc.limit_diari_mg != null || lloc.limit_mensual_mg != null;
-  const avisGenetic = amLimits && tots.length && !tots.some((p) => p.es_genetic)
-    ? msg('err', 'Aquest local té límits de dispensació, però cap producte està marcat com a genètic: els límits no s’estan aplicant. Revisa els productes (flor, hash, extractes, clons, llavors) i marca’ls com a genètics.') : null;
-  return h('div', null, avisGenetic, nou, h('h3', null, 'Productes existents'),
-    h('p', { class: 'muted' }, "El canvi de preu només afecta les dispensacions noves. Per desactivar un producte, l'estoc ha de ser zero."),
-    ...(tots.length ? tots.map(productCard) : [h('div', { class: 'card empty' }, 'Encara no hi ha productes.')]));
-}
 
 // Un dispensador amb el privilegi «pot editar descomptes» hi arriba des d'un menú propi (no té el d'Estoc).
 VIEWS.descomptes = async () => h('div', null, pageHead('Descomptes', 'Descomptes vigents i alta de nous.'), await discountsSection());
@@ -170,12 +47,6 @@ async function secCategories() {
   return h('div', null, h('p', { class: 'muted' }, 'Les categories surten dels productes (camp «Categoria»). Aquí els hi poses icona i color.'),
     taula([[''], ['Categoria'], ['Productes', true], ['Icona'], ['Color'], ['']], files, 'Encara no hi ha categories: escriu-ne una en un producte.'), out);
 }
-
-VIEWS.estoc = async () => {
-  const items = [['existencies', 'Existències', stockTable], ['moviment', 'Moviments', stockMoveForm], ['productes', 'Productes', productsSection], ['categories', 'Categories', secCategories], ['descomptes', 'Descomptes', discountsSection], ['linies', 'Línies de preu', priceLinesSection], ['magatzems', 'Magatzems', warehousesSection], ['contenidors', 'Contenidors', containersSection], ['tipus-contenidor', 'Tipus de contenidor', containerTypesSection], ['regles', 'Regles', rulesSection], ['inventari', 'Inventari', inventorySection],
-    ['historial', 'Historial', () => stockHistory(() => show('estoc'))]];
-  return h('div', null, pageHead('Estoc', 'Existències, entrades i mermes, catàleg de productes i historial amb correccions.'), sections('estoc', items));
-};
 
 // ---------- Caixa: estat, despesa, apunts i tancament ----------
 
@@ -271,29 +142,6 @@ async function closeForm() {
   } }, h('h3', null, 'Tancament de caixa'), h('p', { class: 'muted' }, "Compta l'efectiu del calaix i escriu-lo: el programa calcula la diferència. Les donacions dels socis ja hi són sumades."),
   field('Efectiu comptat al calaix (€)', comptat), h('div', { class: 'actions' }, btn), out));
   return box;
-}
-
-// Caixes registradores (Dispensari, Entrada…): cada una pot tenir el seu magatzem, del qual descompta l'estoc.
-async function secCaixes() {
-  const [info, mags] = await Promise.all([api(`/locals/${S.local}/caixes`), api(`/locals/${S.local}/magatzems`)]);
-  const out = h('div');
-  const nom = h('input', { maxlength: 60, required: true });
-  const mag = h('select', null, h('option', { value: '' }, 'Magatzem principal'), ...mags.filter((m) => m.actiu !== false).map((m) => h('option', { value: m.id }, m.nom)));
-  const btn = h('button', { class: 'primary', type: 'submit' }, 'Crear caixa');
-  const form = h('form', { class: 'card', onsubmit: (e) => {
-    e.preventDefault();
-    guard(btn, out, async () => {
-      await api(`/locals/${S.local}/caixes`, { method: 'POST', body: { nom: nom.value.trim(), warehouse_id: mag.value ? Number(mag.value) : null } });
-      toast('Caixa creada');
-      show('caixa');
-    });
-  } }, h('h3', null, 'Nova caixa registradora'), h('div', { class: 'row' }, field('Nom', nom), field('Magatzem', mag)), h('div', { class: 'actions' }, btn), out);
-  const files = info.caixes.map((c) => {
-    const b = h('button', { type: 'button', class: 'small' }, c.actiu ? 'Desactivar' : 'Reactivar');
-    b.addEventListener('click', () => guard(b, out, async () => { await api(`/caixes/${c.id}`, { method: 'PUT', body: { actiu: !c.actiu } }); show('caixa'); }));
-    return [c.nom, c.magatzem || 'Principal', c.oberta ? h('span', { class: 'pill ok' }, 'oberta · ' + c.empleat) : h('span', { class: 'pill' }, c.actiu ? 'tancada' : 'inactiva'), b];
-  });
-  return h('div', null, form, taula([['Caixa'], ['Magatzem'], ['Estat'], ['']], files, 'Només hi ha la caixa del local: crea una caixa per tenir-ne més d\'una.'));
 }
 
 // Resum de sessions: una fila per torn amb l'empleat, la caixa, els imports anterior i de control, els totals per mètode i la diferència.

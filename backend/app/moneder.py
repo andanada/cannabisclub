@@ -3,6 +3,8 @@
 El saldo és la SUMA dels moviments (taula només d'afegir: mai es modifica un saldo). Una recàrrega entra a la caixa com a ingrés
 (efectiu, targeta o Bizum); pagar amb el monedero no és un ingrés nou (ja es va comptar en recarregar) i per això els informes
 de caixa no el sumen als ingressos. Corregir un pagament o una recàrrega en revoca el moviment del monedero."""
+from datetime import datetime
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -58,6 +60,15 @@ def recharge(db: Session, actor: User, member: Member, cent: int, metode: str) -
         raise ValueError("Mètode de pagament no vàlid")
     from . import stock
     stock._lock_member(db, member.id)  # ordre global: soci -> sessió de caixa -> auditoria
+    maxim = ajustos.get(db, member.local_id)["donacions_dia_max_cent"]
+    if maxim and actor.role not in ("admin", "encarregat"):
+        # Tope de donacions per treballador i dia: una recepció no pot abonar saldo sense límit sense que ningú ho vegi fins al tancament.
+        avui = datetime.now(cash.TZ).date()
+        a, b = cash._range(avui, avui)
+        ja = db.scalar(select(func.coalesce(func.sum(WalletMovement.import_cent), 0)).where(
+            WalletMovement.user_id == actor.id, WalletMovement.tipus == "recarrega", WalletMovement.ts >= a, WalletMovement.ts < b))
+        if ja + cent > maxim:
+            raise ValueError(f"Aquest treballador ja ha afegit {ja / 100:.2f} € avui: el màxim per dia és {maxim / 100:.2f} €. Ho ha d'autoritzar la gerència.")
     cs = cash._require_open(db, member.local_id, actor)
     e = CashEntry(local_id=member.local_id, session_id=cs.id, tipus="recarrega", metode=metode, import_cent=cent,
                   concepte="Recàrrega del monedero", user_id=actor.id)

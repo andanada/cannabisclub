@@ -1,10 +1,6 @@
 'use strict';
 // Pantalles: Dispensar (flux complet) i Socis (cerca, alta, estat).
 
-// Quantitat com a nombre (admet coma decimal) i com a text per a la pantalla.
-const numG = (txt) => { const v = Number(String(txt).trim().replace(',', '.')); return String(txt).trim() === '' ? NaN : v; };
-const fmtQ = (v) => String(Math.round(v * 1000) / 1000).replace('.', ',');
-
 const dataCa = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString(loc());
 
 function quotaPill(q) {

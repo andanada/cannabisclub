@@ -104,6 +104,7 @@ const homeView = () => (potRecepcio() && !potDispensari() ? 'acces' : 'dispensar
 // Una subentrada pot dur un tercer valor: la vista on porta (així Configuració agrupa pantalles que viuen en altres vistes).
 const TABS = [
   ['socis', 'Socis', () => true],
+  ['descomptes', 'Descomptes', () => !isManager() && !!S.me.pot_editar_descomptes],
   ['acces', 'Accés', potRecepcio],
   ['caixa', 'Caixa', potRecepcio],
   ['dispensar', 'Dispensar', potDispensari],

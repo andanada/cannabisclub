@@ -58,6 +58,10 @@ def actualitzar_bd() -> int:
         r = migracio_genetic.migra(db)
     if r["marcats"] or r["pendents"]:
         print(migracio_genetic.informe(r))
+    with make_session_factory(engine)() as db:
+        n = service.sincronitza_descomptes_tipus(db)
+    if n:
+        print(f"Descompte del tipus de membre aplicat a {n} socis (Terapèutic 20 %, Família 30 %).")
     return 0
 
 

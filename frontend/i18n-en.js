@@ -707,6 +707,9 @@ Object.assign(I18N.en, {
  "Dades personals": "Personal details",
  "Contacte": "Contact",
  "Cognoms": "Surname",
+ "Màxim de donacions per treballador i dia": "Maximum donations per worker per day",
+ "Màxim de donacions que pot afegir un treballador al dia (€; la gerència no en té)": "Maximum donations a worker can add per day (€; management has none)",
+ "La caixa de recepció està tancada: demana a recepció que l'obri per poder dispensar (el pagament entra a la caixa).": "The reception cash desk is closed: ask reception to open it before dispensing (the payment goes into the cash desk).",
  "Carregant permisos…": "Loading permissions…",
  "Desar permisos": "Save permissions",
  "Permisos desats: s'apliquen en la propera sessió del treballador": "Permissions saved: they apply on the worker's next session",
@@ -1569,3 +1572,4 @@ I18N.pat.en.push([new RegExp("^(.*)\\ ·\\ (.*)\\ ·\\ (.*)$"), "$1 · $2 · $3"
 I18N.pat.en.push([new RegExp("^·\\ (.*)\\ de\\ (.*)\\ pesats$"), "· $1 of $2 weighed"]);
 I18N.pat.en.push([new RegExp("^No\\ tens\\ el\\ permís\\ «(.*)»:\\ demana\\-li\\ a\\ l'administrador$"), "You do not have the «$1» permission: ask the administrator"]);
 I18N.pat.en.push([new RegExp("^(.*)\\ productes\\ per\\ acabar\\ o\\ esgotats\\.$"), "$1 products low or out of stock."]);
+I18N.pat.en.push([new RegExp("^Aquest\\ treballador\\ ja\\ ha\\ afegit\\ (.*)\\ €\\ avui:\\ el\\ màxim\\ per\\ dia\\ és\\ (.*)\\ €\\.\\ Ho\\ ha\\ d'autoritzar\\ la\\ gerència\\.$"), "This worker has already added €$1 today: the daily maximum is €$2. Management must authorise it."]);

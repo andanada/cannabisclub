@@ -9,7 +9,7 @@ from .models import LocalSetting, User
 DEFECTES = {"quota_obligatoria": False, "quota_cent": None, "quota_mesos": 1,
             "espera_dies": 0, "aval": "no", "alta_pendent": False,
             "moneder_actiu": False, "moneder_limit_cent": 0, "consum_exigit": False,
-            "estoc_baix_mg": 5000, "cuota_inactivitat_dies": 90,
+            "estoc_baix_mg": 5000, "cuota_inactivitat_dies": 90, "donacions_dia_max_cent": 0,
             "edat_minima": 18, "inactivitat_dies": 30, "decimals_dispensacio": 3, "perdua_maxima_mg": 0}
 # edat_minima: edat per ser soci (mai per sota de 18); inactivitat_dies: dies sense visites per considerar inactiu un soci;
 # decimals_dispensacio: decimals admesos en els grams d'una dispensació (0-3); perdua_maxima_mg: falta màxima tolerada en tancar
@@ -56,6 +56,8 @@ def _validate(clau: str, valor) -> None:
         raise ValueError("L'avís d'estoc baix ha d'estar entre 0 i 10.000")
     if clau == "cuota_inactivitat_dies" and not 0 <= valor <= 3650:
         raise ValueError("Els dies d'inactivitat per cobrar la quota han d'estar entre 0 (desactivat) i 3650")
+    if clau == "donacions_dia_max_cent" and not 0 <= valor <= 100_000_000:
+        raise ValueError("El màxim de donacions per empleat i dia ha d'estar entre 0 (sense límit) i 1.000.000 €")
     if clau == "aval" and valor not in AVALS:
         raise ValueError("Avalador: no, opcional o obligatori")
 

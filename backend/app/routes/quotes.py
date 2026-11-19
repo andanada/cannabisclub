@@ -65,6 +65,7 @@ def register(app, db, current_user, need_admin, run, member_or_404):
         consum_exigit: bool | None = None
         estoc_baix_mg: int | None = Field(default=None, ge=0, le=10_000_000)
         cuota_inactivitat_dies: int | None = Field(default=None, ge=0, le=3650)
+        donacions_dia_max_cent: int | None = Field(default=None, ge=0, le=100_000_000)
         moneder_limit_cent: int | None = Field(default=None, ge=0, le=1_000_000)
         quota_obligatoria: bool | None = None
         quota_cent: int | None = Field(default=None, ge=0, le=quotes.MAX_IMPORT_CENT)
