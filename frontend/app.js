@@ -110,6 +110,7 @@ const TABS = [
   ['dispensar', 'Dispensar', potDispensari],
   ['estoc', 'Estoc', potDispensari, () => [['productes', 'Productes'], ['existencies', 'Existències i moviments'], ['inventari', 'Inventaris'], ...(te('resultats_inventari') ? [['resultats', "Resultats d'inventaris"]] : []), ...(te('historial') ? [['historial', 'Historial']] : [])]],
   ['fitxatge', 'Horaris', () => true],
+  ['cameres', 'Càmeres', () => te('cameres')],
   ['estinf', 'Estadístiques i informes', () => te('informes'), [
     ['est:membres', 'Estadístiques · Socis'], ['est:dispensari', 'Estadístiques · Dispensari i bar'], ['est:finances', 'Estadístiques · Finances'],
     ['inf:vendes', 'Informes · Vendes'], ['inf:dispensacions', 'Informes · Dispensacions'], ['inf:evolucio', 'Informes · Evolució del club'], ['inf:demografia', 'Informes · Demografia'],
@@ -121,7 +122,7 @@ const TABS = [
   // Configuració només per a l'administrador: ni l'encarregat ni els treballadors en veuen cap opció.
   ['config', 'Configuració', () => S.me.role === 'admin', () => [
     ['local', 'Local i límits'], ['quotes', 'Quotes'], ['normes', 'Normes del club'], ['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura'],
-    ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ['seguretat', 'Seguretat']]],
+    ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ['seguretat', 'Seguretat'], ['cameres-admin', 'Càmeres', 'cameres-admin']]],
 ];
 // Pantalles fora del menú: el compte propi (PIN, carnet) i els descomptes d'un treballador amb el privilegi.
 const VIEWS_EXTRA = ['compte', 'descomptes'];

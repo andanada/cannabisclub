@@ -707,6 +707,34 @@ Object.assign(I18N.en, {
  "Dades personals": "Personal details",
  "Contacte": "Contact",
  "Cognoms": "Surname",
+ "prova (imatge sintètica)": "test (synthetic image)",
+ "Càmeres": "Cameras",
+ "Càmera": "Camera",
+ "Sense imatge": "No image",
+ "Sense connexió": "No connection",
+ "Connectant…": "Connecting…",
+ "Imatge en directe de les càmeres del club. Toca una càmera per veure-la més gran.": "Live image from the club cameras. Tap a camera to enlarge it.",
+ "Encara no hi ha cap càmera: afegeix-ne a Configuració › Càmeres.": "No cameras yet: add them in Settings › Cameras.",
+ "Encara no hi ha cap càmera configurada.": "No camera configured yet.",
+ "Mirar les càmeres queda registrat a l'auditoria.": "Viewing the cameras is recorded in the audit log.",
+ "Entrada, Pati…": "Entrance, Yard…",
+ "Nom de la càmera": "Camera name",
+ "Adreça RTSP": "RTSP address",
+ "Afegir càmera": "Add camera",
+ "Càmera afegida": "Camera added",
+ "Nova càmera": "New camera",
+ "Adreça RTSP (amb usuari i contrasenya de la càmera)": "RTSP address (with the camera's user and password)",
+ "L'adreça es desa xifrada i no es torna a mostrar. Només s'accepten càmeres de la xarxa del club (192.168.x.x, 10.x.x.x, 172.16-31.x.x) o de Tailscale.": "The address is stored encrypted and never shown again. Only cameras on the club network (192.168.x.x, 10.x.x.x, 172.16-31.x.x) or Tailscale are accepted.",
+ "Canviar adreça": "Change address",
+ "Adreça actualitzada": "Address updated",
+ "Càmeres IP (RTSP) del local. Necessiten ffmpeg al servidor i que aquest les vegi per la xarxa del club o Tailscale.": "IP cameras (RTSP) of the venue. They need ffmpeg on the server and the server must reach them over the club network or Tailscale.",
+ "El servidor no té ffmpeg instal·lat: instal·la'l amb «sudo apt install ffmpeg».": "The server does not have ffmpeg installed: install it with «sudo apt install ffmpeg».",
+ "El servidor no té ffmpeg instal·lat (sudo apt install ffmpeg): sense ell no es pot veure la imatge.": "The server does not have ffmpeg installed (sudo apt install ffmpeg): without it the image cannot be shown.",
+ "Encara no hi ha cap càmera.": "No cameras yet.",
+ "Veure les càmeres en directe": "View the live cameras",
+ "No arriba imatge de la càmera": "No image from the camera",
+ "La càmera no respon": "The camera does not respond",
+ "Càmera desactivada": "Camera disabled",
  "Gestió": "Management",
  "✓ pes desat": "✓ weight saved",
  "Inventari a cegues: el programa no ensenya el que hi hauria de ser; la gerència veu les diferències als resultats.": "Blind inventory: the program does not show what there should be; management sees the differences in the results.",
@@ -1579,3 +1607,6 @@ I18N.pat.en.push([new RegExp("^No\\ tens\\ el\\ permís\\ «(.*)»:\\ demana\\-l
 I18N.pat.en.push([new RegExp("^(.*)\\ productes\\ per\\ acabar\\ o\\ esgotats\\.$"), "$1 products low or out of stock."]);
 I18N.pat.en.push([new RegExp("^Aquest\\ treballador\\ ja\\ ha\\ afegit\\ (.*)\\ €\\ avui:\\ el\\ màxim\\ per\\ dia\\ és\\ (.*)\\ €\\.\\ Ho\\ ha\\ d'autoritzar\\ la\\ gerència\\.$"), "This worker has already added €$1 today: the daily maximum is €$2. Management must authorise it."]);
 I18N.pat.en.push([new RegExp("^No\\ tens\\ el\\ permís\\ «(.*)»:\\ demana\\-li\\ a\\ l'administrador$"), "You do not have the «$1» permission: ask the administrator"]);
+I18N.pat.en.push([new RegExp("^Nova\\ adreça\\ RTSP\\ de\\ «(.*)»$"), "New RTSP address for «$1»"]);
+I18N.pat.en.push([new RegExp("^(.*):\\ arriba\\ imatge\\ \\((.*)\\ KB\\)\\.$"), "$1: image received ($2 KB)."]);
+I18N.pat.en.push([new RegExp("^Esborrar\\ la\\ càmera\\ «(.*)»\\?$"), "Delete the camera «$1»?"]);

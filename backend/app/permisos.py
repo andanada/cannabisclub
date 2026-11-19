@@ -17,6 +17,7 @@ CATALEG = [
     ("moviments_estoc", "Fer entrades, sortides (mermes) i traspassos d'estoc", "Estoc"),
     ("editar_preus", "Canviar preus i marcar productes com a regal o sense descomptes", "Estoc"),
     ("corregir_caixa", "Corregir apunts de caixa", "Caixa"),
+    ("cameres", "Veure les càmeres en directe", "Càmeres"),
     ("corregir_estoc", "Corregir moviments d'estoc", "Estoc"),
     ("gestio_socis", "Donar d'alta i editar socis (dades, estat, foto, carnet, documents)", "Socis"),
 ]

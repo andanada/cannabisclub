@@ -19,6 +19,7 @@ from .routes import auditoria, caixa, club, productes, rgpd, sessio
 from .routes import contenidors as routes_contenidors
 from .routes import descomptes as routes_descomptes
 from .routes import catalegs as routes_catalegs
+from .routes import cameres as routes_cameres
 from .routes import dispositius as routes_dispositius
 from .routes import gastos as routes_gastos
 from .routes import informes as informes_r
@@ -110,7 +111,7 @@ def create_app(session_factory=None) -> FastAPI:
         if os.environ.get("CLUB_HSTS") == "1":
             resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         resp.headers["Content-Security-Policy"] = (
-            "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
+            "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; "
             "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
         resp.headers["X-Frame-Options"] = "DENY"
         resp.headers["X-Content-Type-Options"] = "nosniff"
@@ -143,7 +144,7 @@ def create_app(session_factory=None) -> FastAPI:
                        product_or_404=product_or_404, usuari_or_404=usuari_or_404, empleat_valid=empleat_valid,
                        personal_del_local=personal_del_local, rang=rang)
     for modul in (sessio, socis_r, auditoria, productes, caixa, informes_r, usuaris_r, quotes_r, routes_dispositius, routes_descomptes,
-                  routes_magatzems, routes_contenidors, routes_linies_preu, routes_inventaris, routes_regles, routes_gastos, routes_catalegs):
+                  routes_magatzems, routes_contenidors, routes_linies_preu, routes_inventaris, routes_regles, routes_gastos, routes_catalegs, routes_cameres):
         demanats = inspect.signature(modul.register).parameters
         modul.register(app, **{k: v for k, v in disponibles.items() if k in demanats})
     for _r in (rgpd, club): app.include_router(_r.router(db, current_user))  # RGPD i controls de club (routes/rgpd.py, club.py)

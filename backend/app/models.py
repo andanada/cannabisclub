@@ -567,6 +567,18 @@ class UserCard(Base):
     creat_per: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
 
+class Camera(Base):
+    """Càmera IP (RTSP). L'adreça, amb l'usuari i la contrasenya de la càmera, va xifrada i no surt mai cap al navegador."""
+    __tablename__ = "cameres"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    url_enc: Mapped[str] = mapped_column(Text)
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True)
+    ordre: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class Warehouse(Base):
     """Magatzem addicional d'un local. El magatzem «principal» és implícit: és on es dispensa."""
     __tablename__ = "warehouses"
