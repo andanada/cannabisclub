@@ -61,19 +61,23 @@ function normesSection() {
   const inact = h('input', { type: 'number', min: 1, max: 365, value: loc.inactivitat_dies || 30 });
   const dec = h('select', null, [0, 1, 2, 3].map((n) => h('option', { value: n, selected: n === (loc.decimals_dispensacio ?? 3) }, String(n))));
   const perdua = h('input', { inputmode: 'decimal', value: loc.perdua_maxima_mg ? (loc.perdua_maxima_mg / 1000).toString().replace('.', ',') : '', placeholder: 'sense límit' });
+  const baix = h('input', { inputmode: 'decimal', value: String((loc.estoc_baix_mg ?? 5000) / 1000).replace('.', ','), 'aria-label': "Avís d'estoc baix" });
+  const diesCuota = h('input', { type: 'number', min: 0, max: 3650, value: loc.cuota_inactivitat_dies ?? 90, 'aria-label': 'Dies sense retirar genètiques' });
   const out = h('div');
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Desar');
   return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(btn, out, async () => {
       await api(`/locals/${S.local}/config`, { method: 'PUT', body: { edat_minima: Number(edat.value), inactivitat_dies: Number(inact.value), decimals_dispensacio: Number(dec.value),
-        perdua_maxima_mg: perdua.value.trim() ? Math.round(parseGrams(perdua.value) * 1000) : 0 } });
+        perdua_maxima_mg: perdua.value.trim() ? Math.round(parseGrams(perdua.value) * 1000) : 0,
+        estoc_baix_mg: baix.value.trim() ? Math.round(parseGrams(baix.value) * 1000) : 0, cuota_inactivitat_dies: Number(diesCuota.value) } });
       S.me = await api('/me');
       out.replaceChildren(msg('ok', 'Normes desades'));
     });
   } }, h('h3', null, 'Normes del club · ' + loc.nom),
   h('div', { class: 'row' }, field('Edat mínima per ser soci', edat), field("Alerta d'inactivitat (dies sense visites)", inact)),
-  h('div', { class: 'row' }, field('Decimals admesos en una dispensació', dec), field("Pèrdua màxima en un inventari (g, avisa si es supera)", perdua)),
+  h('div', { class: 'row' }, field('Decimals admesos en una dispensació', dec), field("Diferència màxima en un inventari (g): a partir d'aquí surt l'avís als resultats", perdua)),
+  h('div', { class: 'row' }, field("Avís d'estoc baix: quan al dispensari queda menys de (g o unitats)", baix), field('Dies sense retirar genètiques abans de demanar la quota a l\'accés (0 = no es demana)', diesCuota)),
   h('div', { class: 'actions' }, btn), out);
 }
 
