@@ -105,12 +105,12 @@ async function pantallaDispensar(m, tornar) {
   function pintaTotals() {
     const t = calcula();
     const falta = t.total - resum.saldo_cent;
-    totalsBox.replaceChildren(
+    totalsBox.replaceChildren(...[
       h('div', { class: 'carret-fila' }, h('span', null, 'Subtotal'), h('span', null, eur(t.subtotal))),
       pct ? h('div', { class: 'carret-fila desc' }, h('span', null, `Descompte de membre (${pct} %)`), h('span', null, '−' + eur(t.descompte))) : null,
       h('div', { class: 'carret-fila total' }, h('span', null, 'Total'), h('span', null, eur(t.total))),
       h('div', { class: 'carret-fila' }, h('span', { class: 'muted' }, 'Saldo del soci'), h('span', { class: 'muted' }, eur(resum.saldo_cent))),
-      t.error ? msg('err', t.error) : (falta > 0 && carret.size ? msg('err', `Saldo insuficient: falten ${eur(falta)}. El soci ha de fer una donació a recepció.`) : null));
+      t.error ? msg('err', t.error) : (falta > 0 && carret.size ? msg('err', `Saldo insuficient: falten ${eur(falta)}. El soci ha de fer una donació a recepció.`) : null)].filter(Boolean));
     btnDispensar.disabled = !carret.size || !!t.error || falta > 0 || !!bloc;
   }
   let ref = novaRef();
@@ -129,10 +129,10 @@ async function pantallaDispensar(m, tornar) {
       h('p', { class: 'muted' }, 'Saldo que li queda: ' + eur(r.saldo_cent)), h('div', { class: 'actions' }, nova)));
   }));
 
-  arrel.append(cap, alertesSoci(m.alertes), bloc,
+  arrel.append(...[cap, alertesSoci(m.alertes), bloc,
     h('div', { class: 'dis-cos' },
       h('section', { class: 'card dis-prods' }, h('h3', null, 'Productes'), cats.length ? chips : null, graella),
-      h('section', { class: 'card dis-carret' }, h('h3', null, 'Carret'), liniesBox, totalsBox, h('div', { class: 'actions' }, btnDispensar), out)));
+      h('section', { class: 'card dis-carret' }, h('h3', null, 'Carret'), liniesBox, totalsBox, h('div', { class: 'actions' }, btnDispensar), out))].filter(Boolean));
   pintaGraella();
   pintaCarret();
   return arrel;
