@@ -49,11 +49,13 @@ def register(app, db, current_user, check_local, need_manager, run):
 
     @app.get("/inventaris/{inventari_id}")
     def detall_inventari(inventari_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-        return inventaris.detall(s, inventari_or_404(s, user, inventari_id))
+        from .. import permisos
+        return inventaris.detall(s, inventari_or_404(s, user, inventari_id), permisos.te(user, 'resultats_inventari'))
 
     @app.put("/inventaris/{inventari_id}/linies/{product_id}")
     def compta_producte(inventari_id: int, product_id: int, body: RecompteIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        return run(inventaris.comptar, s, user, inventari_or_404(s, user, inventari_id), product_id, body.grams, body.nota)
+        from .. import permisos
+        return run(inventaris.comptar, s, user, inventari_or_404(s, user, inventari_id), product_id, body.grams, body.nota, permisos.te(user, 'resultats_inventari'))
 
     @app.post("/inventaris/{inventari_id}/guardar")
     def guarda_inventari(inventari_id: int, user: User = Depends(current_user), s: Session = Depends(db)):

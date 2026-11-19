@@ -114,16 +114,19 @@ const TABS = [
     ['est:membres', 'Estadístiques · Socis'], ['est:dispensari', 'Estadístiques · Dispensari i bar'], ['est:finances', 'Estadístiques · Finances'],
     ['inf:vendes', 'Informes · Vendes'], ['inf:dispensacions', 'Informes · Dispensacions'], ['inf:evolucio', 'Informes · Evolució del club'], ['inf:demografia', 'Informes · Demografia'],
     ['inf:caixa', 'Informes · Caixa'], ['inf:estoc', 'Informes · Estoc valorat'], ['inf:assistencia', 'Informes · Assistència'], ['inf:visites', 'Informes · Visites de socis'], ['inf:hores', 'Informes · Hores']]],
+  // Gestió (gerència): controls del club, despeses i comptabilitat, privacitat i eines avançades d'estoc.
+  ['gestio', 'Gestió', isManager, () => [
+    ['estoc-avancat', 'Estoc avançat (magatzems, categories, descomptes…)', 'estoc-avancat'],
+    ['gastos', 'Despeses i comptabilitat', 'gastos'], ['club', 'Controls del club', 'club'], ['rgpd', 'Privacitat i protecció de dades', 'rgpd']]],
   // Configuració només per a l'administrador: ni l'encarregat ni els treballadors en veuen cap opció.
   ['config', 'Configuració', () => S.me.role === 'admin', () => [
     ['local', 'Local i límits'], ['quotes', 'Quotes'], ['normes', 'Normes del club'], ['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura'],
-    ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ['seguretat', 'Seguretat'],
-    ['estoc-avancat', 'Estoc avançat (magatzems, categories, descomptes…)', 'estoc-avancat'],
-    ['gastos', 'Despeses i comptabilitat', 'gastos'], ['club', 'Controls del club', 'club'], ['rgpd', 'Privacitat i protecció de dades', 'rgpd']]],
+    ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ['seguretat', 'Seguretat']]],
 ];
 // Pantalles fora del menú: el compte propi (PIN, carnet) i els descomptes d'un treballador amb el privilegi.
 const VIEWS_EXTRA = ['compte', 'descomptes'];
 // «Estadístiques i informes» porta a la primera pantalla; la resta s'hi arriba des de les subentrades.
+VIEWS.gestio = async () => VIEWS['estoc-avancat']();
 VIEWS.estinf = async () => { sessionStorage.setItem('s:estadistiques', 'membres'); return VIEWS.estadistiques(); };
 
 // Vista → grup del menú que s'ha de desplegar quan hi ets.

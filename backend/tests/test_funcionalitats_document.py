@@ -302,3 +302,30 @@ def test_tope_de_donacions_per_treballador_i_dia(ctx):
     assert r.status_code == 422 and "màxim per dia" in r.text
     assert _recarrega(client, rec, mid, 2000).status_code == 201              # justa el límit
     assert _recarrega(client, enc, mid, 9000).status_code == 201              # la gerència no té tope
+
+
+def test_mermes_entrades_i_preus_del_dispensari_requereixen_permis_i_l_inventari_es_a_cegues(ctx):
+    client, _, sec = ctx
+    enc, flor, aigua, mid = _escena(client, sec)
+    adm = token(client, sec, "admin")
+    disp = token(client, sec, "disp")                                                     # dispensari sense permisos addicionals
+    uid = [u["id"] for u in client.get("/usuaris", headers=adm).json() if u["username"] == "disp"][0]
+    assert client.post("/moviments/entrada", json={"product_id": flor, "grams": "5"}, headers=disp).status_code == 403
+    assert client.post("/moviments/merma", json={"product_id": flor, "grams": "1", "nota": "tapar un forat"}, headers=disp).status_code == 403
+    assert client.patch(f"/productes/{flor}", json={"preu_cent_per_g": 0}, headers=disp).status_code == 403
+    assert client.patch(f"/productes/{flor}", json={"regalable": True}, headers=disp).status_code == 403
+    assert client.patch(f"/productes/{flor}", json={"nom": "Flor premium"}, headers=disp).status_code == 200     # el nom sí
+    assert client.post("/productes", json={"local_id": 1, "nom": "Gratis", "preu_cent_per_g": 0}, headers=disp).status_code == 403
+    assert client.post("/productes", json={"local_id": 1, "nom": "Nou", "preu_cent_per_g": 100}, headers=disp).status_code == 201
+    # inventari a cegues: qui pesa no veu l'estoc del sistema ni la diferència
+    sid = client.post("/locals/1/inventaris", json={}, headers=disp).json()["id"]
+    linia = [l for l in client.get(f"/inventaris/{sid}", headers=disp).json()["linies"] if l["product_id"] == flor][0]
+    assert "esperat_g" not in linia and "diferencia_g" not in linia
+    assert client.put(f"/inventaris/{sid}/linies/{flor}", json={"grams": "7"}, headers=disp).json() == {"comptat_g": "7", "a_cegues": True}
+    assert "esperat_g" in client.get(f"/inventaris/{sid}", headers=enc).json()["linies"][0]                       # la gerència sí
+    # amb els permisos, sí
+    assert client.put(f"/usuaris/{uid}/permisos", json={"permisos": ["moviments_estoc", "editar_preus", "resultats_inventari"]}, headers=adm).status_code == 200
+    disp = token(client, sec, "disp")
+    assert client.post("/moviments/entrada", json={"product_id": flor, "grams": "5"}, headers=disp).status_code == 201
+    assert client.patch(f"/productes/{flor}", json={"regalable": True}, headers=disp).status_code == 200
+    assert client.put(f"/inventaris/{sid}/linies/{flor}", json={"grams": "7"}, headers=disp).json()["diferencia_g"] is not None

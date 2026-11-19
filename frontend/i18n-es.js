@@ -707,6 +707,11 @@ Object.assign(I18N.es, {
  "Dades personals": "Datos personales",
  "Contacte": "Contacto",
  "Cognoms": "Apellidos",
+ "Gestió": "Gestión",
+ "✓ pes desat": "✓ peso guardado",
+ "Inventari a cegues: el programa no ensenya el que hi hauria de ser; la gerència veu les diferències als resultats.": "Inventario a ciegas: el programa no muestra lo que debería haber; la gerencia ve las diferencias en los resultados.",
+ "Fer entrades, sortides (mermes) i traspassos d'estoc": "Hacer entradas, salidas (mermas) y traspasos de stock",
+ "Canviar preus i marcar productes com a regal o sense descomptes": "Cambiar precios y marcar productos como regalo o sin descuentos",
  "Màxim de donacions per treballador i dia": "Máximo de donaciones por trabajador y día",
  "Màxim de donacions que pot afegir un treballador al dia (€; la gerència no en té)": "Máximo de donaciones que un trabajador puede añadir al día (€; la gerencia no tiene)",
  "La caixa de recepció està tancada: demana a recepció que l'obri per poder dispensar (el pagament entra a la caixa).": "La caja de recepción está cerrada: pide a recepción que la abra para poder dispensar (el pago entra en la caja).",
@@ -1573,3 +1578,4 @@ I18N.pat.es.push([new RegExp("^·\\ (.*)\\ de\\ (.*)\\ pesats$"), "· $1 de $2 p
 I18N.pat.es.push([new RegExp("^No\\ tens\\ el\\ permís\\ «(.*)»:\\ demana\\-li\\ a\\ l'administrador$"), "No tienes el permiso «$1»: pídeselo al administrador"]);
 I18N.pat.es.push([new RegExp("^(.*)\\ productes\\ per\\ acabar\\ o\\ esgotats\\.$"), "$1 productos por agotarse o agotados."]);
 I18N.pat.es.push([new RegExp("^Aquest\\ treballador\\ ja\\ ha\\ afegit\\ (.*)\\ €\\ avui:\\ el\\ màxim\\ per\\ dia\\ és\\ (.*)\\ €\\.\\ Ho\\ ha\\ d'autoritzar\\ la\\ gerència\\.$"), "Este trabajador ya ha añadido $1 € hoy: el máximo por día es $2 €. Debe autorizarlo la gerencia."]);
+I18N.pat.es.push([new RegExp("^No\\ tens\\ el\\ permís\\ «(.*)»:\\ demana\\-li\\ a\\ l'administrador$"), "No tienes el permiso «$1»: pídeselo al administrador"]);

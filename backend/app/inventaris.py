@@ -76,7 +76,9 @@ def llista(db: Session, local_id: int) -> list[dict]:
              "comptats": comptats.get(s.id, 0), "usuari": noms.get(s.user_id)} for s in db.scalars(q)]
 
 
-def detall(db: Session, s: InventorySession) -> dict:
+def detall(db: Session, s: InventorySession, veure: bool = True) -> dict:
+    """`veure` = pot veure l'estoc del sistema i les diferències (gerència o permís de resultats). Si no, l'inventari és a cegues:
+    qui pesa no sap quant «hauria de» haver-hi (si no, podria escriure just aquesta xifra)."""
     prods = _abast(db, s)
     esperat = _esperat(db, s, [p.id for p in prods])
     files = {c.product_id: c for c in db.scalars(select(InventoryCount).where(InventoryCount.session_id == s.id))}
@@ -85,10 +87,12 @@ def detall(db: Session, s: InventorySession) -> dict:
         c = files.get(p.id)
         # Si el recompte va guardar l'estoc teòric d'aquell moment, la diferència es compara amb aquest (no amb l'actual)
         teoric = c.expected_mg if c is not None and c.expected_mg is not None else esperat[p.id]
-        linies.append({"product_id": p.id, "nom": p.nom, "categoria": p.categoria, "unitat": p.unitat, "tara_g": _g(_tara(s, p)),
-                       "esperat_g": _g(teoric), "pes_g": _g(c.brut_mg) if c is not None and c.brut_mg is not None else None,
-                       "comptat_g": _g(c.counted_mg) if c is not None else None,
-                       "diferencia_g": _g(c.counted_mg - teoric) if c is not None else None, "nota": c.nota if c is not None else None})
+        linia = {"product_id": p.id, "nom": p.nom, "categoria": p.categoria, "unitat": p.unitat, "tara_g": _g(_tara(s, p)),
+                 "pes_g": _g(c.brut_mg) if c is not None and c.brut_mg is not None else None,
+                 "comptat_g": _g(c.counted_mg) if c is not None else None, "nota": c.nota if c is not None else None}
+        if veure:
+            linia.update({"esperat_g": _g(teoric), "diferencia_g": _g(c.counted_mg - teoric) if c is not None else None})
+        linies.append(linia)
     return {"id": s.id, "nom": s.nom, "estat": s.estat, "tipus": s.tipus, "control": s.control, "ajustat": s.ajustat,
             "total": len(prods), "comptats": sum(1 for l in linies if l["comptat_g"] is not None), "linies": linies}
 
@@ -103,7 +107,7 @@ def _lock_session(db: Session, s: InventorySession) -> None:
     db.execute(select(InventorySession).where(InventorySession.id == s.id).with_for_update().execution_options(populate_existing=True))
 
 
-def comptar(db: Session, actor: User, s: InventorySession, product_id: int, grams: Decimal, nota: str | None = None) -> dict:
+def comptar(db: Session, actor: User, s: InventorySession, product_id: int, grams: Decimal, nota: str | None = None, veure: bool = True) -> dict:
     """Desa el pes d'un producte. `grams` és el pes que marca la bàscula (o escrit); al dispensari se'n resta la tara del pot.
     Torna el comptat net, el del sistema i la diferència perquè la pantalla ho comprovi a l'instant."""
     _lock_session(db, s)
@@ -128,6 +132,8 @@ def comptar(db: Session, actor: User, s: InventorySession, product_id: int, gram
     else:
         db.add(InventoryCount(session_id=s.id, product_id=product_id, counted_mg=net, brut_mg=brut, expected_mg=esperat, nota=nota, user_id=actor.id))
     db.commit()
+    if not veure:
+        return {"comptat_g": _g(net), "a_cegues": True}
     return {"comptat_g": _g(net), "esperat_g": _g(esperat), "diferencia_g": _g(net - esperat), "coincideix": net == esperat}
 
 

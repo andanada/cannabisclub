@@ -22,11 +22,17 @@ function filaPesatge(sid, l, tipus) {
   nota.value = l.nota || '';
   nota.hidden = true;
   const pinta = (r) => {
+    if (r.a_cegues || r.diferencia_g === undefined) {   // sense permís de resultats: no es veu l'estoc del sistema ni la diferència
+      res.className = 'pill ok';
+      res.textContent = '✓ pes desat';
+      nota.hidden = false;
+      return;
+    }
     res.className = 'pill ' + (r.coincideix ? 'ok' : 'warn');
     res.textContent = r.coincideix ? '✓ coincideix amb el sistema' : `Diferència ${Number(r.diferencia_g) > 0 ? '+' : ''}${r.diferencia_g} (sistema: ${r.esperat_g})`;
     nota.hidden = r.coincideix;
   };
-  if (l.comptat_g !== null) pinta({ coincideix: Number(l.diferencia_g) === 0, diferencia_g: l.diferencia_g, esperat_g: l.esperat_g });
+  if (l.comptat_g !== null) pinta(l.diferencia_g === undefined ? { a_cegues: true } : { coincideix: Number(l.diferencia_g) === 0, diferencia_g: l.diferencia_g, esperat_g: l.esperat_g });
   const comprova = async () => {
     if (pes.value.trim() === '') return;
     try {
@@ -63,7 +69,7 @@ async function pantallaPesatge(sid, tornar) {
     tornar(null);
   }));
   return h('div', null, h('div', { class: 'card' }, h('h3', null, d.nom), h('p', { class: 'muted' }, INV_TIPUS[d.tipus], ' · ', d.control === 'producte' ? "control d'un sol producte" : 'inventari complet', ` · ${d.comptats} de ${d.total} pesats`),
-    h('p', { class: 'muted' }, d.tipus === 'dispensari' ? 'Escriu el pes del pot sencer: el programa en resta la tara.' : 'Escriu el pes o agafa\'l de la bàscula.'),
+    h('p', { class: 'muted' }, d.tipus === 'dispensari' ? 'Escriu el pes del pot sencer: el programa en resta la tara.' : 'Escriu el pes o agafa\'l de la bàscula.'), te('resultats_inventari') ? null : h('p', { class: 'muted' }, 'Inventari a cegues: el programa no ensenya el que hi hauria de ser; la gerència veu les diferències als resultats.'),
     h('div', { class: 'actions' }, guarda, cancela), out),
   h('div', { class: 'card table-wrap' }, h('table', null, h('thead', null, h('tr', null, ['Producte', 'Tara', 'Pes', 'Comprovació'].map((t) => h('th', null, t)))),
     h('tbody', null, d.linies.map((l) => filaPesatge(sid, l, d.tipus))))));

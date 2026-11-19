@@ -14,6 +14,8 @@ CATALEG = [
     ("historial", "Veure l'historial de moviments d'estoc", "Estoc"),
     ("resultats_inventari", "Veure els resultats dels inventaris i ajustar l'estoc", "Estoc"),
     ("esborrar_productes", "Esborrar productes", "Estoc"),
+    ("moviments_estoc", "Fer entrades, sortides (mermes) i traspassos d'estoc", "Estoc"),
+    ("editar_preus", "Canviar preus i marcar productes com a regal o sense descomptes", "Estoc"),
     ("corregir_caixa", "Corregir apunts de caixa", "Caixa"),
     ("corregir_estoc", "Corregir moviments d'estoc", "Estoc"),
     ("gestio_socis", "Donar d'alta i editar socis (dades, estat, foto, carnet, documents)", "Socis"),

@@ -59,6 +59,8 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.post("/productes", status_code=201)
     def alta_producte(body: ProductIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_dispensari(user)
+        if body.regalable or body.sense_descomptes or body.preu_cent_per_g == 0:
+            need_permis(user, 'editar_preus')  # un producte gratuït, regalable o sense descomptes és una decisió de preu
         check_local(s, user, body.local_id)
         # Amb `estricte` (el formulari nou) s'apliquen les regles del producte (no genètic = unitat, categories per tipus, tara…)
         p = run(stock.add_product, s, user, body.local_id, body.nom, body.categoria, body.preu_cent_per_g, body.es_genetic, body.regalable, body.unitat, body.granel,
@@ -82,6 +84,8 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.patch("/productes/{product_id}")
     def edita_producte(product_id: int, body: ProductUpdateIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_dispensari(user)
+        if any(v is not None for v in (body.preu_cent_per_g, body.preu_entrada_cent, body.regalable, body.sense_descomptes)):
+            need_permis(user, 'editar_preus')
         product_or_404(s, user, product_id)
         run(stock.update_product, s, user, product_id, body.nom, body.categoria, body.preu_cent_per_g, body.actiu, body.es_genetic, body.regalable, body.unitat, body.granel,
             preu_entrada_cent=body.preu_entrada_cent, tara_g=body.tara_g, sense_descomptes=body.sense_descomptes, estricte=body.estricte)
@@ -164,6 +168,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.post("/moviments/entrada", status_code=201)
     def entrada(body: EntradaIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_dispensari(user)
+        need_permis(user, 'moviments_estoc')
         product_or_404(s, user, body.product_id)
         m = run(stock.receive, s, user, body.product_id, body.grams, body.nota, body.magatzem_id)
         return {"id": m.id}
@@ -223,6 +228,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.post("/moviments/merma", status_code=201)
     def merma(body: MermaIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_dispensari(user)
+        need_permis(user, 'moviments_estoc')
         product_or_404(s, user, body.product_id)
         return {"id": run(stock.shrink, s, user, body.product_id, body.grams, body.nota, body.magatzem_id).id}
 
