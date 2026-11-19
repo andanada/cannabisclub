@@ -707,6 +707,7 @@ Object.assign(I18N.en, {
  "Dades personals": "Personal details",
  "Contacte": "Contact",
  "Cognoms": "Surname",
+ "Connecta la bàscula (Dispensar › carret › Bàscula) o escriu el pes a mà": "Connect the scale (Dispense › cart › Scale) or type the weight by hand",
  "Avís d'estoc baix": "Low-stock alert",
  "Dies sense retirar genètiques": "Days without withdrawing genetics",
  "Diferència màxima en un inventari (g): a partir d'aquí surt l'avís als resultats": "Maximum difference in an inventory (g): above this an alert shows in the results",

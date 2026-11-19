@@ -114,14 +114,15 @@ const TABS = [
     ['inf:vendes', 'Informes · Vendes'], ['inf:dispensacions', 'Informes · Dispensacions'], ['inf:evolucio', 'Informes · Evolució del club'], ['inf:demografia', 'Informes · Demografia'],
     ['inf:caixa', 'Informes · Caixa'], ['inf:estoc', 'Informes · Estoc valorat'], ['inf:assistencia', 'Informes · Assistència'], ['inf:visites', 'Informes · Visites de socis'], ['inf:hores', 'Informes · Hores']]],
   ['config', 'Configuració', isManager, () => [
-    ['local', 'Local i límits'], ['quotes', 'Quotes'], ['normes', 'Normes del club'],
-    ...(S.me.role === 'admin' ? [['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura']] : []),
+    ...(S.me.role === 'admin' ? [['local', 'Local i límits'], ['quotes', 'Quotes'], ['normes', 'Normes del club'], ['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura']] : []),
     ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ...(S.me.role === 'admin' ? [['seguretat', 'Seguretat']] : []),
     ['estoc-avancat', 'Estoc avançat (magatzems, categories, descomptes…)', 'estoc-avancat'],
     ['gastos', 'Despeses i comptabilitat', 'gastos'], ['club', 'Controls del club', 'club'], ['rgpd', 'Privacitat i protecció de dades', 'rgpd']]],
 ];
 // Pantalles fora del menú: el compte propi (PIN, carnet) i els descomptes d'un treballador amb el privilegi.
 const VIEWS_EXTRA = ['compte', 'descomptes'];
+// «Estadístiques i informes» porta a la primera pantalla; la resta s'hi arriba des de les subentrades.
+VIEWS.estinf = async () => { sessionStorage.setItem('s:estadistiques', 'membres'); return VIEWS.estadistiques(); };
 
 // Vista → grup del menú que s'ha de desplegar quan hi ets.
 function grupDe(view) {
@@ -181,13 +182,15 @@ function renderShell() {
   $('#app').replaceChildren(h('div', { class: 'shell' }, side, h('div', null, topbar, h('main', { id: 'main', class: 'main' }))));
 }
 
+let tornVista = 0;   // una resposta lenta d'una pantalla anterior no ha de trepitjar la que s'ha obert després
 async function show(view) {
   S.view = view;
   document.body.dataset.view = view;
   marcaMenu();
   const main = $('#main');
+  const meu = ++tornVista;
   main.replaceChildren(h('p', { class: 'muted' }, 'Carregant…'));
-  try { main.replaceChildren(await VIEWS[view]()); } catch (e) { main.replaceChildren(msg('err', e.message)); }
+  try { const node = await VIEWS[view](); if (meu === tornVista) main.replaceChildren(node); } catch (e) { if (meu === tornVista) main.replaceChildren(msg('err', e.message)); }
 }
 
 // Primer arrencada: encara no hi ha cap local. L'administrador en crea el primer i entra.

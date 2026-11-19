@@ -707,6 +707,7 @@ Object.assign(I18N.es, {
  "Dades personals": "Datos personales",
  "Contacte": "Contacto",
  "Cognoms": "Apellidos",
+ "Connecta la bàscula (Dispensar › carret › Bàscula) o escriu el pes a mà": "Conecta la báscula (Dispensar › carrito › Báscula) o escribe el peso a mano",
  "Avís d'estoc baix": "Aviso de stock bajo",
  "Dies sense retirar genètiques": "Días sin retirar genéticas",
  "Diferència màxima en un inventari (g): a partir d'aquí surt l'avís als resultats": "Diferencia máxima en un inventario (g): a partir de aquí sale el aviso en los resultados",

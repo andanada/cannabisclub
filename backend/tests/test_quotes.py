@@ -114,7 +114,7 @@ def test_les_quotes_no_es_poden_editar_ni_esborrar(ctx):
 
 def test_aillament_per_local_i_rols(ctx):
     client, factory, sec = ctx
-    enc, disp, admin = token(client, sec, "enc"), token(client, sec, "disp"), token(client, sec, "admin")
+    enc, disp, admin = token(client, sec, "enc"), token(client, sec, "disp", rol="recepcio"), token(client, sec, "admin")
     mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
     altre = client.post("/socis", json={**SOCI, "local_id": 2, "document": "99999999R"}, headers=admin).json()["id"]
     obrir(client, enc)
@@ -153,7 +153,7 @@ def test_config_de_quota_per_defecte(ctx):
 
 def test_dispensador_nomes_cobra_la_tarifa_del_local(ctx):
     client, factory, sec = ctx
-    enc, disp, admin = token(client, sec, "enc"), token(client, sec, "disp"), token(client, sec, "admin")
+    enc, disp, admin = token(client, sec, "enc"), token(client, sec, "disp", rol="recepcio"), token(client, sec, "admin")
     mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
     obrir(client, enc)
     assert quota(client, disp, mid, 1).status_code == 422                       # sense tarifa configurada no cobra

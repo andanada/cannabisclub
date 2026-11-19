@@ -32,9 +32,9 @@ async function existenciesSection() {
       barra.append(b);
     });
     mostra();
-    arrel.replaceChildren(
+    arrel.replaceChildren(...[
       avisos ? msg('err', `${avisos} productes per acabar o esgotats (l'avís es configura a Configuració › Normes del club).`) : null,
-      h('div', { class: 'row dis-filtre' }, barra, cerca), cos);
+      h('div', { class: 'row dis-filtre' }, barra, cerca), cos].filter(Boolean));
   };
   await pinta();
   return arrel;

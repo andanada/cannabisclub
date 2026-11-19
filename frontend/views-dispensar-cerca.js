@@ -83,7 +83,8 @@ VIEWS.dispensar = async () => {
       capsaCerca(async (m) => obreDispensacio(m)),
       await llistaDins(async (s) => obreDispensacio(await api(`/socis/${s.id}`))));
   };
-  const obreDispensacio = async (m) => arrel.replaceChildren(await pantallaDispensar(m, inici));
+  let torn = 0;   // dos clics seguits: només es pinta el soci triat l'últim
+  const obreDispensacio = async (m) => { const meu = ++torn; const nou = await pantallaDispensar(m, inici); if (meu === torn) arrel.replaceChildren(nou); };
   await inici();
   return arrel;
 };

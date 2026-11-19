@@ -108,7 +108,7 @@ function memberCard(m, out, onChange) {
 // Ficha del soci + cobrament de quota, dins d'un contenidor propi (es refà quan canvia alguna dada).
 function memberPanel() {
   const found = h('div');
-  const show1 = (m, out) => found.replaceChildren(memberCard(m, out, (mm) => show1(mm, out)), quotaForm(m, out, (mm) => show1(mm, out)));
+  const show1 = (m, out) => found.replaceChildren(...[memberCard(m, out, (mm) => show1(mm, out)), potRecepcio() ? quotaForm(m, out, (mm) => show1(mm, out)) : null].filter(Boolean));
   return { found, show: show1 };
 }
 

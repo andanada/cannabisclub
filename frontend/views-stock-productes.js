@@ -90,6 +90,7 @@ function productForm(p, fet) {
 function llistaProductes(tots, genetic, recarrega) {
   const estat = { v: 'actius' };
   const box = h('div');
+  const avis = h('div');   // errors i avisos (no la llista: guard() buida el contenidor que rep)
   const barra = h('div', { class: 'pestanyes', role: 'group', 'aria-label': 'Filtre' });
   const pinta = () => {
     const files = tots.filter((p) => !!p.es_genetic === genetic && (estat.v === 'tots' || (estat.v === 'actius') === p.actiu));
@@ -97,13 +98,13 @@ function llistaProductes(tots, genetic, recarrega) {
     box.replaceChildren(...(cats.length ? cats.map((c) => h('div', { class: 'card' }, h('h3', null, c),
       taula([['Producte'], ["Entrada", true], ['Dispensació', true], ['Estat'], ['']], files.filter((p) => (p.categoria || 'Sense categoria') === c).map((p) => {
         const tog = h('button', { type: 'button', class: 'small ' + (p.actiu ? '' : 'primary') }, p.actiu ? 'Desactivar' : 'Activar');
-        tog.addEventListener('click', () => guard(tog, box, async () => { await api(`/productes/${p.id}`, { method: 'PATCH', body: { actiu: !p.actiu } }); toast(p.actiu ? 'Producte desactivat' : 'Producte activat'); await recarrega(); }));
+        tog.addEventListener('click', () => guard(tog, avis, async () => { await api(`/productes/${p.id}`, { method: 'PATCH', body: { actiu: !p.actiu } }); toast(p.actiu ? 'Producte desactivat' : 'Producte activat'); await recarrega(); }));
         const ed = h('button', { type: 'button', class: 'small' }, 'Modificar');
         ed.addEventListener('click', () => obreModal(p.nom, (tanca) => productForm(p, async () => { tanca(); await recarrega(); })));
         const acc = [ed, tog];
         if (isManager()) {
           const del = h('button', { type: 'button', class: 'small danger' }, 'Esborrar');
-          del.addEventListener('click', () => guard(del, box, async () => {
+          del.addEventListener('click', () => guard(del, avis, async () => {
             if (!await confirma(`Esborrar «${p.nom}»? No es pot desfer.`, { perill: true, boto: 'Esborrar' })) return;
             await api(`/productes/${p.id}`, { method: 'DELETE' }); toast('Producte esborrat'); await recarrega();
           }));
@@ -120,7 +121,7 @@ function llistaProductes(tots, genetic, recarrega) {
     barra.append(b);
   });
   pinta();
-  return h('div', null, barra, box);
+  return h('div', null, barra, avis, box);
 }
 
 async function productesSection() {

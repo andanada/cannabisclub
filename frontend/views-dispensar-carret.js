@@ -114,7 +114,8 @@ async function pantallaDispensar(m, tornar) {
     btnDispensar.disabled = !carret.size || !!t.error || falta > 0 || !!bloc;
   }
   let ref = novaRef();
-  btnDispensar.addEventListener('click', () => guard(btnDispensar, out, async () => {
+  const guardRepinta = (fn) => guard(btnDispensar, out, fn).then(() => { if (btnDispensar.isConnected) pintaTotals(); });
+  btnDispensar.addEventListener('click', () => guardRepinta(async () => {
     const t = calcula();
     if (t.error) throw new Error(t.error);
     const linies = [...carret.values()].map((l) => ({ product_id: l.p.id, grams: parseGrams(l.q), regal: l.regal }));
@@ -132,7 +133,8 @@ async function pantallaDispensar(m, tornar) {
   arrel.append(...[cap, alertesSoci(m.alertes), bloc,
     h('div', { class: 'dis-cos' },
       h('section', { class: 'card dis-prods' }, h('h3', null, 'Productes'), cats.length ? chips : null, graella),
-      h('section', { class: 'card dis-carret' }, h('h3', null, 'Carret'), liniesBox, totalsBox, h('div', { class: 'actions' }, btnDispensar), out))].filter(Boolean));
+      h('section', { class: 'card dis-carret' }, h('h3', null, 'Carret'), liniesBox,
+        h('details', { class: 'dis-mes' }, h('summary', null, 'Bàscula'), scalePanel(h('input'), h('input'))), totalsBox, h('div', { class: 'actions' }, btnDispensar), out))].filter(Boolean));
   pintaGraella();
   pintaCarret();
   return arrel;

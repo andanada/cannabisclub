@@ -27,9 +27,9 @@ async function registraEntrada(m, resultat, refresca) {
   try {
     const r = await api(`/socis/${m.id}/entrada`, { method: 'POST' });
     toast(m.nom + ': entrada registrada');
-    resultat.replaceChildren(h('div', { class: 'acces-avis ok', role: 'status' }, h('strong', null, m.nom), ' ha entrat.'),
+    resultat.replaceChildren(...[h('div', { class: 'acces-avis ok', role: 'status' }, h('strong', null, m.nom), ' ha entrat.'),
       alertesSoci(r.alertes), r.quota && !r.quota.al_dia ? msg('err', 'La quota no està al dia.') : null,
-      r.inactivitat ? bannerInactivitat(m, r.inactivitat, () => { resultat.replaceChildren(); refresca(); }) : null);
+      r.inactivitat ? bannerInactivitat(m, r.inactivitat, () => { resultat.replaceChildren(); refresca(); }) : null].filter(Boolean));
   } catch (e) {
     // Soci expulsat, de baixa, etc.: avís gran i en vermell; no entra.
     resultat.replaceChildren(h('div', { class: 'acces-avis expulsat', role: 'alert' }, h('strong', null, m.nom), h('span', null, e.message)));
@@ -48,7 +48,7 @@ VIEWS.acces = async () => {
   const resultat = h('div');
   const llista = h('div');
   const refresca = async () => {
-    const sortidaBtn = (s) => { const b = h('button', { type: 'button', class: 'small' }, 'Sortida'); b.addEventListener('click', () => registraSortida(s, resultat, refresca)); return b; };
+    const sortidaBtn = (s) => { const b = h('button', { type: 'button', class: 'small' }, 'Sortida'); b.addEventListener('click', () => guard(b, resultat, () => registraSortida(s, resultat, refresca))); return b; };
     const dins = await llistaDins(() => {}, sortidaBtn);
     const tots = isManager() ? h('div', { class: 'actions' }, (() => {
       const b = h('button', { type: 'button', class: 'danger' }, 'Sortir-ne tots');
@@ -60,7 +60,7 @@ VIEWS.acces = async () => {
       }));
       return b;
     })()) : null;
-    llista.replaceChildren(dins, tots);
+    llista.replaceChildren(...[dins, tots].filter(Boolean));
   };
   // El carnet o la cerca porta al soci: si ja és dins se'n registra la sortida, si no l'entrada.
   const cerca = capsaCerca(async (m) => {

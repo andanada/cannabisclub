@@ -6,7 +6,7 @@ const INV_TIPUS = { dispensari: 'Dispensari', magatzem: 'Magatzem', no_genetique
 // Llegeix el pes estable de la bàscula (si està connectada) i el posa a l'input.
 async function pesDeBascula(input, out) {
   try {
-    if (typeof BASCULA === 'undefined' || !BASCULA || !BASCULA.connected) throw new Error('Connecta la bàscula a «Dispensar › Més opcions» o escriu el pes a mà');
+    if (typeof BASCULA === 'undefined' || !BASCULA || !BASCULA.connected) throw new Error('Connecta la bàscula (Dispensar › carret › Bàscula) o escriu el pes a mà');
     const r = await BASCULA.readStable();
     if (r.mg <= 0) throw new Error('La bàscula marca ' + r.raw);
     input.value = mgToG(r.mg);

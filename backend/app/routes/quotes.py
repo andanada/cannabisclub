@@ -18,6 +18,8 @@ def register(app, db, current_user, need_admin, run, member_or_404):
 
     @app.post("/socis/{member_id}/quotes", status_code=201)
     def cobrar_quota(member_id: int, body: QuotaIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        from .comu import need_recepcio
+        need_recepcio(user)  # la quota entra a la caixa de recepció
         m = member_or_404(s, user, member_id)
 
         def fes():
