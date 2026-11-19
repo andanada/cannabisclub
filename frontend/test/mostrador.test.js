@@ -50,11 +50,13 @@ test('la cerca de soci dona prioritat al carnet acabat de passar sobre un docume
   assert.deepEqual(triaCerca(' ', ''), { per: null, valor: '' });
 });
 
-test('Dispensar: els tres botons es bloquegen junts i la cerca buida els dos camps', () => {
-  const v = text('views-dispensar.js');
-  assert.match(v, /guardTots\(\[btnEfectiu, btnTargeta, btnBizum, btnMoneder, btnRegal, btnApart\]/);
-  assert.match(v, /triaCerca\(doc\.value, carnet\.value\)/);
-  assert.match(v, /doc\.value = ''/);
+test('Dispensar: el carret es paga del saldo en una sola operació amb referència i el botó es bloqueja mentre treballa', () => {
+  const v = text('views-dispensar-carret.js');
+  assert.match(v, /guard\(btnDispensar, out/);
+  assert.match(v, /\/dispensacions\/carret/);
+  assert.match(v, /client_ref: ref, member_id: m\.id/);
+  assert.match(v, /ref = novaRef\(\);/);                    // després d'una dispensació feta, la següent és una operació nova
+  assert.ok(text('views-dispensar-cerca.js').indexOf('socis/carnet') < text('views-dispensar-cerca.js').indexOf('socis/cerca'));   // el carnet es prova abans que el document i el nom
 });
 
 test('cap vista passa «style» a h(): la CSP (style-src self) bloqueja els estils en línia', () => {
@@ -73,9 +75,9 @@ test('assignar un carnet normalitza la lectura igual que la cerca', () => {
 });
 
 test('dispensació, quota i despesa envien una referència d\'operació (client_ref) creada en preparar el formulari', () => {
-  const d = text('views-dispensar.js'), g = text('views-gestio.js');
-  assert.equal((d.match(/const ref = novaRef\(\)/g) || []).length, 2);
-  assert.match(d, /body = \{ client_ref: ref, member_id/);
+  const d = text('views-dispensar.js'), c = text('views-dispensar-carret.js'), g = text('views-gestio.js');
+  assert.match(d, /const ref = novaRef\(\)/);
+  assert.match(c, /let ref = novaRef\(\)/);
   assert.match(d, /quotes`, \{ method: 'POST', body: \{ client_ref: ref/);
   assert.match(g, /'\/despeses', \{ method: 'POST', body: \{ client_ref: ref/);
   const { novaRef } = (() => { const c = { document: { querySelector: () => null }, sessionStorage: { getItem: () => null } }; vm.createContext(c); vm.runInContext(text('util.js') + '\nthis.novaRef = novaRef;', c); return c; })();
