@@ -267,4 +267,4 @@ if ('serviceWorker' in navigator) {
 }
 // Es dispara quan tots els scripts (defer) ja han definit les seves vistes: si no, boot() podria córrer abans que views-*.js.
 const arrenca = () => { if (S.token) boot().then(() => { if (!S.me) renderLogin(); }); else renderLogin(); };
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrenca); else arrenca();
+if (document.readyState === 'complete') arrenca(); else document.addEventListener('DOMContentLoaded', arrenca);   // amb defer l'estat és 'interactive' mentre corren els scripts
