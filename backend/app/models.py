@@ -115,6 +115,7 @@ class StockMovement(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     nota: Mapped[str | None] = mapped_column(String(300), nullable=True)
     regal: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())  # dispensat com a regal (import 0)
+    cost_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)  # només entrades: total pagat per AQUESTA entrada (cost real, alimenta la rendibilitat)
 
 
 class ImmutableError(RuntimeError):
@@ -178,6 +179,10 @@ class CashSession(Base):
     register_id: Mapped[int | None] = mapped_column(ForeignKey("cash_registers.id"), nullable=True)  # NULL = caixa implícita del local
     caixa_clau: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # register_id o 0 (caixa implícita): clau de l'índex únic
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)  # empleat a qui es dóna la caixa (NULL = qui l'ha oberta)
+    # Tancament: fons de caixa que es deixa i el que en surt, en billets i en monedes per separat (NULL = tancada abans d'existir el desglossament)
+    fons_deixat_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sortida_billets_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sortida_monedes_cent: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class CashEntry(Base):
@@ -293,6 +298,30 @@ class Expense(Base):
     cash_entry_id: Mapped[int | None] = mapped_column(ForeignKey("cash_entries.id"), nullable=True, unique=True)
     corregeix_id: Mapped[int | None] = mapped_column(ForeignKey("expenses.id"), nullable=True, unique=True)
     comentaris: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    origen: Mapped[str | None] = mapped_column(String(10), nullable=True)  # estoc (entrada d'estoc, pendent de revisió) | caixa (pestanya Despesa de la Caixa) | buit = manual
+    movement_id: Mapped[int | None] = mapped_column(ForeignKey("stock_movements.id"), nullable=True)  # entrada d'estoc que l'ha generat
+
+
+class ExpenseReview(Base):
+    """Revisió d'una despesa automàtica (només d'afegir): la gerència la confirma, la corregeix o hi deixa un comentari."""
+    __tablename__ = "expense_reviews"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    expense_id: Mapped[int] = mapped_column(ForeignKey("expenses.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    accio: Mapped[str] = mapped_column(String(10))  # confirma | corregeix | comenta
+    comentari: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    nou_expense_id: Mapped[int | None] = mapped_column(ForeignKey("expenses.id"), nullable=True)  # en corregir: la despesa nova que substitueix l'original
+
+
+@event.listens_for(ExpenseReview, "before_update")
+def _no_update_review(mapper, connection, target):
+    raise ImmutableError("Les revisions de despeses no es poden modificar")
+
+
+@event.listens_for(ExpenseReview, "before_delete")
+def _no_delete_review(mapper, connection, target):
+    raise ImmutableError("Les revisions de despeses no es poden esborrar")
 
 
 Index("ix_expenses_local_data", Expense.local_id, Expense.data)
@@ -815,3 +844,39 @@ def _immutable_movement_batch(mapper, connection, target):
 Index("ix_consents_member", Consent.member_id, Consent.finalitat)
 Index("ix_batches_product", Batch.product_id)
 Index("ix_movement_batches_batch", MovementBatch.batch_id)
+
+
+class Menu(Base):
+    """Menú del club (carta de productes) que es mostra a tauletes i TV. Els productes NO es munten a mà: surten de l'estoc.
+    `disseny` és el JSON publicat (aspecte, categories visibles amb ordre i productes amagats); `esborrany` és el que s'edita
+    abans de publicar (mateix format, més les imatges). Cap dada de socis hi arriba mai."""
+    __tablename__ = "menus"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    tipus: Mapped[str] = mapped_column(String(10))  # dispensari | bar
+    nom: Mapped[str] = mapped_column(String(60))
+    per_defecte: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    actiu: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    disseny: Mapped[str] = mapped_column(Text, default="{}", server_default="{}")
+    logo_img: Mapped[str | None] = mapped_column(Text, nullable=True)   # data URL (jpeg/png/webp) del logo propi
+    fons_img: Mapped[str | None] = mapped_column(Text, nullable=True)   # data URL de la imatge de fons
+    esborrany: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON {disseny, logo_img, fons_img} sense publicar
+    versio: Mapped[int] = mapped_column(Integer, default=1, server_default="1")  # puja en publicar (cau de la imatge a les pantalles)
+
+
+class MenuScreen(Base):
+    """Pantalla (TV o tauleta) que mostra un menú des de l'enllaç secret /pantalla/<token>. El token es desa com a hash (cerca) i xifrat
+    (per tornar a mostrar l'enllaç a la gerència). Revocar-lo talla l'accés a l'instant."""
+    __tablename__ = "menu_screens"
+    __table_args__ = (UniqueConstraint("local_id", "nom"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    local_id: Mapped[int] = mapped_column(ForeignKey("locals.id"))
+    nom: Mapped[str] = mapped_column(String(60))
+    tipus: Mapped[str] = mapped_column(String(10))  # tauleta | tv
+    menu_id: Mapped[int | None] = mapped_column(ForeignKey("menus.id"), nullable=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    token_enc: Mapped[str] = mapped_column(Text)
+    creada: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    revocada: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    darrera_connexio: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

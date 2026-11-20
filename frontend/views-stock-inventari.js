@@ -162,8 +162,3 @@ VIEWS.estoc = async () => {
   if (te('historial')) items.push(['historial', 'Historial', historialSection]);
   return h('div', null, pageHead('Estoc', 'Productes, existències, inventaris i historial.'), sections('estoc', items));
 };
-
-// Eines avançades que ja no són al menú d'Estoc (Configuració › Estoc avançat).
-VIEWS['estoc-avancat'] = async () => h('div', null, pageHead('Estoc avançat', 'Categories, descomptes, línies de preu, magatzems, contenidors i regles.'),
-  sections('estoc-avancat', [['categories', 'Categories', secCategories], ['descomptes', 'Descomptes', discountsSection], ['linies', 'Línies de preu', priceLinesSection],
-    ['magatzems', 'Magatzems', warehousesSection], ['contenidors', 'Contenidors', containersSection], ['tipus-contenidor', 'Tipus de contenidor', containerTypesSection], ['regles', 'Regles', rulesSection]]));

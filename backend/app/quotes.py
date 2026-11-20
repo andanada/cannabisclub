@@ -30,6 +30,11 @@ def _valides(db: Session, member_id: int):
     return select(Quota).where(Quota.member_id == member_id, ~corregit)
 
 
+def te_quota(db: Session, member_id: int) -> bool:
+    """El soci ha pagat alguna vegada una quota (no anul·lada): deixa de ser «soci nou»."""
+    return db.scalar(_valides(db, member_id).limit(1)) is not None
+
+
 def status(db: Session, member_id: int, dia: date | None = None) -> dict:
     dia = dia or avui()
     q = db.scalar(_valides(db, member_id).order_by(Quota.valid_fins.desc(), Quota.id.desc()).limit(1))
@@ -78,8 +83,9 @@ def charge(db: Session, actor: User, member: Member, import_cent: int, metode: s
         raise ValueError("L'import de la quota ha d'estar entre 0,01 € i 10.000 €")
     if not 1 <= mesos <= MAX_MESOS:
         raise ValueError(f"Els mesos han d'estar entre 1 i {MAX_MESOS}")
-    if metode not in cash.METODES:
+    if metode not in cash.COBRAMENTS:  # efectiu, targeta, Bizum o crèdits del monedero del soci
         raise ValueError("Mètode de pagament no vàlid")
+    cash.comprova_metode_ingres(db, member.local_id, metode)
     esperat = _comprova_tarifa(db, actor, member.local_id, import_cent, mesos, nota)
     # Ordre global de bloquejos: soci -> producte -> sessió de caixa (igual que les dispensacions; si no, interbloqueig).
     # Es bloqueja el soci abans de llegir la quota vigent: dos cobraments simultanis (doble clic, dos llocs) es posen
@@ -93,6 +99,11 @@ def charge(db: Session, actor: User, member: Member, import_cent: int, metode: s
     e = CashEntry(local_id=member.local_id, session_id=cs.id, tipus="quota", metode=metode, import_cent=import_cent, user_id=actor.id)
     db.add(e)
     db.flush()
+    if metode == "monedero":  # paga amb els seus crèdits: un soci nou (saldo 0) no pot; el saldo ha de cobrir-ho
+        from . import moneder
+        if moneder.saldo(db, member.id) < import_cent:  # la quota no es pot pagar amb deute: saldo real >= import (sense límit negatiu)
+            raise ValueError("Saldo del monedero insuficient per pagar la quota")
+        moneder.pay(db, actor, member.id, e)
     q = Quota(local_id=member.local_id, member_id=member.id, cash_entry_id=e.id, valid_des=des, valid_fins=fins,
               mesos=mesos, user_id=actor.id)
     db.add(q)

@@ -8,7 +8,7 @@ function bannerInactivitat(m, ina, alFinal) {
   const out = h('div');
   const mesos = Math.floor(ina.dies / 30);
   const imp = h('input', { inputmode: 'decimal', value: loc.quota_cent ? preuText(loc.quota_cent) : '', placeholder: '0,00', 'aria-label': 'Import de la quota' });
-  const met = h('select', { 'aria-label': 'Mètode' }, ['efectiu', 'targeta', 'bizum'].map((x) => h('option', { value: x }, x)));
+  const met = h('select', { 'aria-label': 'Mètode' }, metodesIngres({ monedero: true }));
   const cobra = h('button', { class: 'primary', type: 'button' }, 'Cobrar quota');
   const no = h('button', { type: 'button' }, 'No cobrar');
   const ref = novaRef();
@@ -27,6 +27,7 @@ async function registraEntrada(m, resultat, refresca) {
   try {
     const r = await api(`/socis/${m.id}/entrada`, { method: 'POST' });
     toast(m.nom + ': entrada registrada');
+    fotoGranModal(m);   // foto en gran per reconèixer bé el soci que entra
     resultat.replaceChildren(...[h('div', { class: 'acces-avis ok', role: 'status' }, h('strong', null, m.nom), ' ha entrat.'),
       alertesSoci(r.alertes), r.quota && !r.quota.al_dia ? msg('err', 'La quota no està al dia.') : null,
       r.inactivitat ? bannerInactivitat(m, r.inactivitat, () => { resultat.replaceChildren(); refresca(); }) : null].filter(Boolean));

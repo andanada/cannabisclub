@@ -75,7 +75,7 @@ async function cashState() {
 
 async function expenseForm() {
   const imp = h('input', { inputmode: 'decimal', placeholder: '0,00' });
-  const met = h('select', null, ['efectiu', 'targeta', 'bizum'].map((m) => h('option', { value: m }, m)));
+  const met = h('select', null, metodesIngres());
   const cat = h('input', { placeholder: 'neteja, compres, nòmines…' });
   const con = h('input');
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Registrar despesa');
@@ -110,7 +110,8 @@ function senseCobrar(llista, centTotal, tancada, anteriors, cobrables) {
     e.addEventListener('click', () => cobra(d, 'efectiu', e));
     t.addEventListener('click', () => cobra(d, 'targeta', t));
     z.addEventListener('click', () => cobra(d, 'bizum', z));
-    return h('span', { class: 'actions fila-accions' }, e, t, z);
+    const tpv = (S.me.locals.find((l) => l.id === S.local) || {}).targeta_activa;   // targeta i Bizum només si el local els accepta
+    return h('span', { class: 'actions fila-accions' }, e, ...(tpv ? [t, z] : []));
   };
   const avis = anteriors ? (cobrables ? 'Hi ha dispensacions sense cobrar de sessions anteriors. Cobra-les aquí: el cobrament entra a la caixa oberta.'
     : 'Hi ha dispensacions sense cobrar de sessions anteriors. Obre la caixa per poder cobrar-les.')
@@ -118,30 +119,6 @@ function senseCobrar(llista, centTotal, tancada, anteriors, cobrables) {
   return h('div', { class: 'card' }, msg('err', avis),
     h('p', { class: 'muted' }, 'Total sense cobrar'), h('div', { class: 'big' }, eur(centTotal)),
     h('ul', null, llista.map((d) => h('li', null, 'Dispensació', ' #' + d.moviment + ' · ' + eur(d.import_cent) + ' · ', 'Soci', ' #' + d.soci_id, ' ', accions(d)))), out);
-}
-
-async function closeForm() {
-  const st = await api(`/locals/${S.local}/caixa`);
-  if (!st.oberta) return h('div', { class: 'card empty' }, 'No hi ha cap caixa oberta per tancar.');
-  const comptat = h('input', { inputmode: 'decimal', placeholder: '0,00', 'aria-label': 'Efectiu comptat' });
-  const btn = h('button', { class: 'danger', type: 'submit' }, 'Tancar caixa');
-  const out = h('div');
-  const box = h('div');
-  const avisAbans = senseCobrar(st.sense_cobrar, st.sense_cobrar_cent, false);
-  if (avisAbans) box.append(avisAbans);
-  box.append(h('form', { class: 'card', onsubmit: (e) => {
-    e.preventDefault();
-    guard(btn, out, async () => {
-      const r = await api('/caixa/tancar', { method: 'POST', body: { local_id: S.local, counted_cent: parseEur(comptat.value) } });
-      const d = r.diferencia_cent;
-      box.replaceChildren(...[h('div', { class: 'card' }, h('h3', null, 'Caixa tancada'), h('div', { class: 'stats' },
-        h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Esperat'), h('div', { class: 'big' }, eur(r.esperat_cent))),
-        h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Comptat'), h('div', { class: 'big' }, eur(r.comptat_cent))),
-        h('div', { class: 'stat' }, h('div', { class: 'muted' }, 'Diferència'), h('span', { class: 'pill ' + (d === 0 ? 'ok' : 'bad') }, (d > 0 ? '+' : '') + eur(d))))), senseCobrar(r.sense_cobrar, r.sense_cobrar_cent, true)].filter(Boolean));
-    });
-  } }, h('h3', null, 'Tancament de caixa'), h('p', { class: 'muted' }, "Compta l'efectiu del calaix i escriu-lo: el programa calcula la diferència. Les donacions dels socis ja hi són sumades."),
-  field('Efectiu comptat al calaix (€)', comptat), h('div', { class: 'actions' }, btn), out));
-  return box;
 }
 
 // Resum de sessions: una fila per torn amb l'empleat, la caixa, els imports anterior i de control, els totals per mètode i la diferència.
@@ -173,7 +150,8 @@ VIEWS.caixa = async () => {
   return h('div', null, pageHead('Caixa', 'Caixa única de recepció: donacions dels socis, despeses, apunts i tancament.'), sections('caixa', items));
 };
 
-VIEWS.fitxatge = async () => {
+// Fitxar entrada, pauses i sortida: pestanya «Fitxar» d'Horaris (views-horaris.js).
+async function secFitxar() {
   const out = h('div');
   const btns = [['entrada', 'Entrada'], ['pausa_inici', 'Inici de pausa'], ['pausa_fi', 'Fi de pausa'], ['sortida', 'Sortida']].map(([t, label]) => {
     const b = h('button', { class: t === 'entrada' ? 'primary' : '', onclick: () => guard(b, out, async () => {
@@ -182,5 +160,5 @@ VIEWS.fitxatge = async () => {
     }) }, label);
     return b;
   });
-  return h('div', null, pageHead('Horaris', 'Registra la teva entrada, pauses i sortida.'), h('div', { class: 'card' }, h('div', { class: 'actions' }, btns), out));
-};
+  return h('div', { class: 'card' }, h('p', { class: 'lead' }, 'Registra la teva entrada, pauses i sortida.'), h('div', { class: 'actions' }, btns), out);
+}

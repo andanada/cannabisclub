@@ -3,6 +3,7 @@ from datetime import date, timedelta
 import pytest
 
 from app import service
+from tests.ajuda_caixa import activa_targeta
 from tests.test_api import SOCI, ctx, env, token  # noqa: F401
 from tests.test_stock import setup_data
 
@@ -53,6 +54,7 @@ def rang():
 def test_llista_dapunts_amb_estat_de_correccio(ctx):
     client, factory, sec = ctx
     enc, disp = token(client, sec, "enc"), token(client, sec, "disp")
+    activa_targeta(client, sec)  # la despesa amb targeta només és possible si el local la té activada
     obrir(client, enc)
     a = client.post("/despeses", json={"local_id": 1, "cent": 500, "metode": "efectiu", "categoria": "neteja", "concepte": "lleixiu"}, headers=enc).json()["apunt"]
     client.post("/despeses", json={"local_id": 1, "cent": 300, "metode": "targeta", "categoria": "oficina", "concepte": "paper"}, headers=enc)

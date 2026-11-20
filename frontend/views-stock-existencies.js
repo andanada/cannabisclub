@@ -57,6 +57,14 @@ function movimentsModal(p, magatzemId, alTancar) {
       const a = h('select', { 'aria-label': 'A' }, opcions('dis'));
       const origenSortida = h('select', { 'aria-label': 'D\'on surt' }, opcions('dis'));
       const q = h('input', { inputmode: 'decimal', placeholder: '0', 'aria-label': 'Quantitat', class: 'dis-q' });
+      // Preu pagat per AQUESTA entrada (total, €): el preu d'entrada fix del producte només és el suggeriment (preu × quantitat).
+      const cost = h('input', { inputmode: 'decimal', placeholder: '0,00', 'aria-label': 'Preu pagat per aquesta entrada' });
+      const tocatCost = { v: false };
+      cost.addEventListener('input', () => { tocatCost.v = true; });
+      q.addEventListener('input', () => {
+        if (tocatCost.v || act.preu_entrada_cent == null) return;
+        try { const g = parseGrams(q.value); cost.value = g > 0 ? preuText(Math.round(act.preu_entrada_cent * g)) : ''; } catch (_) { cost.value = ''; }
+      });
       const nota = h('textarea', { rows: 2, maxlength: 300, placeholder: 'Comentaris (opcional)', 'aria-label': 'Comentaris' });
       const ident = (v) => (v === 'mag' ? magatzemId : null);
       const btn = h('button', { class: 'primary', type: 'submit' }, 'Confirmar moviment');
@@ -66,7 +74,9 @@ function movimentsModal(p, magatzemId, alTancar) {
         guard(btn, out, async () => {
           const g = parseGrams(q.value);
           const comentari = nota.value.trim();
-          if (estat.tipus === 'entrada') await api('/moviments/entrada', { method: 'POST', body: { product_id: p.id, grams: g, nota: comentari || null, magatzem_id: ident(destiEntrada.value) } });
+          if (estat.tipus === 'entrada' && !cost.value.trim()
+            && !(await confirma("Sense preu no es crea la despesa ni el cost real. Vols desar l'entrada igualment?", { boto: 'Desar sense preu' }))) return;
+          if (estat.tipus === 'entrada') await api('/moviments/entrada', { method: 'POST', body: { product_id: p.id, grams: g, nota: comentari || null, magatzem_id: ident(destiEntrada.value), cost_cent: cost.value.trim() ? parseEur(cost.value) : null } });
           else if (estat.tipus === 'moure') {
             if (de.value === a.value) throw new Error("L'origen i el destí han de ser diferents");
             await api('/moviments/traspas', { method: 'POST', body: { product_id: p.id, de: ident(de.value), a: ident(a.value), grams: g } });
@@ -77,7 +87,10 @@ function movimentsModal(p, magatzemId, alTancar) {
           toast('Moviment registrat');
           await pinta();
         });
-      } }, ...camps, field(`Quantitat (${un})`, q), nota, h('div', { class: 'actions' }, btn), out);
+      } }, ...camps, field(`Quantitat (${un})`, q),
+      estat.tipus === 'entrada' ? field("Preu pagat per aquesta entrada (€, total; crea la despesa de proveïdors)", cost) : null,
+      estat.tipus === 'entrada' ? h('p', { class: 'muted' }, 'Sense preu no es crea la despesa ni el cost real.') : null,
+      estat.tipus === 'entrada' && act.preu_entrada_cent != null ? h('p', { class: 'muted' }, "Suggeriment: el preu d'entrada del producte multiplicat per la quantitat. Pots canviar-lo.") : null, nota, h('div', { class: 'actions' }, btn), out);
       const barra = h('div', { class: 'pestanyes', role: 'group', 'aria-label': 'Tipus de moviment' });
       [['entrada', 'Entrada'], ['moure', 'Moure'], ['sortida', 'Sortida']].forEach(([v, t]) => {
         const b = h('button', { type: 'button', 'aria-pressed': String(v === estat.tipus) }, t);
@@ -88,7 +101,7 @@ function movimentsModal(p, magatzemId, alTancar) {
         h('div', { class: 'row' }, kpi('Magatzem', act.magatzem_g + ' ' + un), kpi('Dispensari', act.dispensari_g + ' ' + un)),
         barra, form,
         h('h4', null, 'Darrers moviments'),
-        taula([['Data'], ['Tipus'], ['Lloc'], ['Quantitat', true], ['Qui'], ['Nota']], hist.map((m) => [horaCa(m.ts), m.tipus, m.lloc, m.grams, m.usuari || '', m.nota || '']), 'Cap moviment.'));
+        taula([['Data'], ['Tipus'], ['Lloc'], ['Quantitat', true], ['Preu pagat', true], ['Qui'], ['Nota']], hist.map((m) => [horaCa(m.ts), m.tipus, m.lloc, m.grams, m.cost_cent ? eur(m.cost_cent) : '', m.usuari || '', m.nota || '']), 'Cap moviment.'));
     };
     pinta().catch((e) => arrel.replaceChildren(msg('err', e.message)));
     return arrel;

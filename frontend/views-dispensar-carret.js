@@ -132,6 +132,7 @@ async function pantallaDispensar(m, tornar) {
   }));
 
   arrel.append(...[cap, alertesSoci(m.alertes), bloc,
+    !potDispensari() ? h('p', { class: 'muted' }, 'Com a recepció només pots dispensar productes no genètics (bar). Les genètiques es dispensen des del Dispensari.') : null,
     h('div', { class: 'dis-cos' },
       h('section', { class: 'card dis-prods' }, h('h3', null, 'Productes'), cats.length ? chips : null, graella),
       h('section', { class: 'card dis-carret' }, h('h3', null, 'Carret'), liniesBox,

@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app import cash, stock, unitats
 from app.models import CashSession, Discount, Local, StockMovement, User
+from tests.ajuda_caixa import activa_targeta
 from tests.test_api import ctx, env, token  # noqa: F401
 from tests.test_stock import setup_data
 
@@ -154,6 +155,7 @@ def test_tancar_caixa_avisa_de_dispensacions_sense_cobrar(ctx):
 def test_es_pot_recobrar_una_dispensacio_si_es_corregeix_el_cobrament(ctx):
     client, factory, sec = ctx
     enc = token(client, sec, "enc")
+    activa_targeta(client, sec)
     mid, pid = setup_data(client, enc, factory)
     post(client, enc, "/caixa/obrir", local_id=1, opening_cent=0)
     d = post(client, enc, "/dispensacions", member_id=mid, product_id=pid, grams="1").json()["id"]
@@ -169,6 +171,7 @@ def test_es_pot_recobrar_una_dispensacio_si_es_corregeix_el_cobrament(ctx):
 def test_dispensar_i_cobrar_en_la_mateixa_transaccio(ctx):
     client, factory, sec = ctx
     enc = token(client, sec, "enc")
+    activa_targeta(client, sec)
     mid, pid = setup_data(client, enc, factory)
     s = factory()
     with pytest.raises(ValueError, match="No hi ha cap caixa oberta"):

@@ -1,6 +1,7 @@
 """Diverses caixes registradores: una sessió oberta per caixa, caixa de cada empleat, magatzem propi i resum de sessions."""
 from datetime import date
 
+from tests.ajuda_caixa import activa_targeta
 from tests.test_api import SOCI, ctx, env, token  # noqa: F401
 
 AVUI = date.today().isoformat()
@@ -46,6 +47,7 @@ def test_cada_empleat_cobra_a_la_seva_caixa_i_descompta_del_magatzem_de_la_caixa
     mid = client.post("/socis", json=SOCI, headers=enc).json()["id"]
     s1 = client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0, "register_id": c1, "assigned_to": _uid(client, adm, "disp")}, headers=enc).json()["sessio"]
     s2 = client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 500, "register_id": c2}, headers=enc).json()["sessio"]
+    activa_targeta(client, sec)
     # el dispensador (caixa Dispensari, magatzem propi): només hi ha 4 g
     assert client.post("/dispensacions", json={"member_id": mid, "product_id": pid, "grams": "5", "metode": "efectiu"}, headers=disp).status_code == 422
     assert client.post("/dispensacions", json={"member_id": mid, "product_id": pid, "grams": "3", "metode": "efectiu"}, headers=disp).status_code == 201

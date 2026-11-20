@@ -13,6 +13,23 @@ from .stock import TZ
 
 METODES = {"efectiu", "targeta", "bizum"}  # entra diner a la caixa
 COBRAMENTS = METODES | {"monedero"}  # formes de pagar una dispensació
+ELECTRONICS = {"targeta", "bizum"}  # van pel TPV: mai se sumen a l'efectiu del calaix
+
+
+def comprova_metode_ingres(db: Session, local_id: int, metode: str) -> None:
+    """Targeta i Bizum només es poden cobrar si el local els ha activat (ajust «targeta_activa»)."""
+    if metode in ELECTRONICS:
+        from . import ajustos
+        if not ajustos.get(db, local_id)["targeta_activa"]:
+            raise ValueError("Aquest local encara no accepta targeta ni Bizum: activa'ls a Configuració")
+
+
+def comprova_metode_sortida(db: Session, local_id: int, metode: str) -> None:
+    """Una despesa o un avançament que surt de caixa només pot ser en efectiu mentre el local no tingui la targeta activada."""
+    if metode in ELECTRONICS:
+        from . import ajustos
+        if not ajustos.get(db, local_id)["targeta_activa"]:
+            raise ValueError("Aquest local no té targeta ni Bizum activats: la despesa de caixa ha de ser en efectiu")
 
 
 def open_session(db: Session, actor: User, local_id: int, opening_cent: int, register_id: int | None = None,
@@ -126,8 +143,46 @@ def unpaid_dispensations(db: Session, local_id: int, since: datetime | None = No
             for m in db.scalars(q.order_by(StockMovement.id).limit(limit))]
 
 
-def close_session(db: Session, actor: User, local_id: int, counted_cent: int, session_id: int | None = None) -> CashSession:
-    """Tanca la caixa (la de l'actor, o la indicada amb `session_id`). El resultat porta `sense_cobrar` i `sense_cobrar_cent`."""
+def last_fons(db: Session, local_id: int, register_id: int | None = None) -> int | None:
+    """Últim fons de caixa deixat en tancar (de la mateixa caixa): serveix d'import per defecte en tancar i en obrir."""
+    return db.scalar(select(CashSession.fons_deixat_cent).where(
+        CashSession.local_id == local_id, CashSession.caixa_clau == (register_id or 0), CashSession.closed_at.is_not(None),
+        CashSession.fons_deixat_cent.is_not(None)).order_by(CashSession.id.desc()).limit(1))
+
+
+def _valida_sortida(counted_cent: int, fons: int | None, billets: int | None, monedes: int | None) -> None:
+    """Fons de caixa i desglossament del que SURT (comptat - fons) en billets i monedes: la suma ha de quadrar."""
+    if fons is None and billets is None and monedes is None:
+        return  # tancament sense desglossament (com abans)
+    if fons is None or billets is None or monedes is None:
+        raise ValueError("Cal indicar el fons de caixa, els billets i les monedes que surten")
+    if min(fons, billets, monedes) < 0:
+        raise ValueError("Els imports del fons, els billets i les monedes no poden ser negatius")
+    if fons > counted_cent:
+        raise ValueError("El fons de caixa no pot ser més gran que l'efectiu comptat")
+    surt = counted_cent - fons
+    if billets + monedes != surt:
+        raise ValueError(f"Billets i monedes no quadren: surten {surt / 100:.2f} € de la caixa i has indicat {(billets + monedes) / 100:.2f} €")
+
+
+def tpv_totals(db: Session, session_id: int) -> dict:
+    """Totals de targeta i Bizum d'una sessió (netejats de correccions), per a la fulla del TPV. No compten per a l'efectiu."""
+    out = {"targeta_cent": 0, "bizum_cent": 0, "targeta_n": 0, "bizum_n": 0}
+    corr = aliased(CashEntry)
+    q = select(CashEntry.metode, CashEntry.tipus, CashEntry.import_cent, exists().where(corr.corregeix_id == CashEntry.id)).where(
+        CashEntry.session_id == session_id, CashEntry.metode.in_(sorted(ELECTRONICS)), CashEntry.categoria.is_(None))
+    for metode, tipus, cent, es_corregit in db.execute(q):
+        out[metode + "_cent"] += cent
+        if tipus != "correccio" and not es_corregit:  # el recompte de cobraments descompta els anul·lats (la correcció no compta)
+            out[metode + "_n"] += 1
+    out["total_cent"] = out["targeta_cent"] + out["bizum_cent"]
+    return out
+
+
+def close_session(db: Session, actor: User, local_id: int, counted_cent: int, session_id: int | None = None,
+                  fons_cent: int | None = None, billets_cent: int | None = None, monedes_cent: int | None = None) -> CashSession:
+    """Tanca la caixa (la de l'actor, o la indicada amb `session_id`). El resultat porta `sense_cobrar` i `sense_cobrar_cent`.
+    Amb `fons_cent` (el que es deixa a la caixa) cal repartir el que en surt (comptat - fons) en `billets_cent` i `monedes_cent`."""
     if session_id is not None:
         trobada = db.scalar(select(CashSession).where(CashSession.id == session_id, CashSession.local_id == local_id,
                                                        CashSession.closed_at.is_(None)).with_for_update().execution_options(populate_existing=True))
@@ -138,6 +193,8 @@ def close_session(db: Session, actor: User, local_id: int, counted_cent: int, se
         cs = _require_open(db, local_id, actor)
     if counted_cent < 0:
         raise ValueError("L'import comptat no pot ser negatiu")
+    _valida_sortida(counted_cent, fons_cent, billets_cent, monedes_cent)
+    cs.fons_deixat_cent, cs.sortida_billets_cent, cs.sortida_monedes_cent = fons_cent, billets_cent, monedes_cent
     cs.expected_cent = expected_cash(db, cs)
     cs.counted_cent = counted_cent
     cs.diff_cent = counted_cent - cs.expected_cent
@@ -145,7 +202,8 @@ def close_session(db: Session, actor: User, local_id: int, counted_cent: int, se
     cs.closed_by = actor.id
     pendents = unpaid_dispensations(db, local_id, cs.opened_at)
     service.audit_append(db, {"accio": "tancar_caixa", "sessio": cs.id, "esperat": cs.expected_cent,
-                              "comptat": counted_cent, "diferencia": cs.diff_cent, "sense_cobrar": len(pendents), "per": actor.id})
+                              "comptat": counted_cent, "diferencia": cs.diff_cent, "sense_cobrar": len(pendents), "per": actor.id,
+                              "fons": fons_cent, "billets": billets_cent, "monedes": monedes_cent})
     db.commit()
     cs.sense_cobrar = pendents  # només per a la resposta (no és una columna)
     cs.sense_cobrar_cent = sum(p["import_cent"] for p in pendents)
@@ -167,6 +225,7 @@ def charge_in_tx(db: Session, actor: User, mv: StockMovement, metode: str) -> Ca
         raise ValueError("Mètode de pagament no vàlid")
     if mv.tipus != "dispensacio":
         raise ValueError("Només es poden cobrar dispensacions")
+    comprova_metode_ingres(db, mv.local_id, metode)
     from . import stock  # import local: stock importa cash
     stock._lock_member(db, mv.member_id)  # mateix ordre que stock.dispense/correct: soci -> producte -> sessió
     stock._lock_product_row(db, mv.product_id)
@@ -202,6 +261,7 @@ def expense(db: Session, actor: User, local_id: int, cent: int, metode: str, cat
         raise ValueError("L'import de la despesa ha de ser positiu")
     if metode not in METODES:
         raise ValueError("Mètode de pagament no vàlid")
+    comprova_metode_sortida(db, local_id, metode)
     cs = _require_open(db, local_id, actor)
     e = CashEntry(local_id=local_id, session_id=cs.id, tipus="despesa", metode=metode, import_cent=-cent,
                   categoria=categoria, concepte=concepte, user_id=actor.id)
@@ -213,12 +273,23 @@ def expense(db: Session, actor: User, local_id: int, cent: int, metode: str, cat
     return e
 
 
-def correct_entry(db: Session, actor: User, entry_id: int, concepte: str, commit: bool = True) -> CashEntry:
+def correct_entry(db: Session, actor: User, entry_id: int, concepte: str, commit: bool = True, des_de_gastos: bool = False) -> CashEntry:
+    """Corregeix un apunt de caixa. Si és la sortida d'una despesa (Expense.cash_entry_id), l'anul·lació de la despesa es crea en la
+    mateixa transacció (via gastos.anula): així Gastos i la caixa no es desquadren. `des_de_gastos` evita el bucle quan crida gastos."""
     orig = db.get(CashEntry, entry_id)
     if not orig:
         raise ValueError("Apunt inexistent")
     if orig.tipus == "correccio":
         raise ValueError("Una correcció no es pot corregir")
+    if not des_de_gastos:
+        from .models import Expense
+        despesa = db.scalar(select(Expense).where(Expense.cash_entry_id == orig.id, Expense.corregeix_id.is_(None)))
+        if despesa is not None and not db.scalar(select(Expense.id).where(Expense.corregeix_id == despesa.id)):
+            from . import gastos
+            gastos.anula(db, actor, despesa.id, concepte, commit=False)
+            if commit:
+                db.commit()
+            return db.scalar(select(CashEntry).where(CashEntry.corregeix_id == orig.id))
     if db.scalar(select(CashEntry.id).where(CashEntry.corregeix_id == orig.id)):
         raise ValueError("Aquest apunt ja està corregit")
     from . import moneder, stock
@@ -256,15 +327,18 @@ def report(db: Session, local_id: int, des: date, fins: date, usuari: int | None
     if usuari is not None:
         q = q.where(CashEntry.user_id == usuari)
     entries = db.scalars(q).all()
-    per_dia = defaultdict(lambda: {"ingressos_cent": 0, "despeses_cent": 0})
+    per_dia = defaultdict(lambda: {"ingressos_cent": 0, "despeses_cent": 0, "efectiu_cent": 0, "targeta_cent": 0, "bizum_cent": 0})
     despeses = defaultdict(int)
     ingressos = despeses_total = 0
+    per_metode = {"efectiu": 0, "targeta": 0, "bizum": 0}  # l'efectiu i el TPV van sempre separats
     for e in entries:
         dia = e.ts.replace(tzinfo=e.ts.tzinfo or timezone.utc).astimezone(TZ).date().isoformat()
         if e.metode == "monedero":  # gastar saldo no és un ingrés nou: ja es va comptar en recarregar el monedero
             continue
         if e.categoria is None:  # cobrament, o correcció d'un cobrament (import negatiu)
             per_dia[dia]["ingressos_cent"] += e.import_cent
+            per_dia[dia][e.metode + "_cent"] += e.import_cent
+            per_metode[e.metode] += e.import_cent
             ingressos += e.import_cent
         else:  # despesa, o correcció d'una despesa (import positiu, resta de la despesa)
             per_dia[dia]["despeses_cent"] += -e.import_cent
@@ -277,7 +351,8 @@ def report(db: Session, local_id: int, des: date, fins: date, usuari: int | None
         qm = qm.where(StockMovement.user_id == usuari)
     mg = db.scalar(qm)
     return {"des": des.isoformat(), "fins": fins.isoformat(), "ingressos_cent": ingressos,
-            "despeses_cent": despeses_total, "resultat_cent": ingressos - despeses_total,
+            "ingressos_efectiu_cent": per_metode["efectiu"], "ingressos_targeta_cent": per_metode["targeta"],
+            "ingressos_bizum_cent": per_metode["bizum"], "despeses_cent": despeses_total, "resultat_cent": ingressos - despeses_total,
             "despeses_per_categoria": dict(despeses), "dispensat_mg": mg,
             "per_dia": {k: per_dia[k] for k in sorted(per_dia)}}
 
@@ -377,7 +452,8 @@ def sessions_summary(db: Session, local_id: int, des: date, fins: date) -> list[
                     "tancament": c.closed_at.isoformat() if c.closed_at else None, "obertura_cent": c.opening_cent,
                     "import_anterior_cent": anterior.get(c.register_id), "esperat_cent": c.expected_cent, "comptat_cent": c.counted_cent,
                     "diferencia_cent": c.diff_cent, "efectiu_cent": t.get("efectiu", 0), "targeta_cent": t.get("targeta", 0),
-                    "bizum_cent": t.get("bizum", 0), "monedero_cent": t.get("monedero", 0), "despeses_cent": t.get("despeses", 0),
+                    "bizum_cent": t.get("bizum", 0), "fons_deixat_cent": c.fons_deixat_cent, "sortida_billets_cent": c.sortida_billets_cent,
+                    "sortida_monedes_cent": c.sortida_monedes_cent, "monedero_cent": t.get("monedero", 0), "despeses_cent": t.get("despeses", 0),
                     "total_cent": sum(t.get(k, 0) for k in ("efectiu", "targeta", "bizum"))})  # el monedero ja es va comptar en recarregar
         if c.counted_cent is not None:
             anterior[c.register_id] = c.counted_cent

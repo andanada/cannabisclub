@@ -63,7 +63,8 @@ def test_alta_xifrada_llista_sense_credencials_i_frame_amb_permis(ctx):
     with factory() as s:
         accions = [json.loads(a.payload)["accio"] for a in s.scalars(select(AuditLog))]
     assert {"alta_camera", "veure_cameres", "edita_camera", "esborra_camera"} <= set(accions)
-    assert "CLAU-SECRETA" not in " ".join(a.payload for a in factory().scalars(select(AuditLog)))                       # ni a l'auditoria
+    with factory() as s:
+        assert "CLAU-SECRETA" not in " ".join(a.payload for a in s.scalars(select(AuditLog)))                           # ni a l'auditoria
 
 
 def test_si_no_arriba_imatge_es_503_amb_missatge_clar(ctx, monkeypatch):

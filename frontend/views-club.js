@@ -79,7 +79,8 @@ async function secLots() {
       h('div', { class: 'actions' },
         h('button', { type: 'button', class: 'small', onclick: (e) => guard(e.target, out, async () => {
           const g = await demana('Grams que entren en aquest lot'); if (!g) return;
-          await api(`/lots/${b.id}/entrada`, { method: 'POST', body: { grams: parseGrams(g) } }); toast('Entrada registrada'); await pinta();
+          const c = await demana('Preu pagat per aquesta entrada (€, total; deixa-ho buit si no se sap)');
+          await api(`/lots/${b.id}/entrada`, { method: 'POST', body: { grams: parseGrams(g), cost_cent: c && c.trim() ? parseEur(c) : null } }); toast('Entrada registrada'); await pinta();
         }) }, 'Entrada'),
         h('button', { type: 'button', class: 'small', onclick: (e) => guard(e.target, out, async () => {
           const t = await api(`/lots/${b.id}/tracabilitat`);
@@ -136,7 +137,4 @@ function secLlibres() {
   } }, h('h3', null, 'Comprovar un fitxer'), field('Hash SHA-256', hash), h('div', { class: 'actions' }, vbtn), vout));
 }
 
-VIEWS.club = async () => sections('club', [
-  ['controls', 'Controls', secControls], ['limits', 'Límits per soci', async () => secLimits()],
-  ['lots', 'Lots i traçabilitat', secLots], ['llibres', 'Llibres', async () => secLlibres()],
-]);
+// Les seccions es munten dins Configuració (views-config.js): Controls, Lots i traçabilitat, Llibres i, a Local i límits, les excepcions per soci.

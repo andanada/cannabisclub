@@ -98,36 +98,32 @@ function renderLogin() {
 // Rol del dia: la gerència (admin, encarregat) té accés a tot; la resta de treballadors tria en iniciar sessió Recepció o Dispensari.
 const potRecepcio = () => isManager() || S.me.rol_dia === 'recepcio';
 const potDispensari = () => isManager() || S.me.rol_dia === 'dispensari';
+const potDispensar = () => potRecepcio() || potDispensari();   // recepció hi entra, però només veu i dispensa les no genètiques
 const homeView = () => (potRecepcio() && !potDispensari() ? 'acces' : 'dispensar');
 
-// Menú: Socis, Accés, Caixa, Dispensar, Estoc, Horaris, Estadístiques i informes, Configuració.
+// Menú: Socis, Accés, Caixa, Dispensar, Estoc, Horaris, Estadístiques i informes, Configuració (inclou el que era Gestió).
 // Una subentrada pot dur un tercer valor: la vista on porta (així Configuració agrupa pantalles que viuen en altres vistes).
 const TABS = [
   ['socis', 'Socis', () => true],
   ['descomptes', 'Descomptes', () => !isManager() && !!S.me.pot_editar_descomptes],
   ['acces', 'Accés', potRecepcio],
   ['caixa', 'Caixa', potRecepcio],
-  ['dispensar', 'Dispensar', potDispensari],
+  ['dispensar', 'Dispensar', potDispensar],
   ['estoc', 'Estoc', potDispensari, () => [['productes', 'Productes'], ['existencies', 'Existències i moviments'], ['inventari', 'Inventaris'], ...(te('resultats_inventari') ? [['resultats', "Resultats d'inventaris"]] : []), ...(te('historial') ? [['historial', 'Historial']] : [])]],
   ['fitxatge', 'Horaris', () => true],
   ['cameres', 'Càmeres', () => te('cameres')],
+  ['menus', 'Menú del club', () => te('menus')],
   ['estinf', 'Estadístiques i informes', () => te('informes'), [
-    ['est:membres', 'Estadístiques · Socis'], ['est:dispensari', 'Estadístiques · Dispensari i bar'], ['est:finances', 'Estadístiques · Finances'],
+    ['est:membres', 'Estadístiques · Socis'], ['est:dispensari', 'Estadístiques · Dispensari i bar'], ['est:finances', 'Estadístiques · Finances'], ['est:rendibilitat', 'Estadístiques · Rendibilitat per producte'], ['est:resum', 'Estadístiques · Resum mensual'],
     ['inf:vendes', 'Informes · Vendes'], ['inf:dispensacions', 'Informes · Dispensacions'], ['inf:evolucio', 'Informes · Evolució del club'], ['inf:demografia', 'Informes · Demografia'],
     ['inf:caixa', 'Informes · Caixa'], ['inf:estoc', 'Informes · Estoc valorat'], ['inf:assistencia', 'Informes · Assistència'], ['inf:visites', 'Informes · Visites de socis'], ['inf:hores', 'Informes · Hores']]],
-  // Gestió (gerència): controls del club, despeses i comptabilitat, privacitat i eines avançades d'estoc.
-  ['gestio', 'Gestió', isManager, () => [
-    ['estoc-avancat', 'Estoc avançat (magatzems, categories, descomptes…)', 'estoc-avancat'],
-    ['gastos', 'Despeses i comptabilitat', 'gastos'], ['club', 'Controls del club', 'club'], ['rgpd', 'Privacitat i protecció de dades', 'rgpd']]],
-  // Configuració només per a l'administrador: ni l'encarregat ni els treballadors en veuen cap opció.
-  ['config', 'Configuració', () => S.me.role === 'admin', () => [
-    ['local', 'Local i límits'], ['quotes', 'Quotes'], ['normes', 'Normes del club'], ['usuaris', 'Usuaris'], ['bascules', 'Bàscules'], ['signatura', 'Tauletes de signatura'],
-    ['carnets', 'Carnets i lectors'], ['diagnostic', 'Diagnòstic'], ['seguretat', 'Seguretat'], ['cameres-admin', 'Càmeres', 'cameres-admin']]],
+  // Configuració (el menú «Gestió» ja no existeix): l'administrador hi veu tot; l'encarregat, la seva part (gastos, controls, categories, carnets…);
+  // els treballadors no en veuen cap opció. Les subentrades surten de configItems() (views-config.js).
+  ['config', 'Configuració', isManager, () => [...configItems().map(([id, label]) => [id, label]), ...(S.me.role === 'admin' ? [['cameres-admin', 'Càmeres', 'cameres-admin']] : [])]],
 ];
 // Pantalles fora del menú: el compte propi (PIN, carnet) i els descomptes d'un treballador amb el privilegi.
 const VIEWS_EXTRA = ['compte', 'descomptes'];
 // «Estadístiques i informes» porta a la primera pantalla; la resta s'hi arriba des de les subentrades.
-VIEWS.gestio = async () => VIEWS['estoc-avancat']();
 VIEWS.estinf = async () => { sessionStorage.setItem('s:estadistiques', 'membres'); return VIEWS.estadistiques(); };
 
 // Vista → grup del menú que s'ha de desplegar quan hi ets.
@@ -269,4 +265,6 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (jaTeControlador) avisaNovaVersio(); });
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
-if (S.token) boot().then(() => { if (!S.me) renderLogin(); }); else renderLogin();
+// Es dispara quan tots els scripts (defer) ja han definit les seves vistes: si no, boot() podria córrer abans que views-*.js.
+const arrenca = () => { if (S.token) boot().then(() => { if (!S.me) renderLogin(); }); else renderLogin(); };
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrenca); else arrenca();

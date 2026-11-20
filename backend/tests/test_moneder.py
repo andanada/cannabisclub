@@ -1,4 +1,5 @@
 """Monedero del soci: recàrrega a la caixa, pagament, devolució, límit negatiu i que no dupliqui ingressos."""
+from tests.ajuda_caixa import activa_targeta
 from tests.test_api import SOCI, ctx, env, token  # noqa: F401
 
 
@@ -53,6 +54,7 @@ def test_devolucio_d_un_pagament_torna_el_saldo(ctx):
     client, _, sec = ctx
     enc = token(client, sec, "enc")
     _activa(client, sec)
+    activa_targeta(client, sec)
     pid, mid = _prepara(client, enc)
     client.post(f"/socis/{mid}/moneder/recarrega", json={"import_cent": 5000, "metode": "targeta"}, headers=enc)
     d = client.post("/dispensacions", json={"member_id": mid, "product_id": pid, "grams": "3", "metode": "monedero"}, headers=enc).json()

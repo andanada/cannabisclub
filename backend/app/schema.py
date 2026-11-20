@@ -4,8 +4,9 @@ from sqlalchemy import text
 
 from .db import Base
 from . import models  # noqa: F401  (registra les taules)
+from . import horaris_models  # noqa: F401  (taules d'horaris i avançaments)
 
-APPEND_ONLY = ["stock_movements", "cash_entries", "time_events", "checkins", "audit_log", "signatures", "quotes", "member_photos", "movement_discounts", "movement_warehouses", "consents", "audit_anchors", "movement_batches", "config_canari", "wallet_movements", "expenses"]
+APPEND_ONLY = ["stock_movements", "cash_entries", "time_events", "checkins", "audit_log", "signatures", "quotes", "member_photos", "movement_discounts", "movement_warehouses", "consents", "audit_anchors", "movement_batches", "config_canari", "wallet_movements", "expenses", "expense_reviews", "shift_changes", "advances"]
 
 FUNCTION = """
 CREATE OR REPLACE FUNCTION club_forbid_change() RETURNS trigger AS $$
@@ -134,8 +135,13 @@ COLUMNES_NOVES = {"sessions": [("rol_dia", {"default": "VARCHAR(12)"})],
                   "checkins": [("tipus", {"default": "VARCHAR(8) NOT NULL DEFAULT 'entrada'"}), ("via", {"default": "VARCHAR(8) NOT NULL DEFAULT 'manual'"})],
                   "cash_sessions": [("register_id", {"default": "INTEGER REFERENCES cash_registers(id)"}),
                                     ("assigned_to", {"default": "INTEGER REFERENCES users(id)"}),
-                                    ("caixa_clau", {"default": "INTEGER NOT NULL DEFAULT 0"})],
-                  "stock_movements": [("regal", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"})],
+                                    ("caixa_clau", {"default": "INTEGER NOT NULL DEFAULT 0"}),
+                                    ("fons_deixat_cent", {"default": "INTEGER"}),
+                                    ("sortida_billets_cent", {"default": "INTEGER"}),
+                                    ("sortida_monedes_cent", {"default": "INTEGER"})],
+                  "stock_movements": [("regal", {"postgresql": "BOOLEAN NOT NULL DEFAULT FALSE", "default": "BOOLEAN NOT NULL DEFAULT 0"}),
+                                      ("cost_cent", {"default": "INTEGER"})],
+                  "expenses": [("origen", {"default": "VARCHAR(10)"}), ("movement_id", {"default": "INTEGER REFERENCES stock_movements(id)"})],
                   "inventory_counts": [("expected_mg", {"default": "INTEGER"}), ("brut_mg", {"default": "INTEGER"}), ("nota", {"default": "VARCHAR(300)"})],
                   "user_cards": [("pin_hash", {"default": "TEXT"})],
                   "users": [("last_totp_step", {"default": "BIGINT"}), ("permisos", {"default": "TEXT"}),

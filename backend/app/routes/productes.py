@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .. import idempotencia, linies_preu, stock
 from ..models import Product, StockMovement, User
-from .comu import CAN_CREATE_MEMBER, need_dispensari, need_permis, pot_dispensari
+from .comu import CAN_CREATE_MEMBER, need_dispensar, need_dispensari, need_permis, need_producte_dispensable, pot_dispensari, pot_genetiques
 
 
 def register(app, db, current_user, check_local, need_manager, run, member_or_404, product_or_404):
@@ -31,6 +31,7 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         grams: Decimal = Field(gt=0, max_digits=9, decimal_places=3)
         nota: str | None = Field(default=None, max_length=300)
         magatzem_id: int | None = None  # buit = magatzem principal
+        cost_cent: int | None = Field(default=None, ge=0, le=100_000_000)  # total pagat per aquesta entrada (crea la despesa de proveïdors)
 
     class DispensacioIn(BaseModel):
         member_id: int
@@ -144,6 +145,8 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     def veure_estoc(local_id: int, soci: int | None = None, user: User = Depends(current_user), s: Session = Depends(db)):
         check_local(s, user, local_id)
         prods = s.scalars(select(Product).where(Product.local_id == local_id, Product.actiu.is_(True)).order_by(Product.nom)).all()
+        if not pot_genetiques(user):  # recepció: només les no genètiques (bar)
+            prods = [p for p in prods if not p.es_genetic]
         mg = stock.stock_by_product(s, [p.id for p in prods])
         imatges = stock.images_for(s, [p.id for p in prods])
         # Amb ?soci= els preus són els que paga aquest soci (la seva línia de preu, si en té)
@@ -170,13 +173,13 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         need_dispensari(user)
         need_permis(user, 'moviments_estoc')
         product_or_404(s, user, body.product_id)
-        m = run(stock.receive, s, user, body.product_id, body.grams, body.nota, body.magatzem_id)
+        m = run(stock.receive, s, user, body.product_id, body.grams, body.nota, body.magatzem_id, cost_cent=body.cost_cent)
         return {"id": m.id}
 
     @app.post("/dispensacions", status_code=201)
     def dispensacio(body: DispensacioIn, user: User = Depends(current_user), s: Session = Depends(db)):
-        need_dispensari(user)
-        product_or_404(s, user, body.product_id)
+        need_dispensar(user)
+        need_producte_dispensable(user, product_or_404(s, user, body.product_id))
 
         def fes():
             m = run(stock.dispense, s, user, body.member_id, body.product_id, body.grams, body.pes_bascula_g, None, body.discount_id, body.metode, body.batch_id, body.regal)
@@ -186,9 +189,9 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
     @app.post("/dispensacions/carret", status_code=201)
     def dispensacio_carret(body: CarretIn, user: User = Depends(current_user), s: Session = Depends(db)):
         """Dispensa diversos productes d'una vegada i els paga del monedero del soci (tot o res)."""
-        need_dispensari(user)
+        need_dispensar(user)
         for l in body.linies:
-            product_or_404(s, user, l.product_id)
+            need_producte_dispensable(user, product_or_404(s, user, l.product_id))
 
         def fes():
             return run(stock.dispense_cart, s, user, body.member_id, [l.model_dump() for l in body.linies])

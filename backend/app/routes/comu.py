@@ -40,6 +40,27 @@ def need_recepcio(user: User) -> None:
         raise HTTPException(403, "Aquesta acció és de recepció: tria el rol «Recepció» o demana-ho a recepció")
 
 
+def pot_dispensar(user: User) -> bool:
+    """Entrar a Dispensar: dispensari, gerència o recepció (que només hi veu i dispensa les no genètiques)."""
+    return pot_dispensari(user) or pot_recepcio(user)
+
+
+def pot_genetiques(user: User) -> bool:
+    """Les genètiques només es dispensen des del Dispensari (rol dispensari o accés complet)."""
+    return pot_dispensari(user)
+
+
+def need_dispensar(user: User) -> None:
+    if not pot_dispensar(user):
+        raise HTTPException(403, "Tria el teu rol del dia (recepció o dispensari) per dispensar")
+
+
+def need_producte_dispensable(user: User, producte: Product) -> None:
+    """Un treballador amb rol Recepció només pot dispensar productes no genètics (bar)."""
+    if producte.es_genetic and not pot_genetiques(user):
+        raise HTTPException(403, "Les genètiques només es dispensen des del Dispensari: tria el rol «Dispensari» o demana-ho al dispensari")
+
+
 def need_dispensari(user: User) -> None:
     if not pot_dispensari(user):
         raise HTTPException(403, "Aquesta acció és del dispensari: tria el rol «Dispensari» o demana-ho al dispensari")

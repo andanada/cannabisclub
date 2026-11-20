@@ -23,7 +23,7 @@ def test_nomes_responsables(ctx):
         assert client.get(f"/locals/1/estadistiques/{t}", headers=disp).status_code == 403
 
 
-def test_membres_top_i_comptadors_i_genere_amagat_per_k(ctx):
+def test_membres_top_i_comptadors_i_sense_genere(ctx):
     client, _, sec = ctx
     enc = token(client, sec, "enc")
     _escena(client, enc)
@@ -31,8 +31,7 @@ def test_membres_top_i_comptadors_i_genere_amagat_per_k(ctx):
     assert r["top_grams"][0]["soci"] == "Anna Prova" and r["top_grams"][0]["import_cent"] == 3400
     assert r["comptadors"]["nous_30d"] == 1 and r["comptadors"]["sense_visites"] == 1
     assert len(r["nous_per_mes"]) == 12 and r["nous_per_mes"][-1]["socis"] == 1
-    # un sol soci (< k): el gènere no es publica, ni el total
-    assert r["genere"]["total"] is None and all(f["socis"] is None for f in r["genere"]["franges"] if f["franja"] == "Dona")
+    assert "genere" not in r and r["top_visites"] == []
 
 
 def test_dispensari_i_bar(ctx):

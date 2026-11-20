@@ -14,7 +14,7 @@ function quotaForm(m, out, onDone) {
   const loc = S.me.locals.find((l) => l.id === S.local) || {};
   const imp = h('input', { inputmode: 'decimal', placeholder: '0,00', value: loc.quota_cent ? (loc.quota_cent / 100).toFixed(2).replace('.', ',') : '' });
   const mesos = h('input', { type: 'number', min: 1, max: 24, value: loc.quota_mesos || 1 });
-  const met = h('select', null, ['efectiu', 'targeta', 'bizum'].map((x) => h('option', { value: x }, x)));
+  const met = h('select', { 'aria-label': 'Mètode de pagament' }, metodesIngres({ monedero: true }));
   const nota = isManager() ? h('input', { maxlength: 200, placeholder: "Només si l'import no és la tarifa del local" }) : null;
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Cobrar quota');
   const res = h('div');
@@ -37,7 +37,7 @@ function walletPanel(m) {
   const box = h('div', { class: 'card' });
   const out = h('div');
   const imp = h('input', { inputmode: 'decimal', placeholder: '0,00', 'aria-label': 'Import de la donació' });
-  const met = h('select', { 'aria-label': 'Mètode de pagament' }, ['efectiu', 'targeta', 'bizum'].map((x) => h('option', { value: x }, x)));
+  const met = h('select', { 'aria-label': 'Mètode de pagament' }, metodesIngres());
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Afegir donació');
   const ref = { v: novaRef() };   // una recàrrega = una referència; es renova quan s'ha fet
   const pinta = async () => {

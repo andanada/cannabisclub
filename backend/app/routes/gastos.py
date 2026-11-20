@@ -114,6 +114,36 @@ def register(app, db, current_user, check_local, need_manager, run):
         check_local(s, user, e.local_id)
         return {"id": run(gastos.anula, s, user, expense_id, body.nota).id}
 
+    @app.get("/locals/{local_id}/gastos/pendents")
+    def pendents_gastos(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        """Despeses automàtiques d'entrades d'estoc pendents de revisió (doble control de la gerència)."""
+        need_manager(user)
+        check_local(s, user, local_id)
+        return gastos.pendents(s, local_id)
+
+    class RevisioIn(BaseModel):
+        accio: str = Field(pattern="^(confirma|corregeix|comenta)$")
+        comentari: str | None = Field(default=None, max_length=300)
+        import_cent: int | None = Field(default=None, gt=0, le=100_000_000)
+
+    @app.post("/gastos/{expense_id}/revisio", status_code=201)
+    def revisa_gasto(expense_id: int, body: RevisioIn, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        e = s.get(Expense, expense_id)
+        if not e:
+            raise HTTPException(404, "Despesa inexistent")
+        check_local(s, user, e.local_id)
+        return {"id": run(gastos.revisa, s, user, expense_id, body.accio, body.comentari, body.import_cent)}
+
+    @app.get("/gastos/{expense_id}/revisions")
+    def revisions_gasto(expense_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_manager(user)
+        e = s.get(Expense, expense_id)
+        if not e:
+            raise HTTPException(404, "Despesa inexistent")
+        check_local(s, user, e.local_id)
+        return gastos.llista_revisions(s, expense_id)
+
     @app.get("/locals/{local_id}/gastos")
     def llista_gastos(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
         need_manager(user)

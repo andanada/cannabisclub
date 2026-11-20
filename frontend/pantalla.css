@@ -1,0 +1,61 @@
+/* Pantalla pública del menú del club (TV i tauleta) i vista prèvia de l'editor. Sense estils en línia: tot va per classes i variables CSS. */
+body.pt-body { margin: 0; height: 100vh; background: #000; overflow: hidden; }
+body.pt-body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; align-items: center; justify-content: center; }
+
+.pt-arrel { --pt-u: 1vw; --pt-f: 2.1; --pt-cols: 2; --pt-text: #f5f7f4; --pt-accent: #7bd88f; --pt-fons: #0f1a14; --pt-cap: 9; --pt-pad: 3; --pt-cat: 2.6; --pt-fila: 1.9; --pt-sep: 0.8;
+  position: relative; overflow: hidden; box-sizing: border-box; background: var(--pt-fons); color: var(--pt-text); isolation: isolate; }
+.pt-arrel.pt-tv { width: 100vw; height: 56.25vw; max-height: 100vh; }
+.pt-arrel * { box-sizing: border-box; }
+.pt-fons-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+.pt-vel { position: absolute; inset: 0; background: rgba(0, 0, 0, .45); z-index: -1; }
+.pt-clar .pt-vel { background: rgba(255, 255, 255, .35); }
+
+.pt-cap { height: calc(var(--pt-u) * var(--pt-cap)); display: flex; align-items: center; gap: calc(var(--pt-u) * 2); padding: 0 calc(var(--pt-u) * var(--pt-pad)); }
+.pt-logo { height: 70%; width: auto; max-width: calc(var(--pt-u) * 16); object-fit: contain; }
+.pt-titol { font-size: calc(var(--pt-u) * 3.6); font-weight: 800; letter-spacing: .02em; text-transform: uppercase; color: var(--pt-accent); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.pt-cos { position: absolute; left: 0; right: 0; top: calc(var(--pt-u) * var(--pt-cap)); bottom: 0; padding: 0 calc(var(--pt-u) * var(--pt-pad)) calc(var(--pt-u) * var(--pt-pad)); }
+.pt-cos.pt-entra { animation: pt-entra .7s ease both; }
+@keyframes pt-entra { from { opacity: 0; transform: translateY(1.2%); } to { opacity: 1; transform: none; } }
+.pt-cols { display: grid; grid-template-columns: repeat(var(--pt-cols), minmax(0, 1fr)); gap: calc(var(--pt-u) * 3); height: 100%; }
+.pt-col { min-width: 0; overflow: hidden; }
+
+.pt-cat { display: flex; align-items: center; justify-content: space-between; height: calc(var(--pt-u) * var(--pt-f) * var(--pt-cat)); margin-top: calc(var(--pt-u) * var(--pt-f) * var(--pt-sep));
+  border-bottom: calc(var(--pt-u) * .22) solid var(--pt-accent); color: var(--pt-accent); font-weight: 800; font-size: calc(var(--pt-u) * var(--pt-f) * 1.15); text-transform: uppercase; letter-spacing: .06em; }
+.pt-col .pt-cat:first-child { margin-top: 0; }
+.pt-fila { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--pt-u) * 1); height: calc(var(--pt-u) * var(--pt-f) * var(--pt-fila)); font-size: calc(var(--pt-u) * var(--pt-f));
+  border-bottom: calc(var(--pt-u) * .08) solid rgba(128, 128, 128, .28); }
+.pt-nom { min-width: 0; flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-preus { display: flex; flex: none; }
+.pt-preu { display: inline-block; min-width: calc(var(--pt-u) * var(--pt-f) * 3.1); text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.pt-trams .pt-preu { font-size: .75em; opacity: .85; text-transform: none; letter-spacing: 0; }
+.pt-buit { visibility: hidden; }
+.pt-esgotat .pt-nom { opacity: .45; text-decoration: line-through; }
+.pt-tag { font-size: .65em; text-transform: uppercase; letter-spacing: .08em; padding: .1em .6em; border-radius: 99px; border: 2px solid currentColor; opacity: .7; }
+
+.pt-punts { position: absolute; right: calc(var(--pt-u) * 3); bottom: calc(var(--pt-u) * 1); display: flex; gap: calc(var(--pt-u) * .6); }
+.pt-punt { width: calc(var(--pt-u) * .9); height: calc(var(--pt-u) * .9); border-radius: 50%; background: currentColor; opacity: .25; }
+.pt-punt.on { background: var(--pt-accent); opacity: 1; }
+.pt-buida { padding: 8% 4%; text-align: center; opacity: .7; font-size: calc(var(--pt-u) * 2.4); }
+.pt-gran { font-size: 4vw; color: #fff; }
+.pt-avis { position: fixed; left: 8px; bottom: 8px; background: rgba(0, 0, 0, .7); color: #fff; font-size: 14px; padding: 4px 10px; border-radius: 8px; z-index: 5; }
+
+/* Tauleta: es desplaça, targetes tàctils */
+.pt-arrel.pt-tauleta { width: 100vw; height: 100vh; overflow: auto; font-size: 18px; --pt-u: 1vw; }
+.pt-tauleta .pt-cap { position: sticky; top: 0; z-index: 3; height: auto; padding: 14px 20px; background: rgba(0, 0, 0, .25); backdrop-filter: blur(8px); }
+.pt-tauleta .pt-logo { height: 44px; }
+.pt-tauleta .pt-titol { font-size: 1.5rem; }
+.pt-cerca { flex: 0 1 260px; min-width: 120px; font: inherit; padding: 10px 14px; border-radius: 12px; border: 2px solid rgba(128, 128, 128, .5); background: rgba(255, 255, 255, .92); color: #111; }
+.pt-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 12px 20px; position: sticky; top: 72px; z-index: 2; }
+.pt-tab { font: inherit; font-weight: 700; padding: 10px 18px; border-radius: 99px; border: 2px solid var(--pt-accent); background: transparent; color: var(--pt-text); white-space: nowrap; min-height: 44px; cursor: pointer; }
+.pt-tab.on { background: var(--pt-accent); color: #111; }
+.pt-llista { padding: 8px 20px 40px; display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 8px 32px; align-items: start; }
+.pt-tauleta .pt-cat { height: auto; padding: 14px 0 6px; margin: 0; font-size: 1.1rem; border-bottom-width: 3px; }
+.pt-tauleta .pt-fila { height: auto; min-height: 52px; font-size: 1.15rem; padding: 6px 0; }
+.pt-tauleta .pt-preu { min-width: 4.2em; }
+@media (max-width: 600px) { .pt-llista { grid-template-columns: 1fr; } .pt-tauleta .pt-cap { flex-wrap: wrap; } .pt-cerca { flex: 1 1 100%; } .pt-tabs { top: 120px; } }
+
+/* Vista prèvia dins del programa (mateixes classes, dins d'un contenidor) */
+.pt-prev { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 14px; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 30px rgba(0, 0, 0, .25); }
+.pt-prev.v { aspect-ratio: 9 / 16; max-width: 360px; margin: 0 auto; }
+.pt-prev .pt-arrel { flex: none; }

@@ -118,7 +118,8 @@ function secRetencio() {
   return h('div', null, res, out);
 }
 
-VIEWS.rgpd = async () => sections('rgpd', [
+// Es munta dins Configuració › Privacitat i protecció de dades.
+const rgpdSection = async () => sections('rgpd', [
   ['soci', "Dades d'un soci", async () => secSoci()],
   ...(isAdmin() ? [['auditoria', "Registre d'accessos", async () => secAuditoria()], ['retencio', 'Retenció de dades', async () => secRetencio()]] : []),
 ]);

@@ -44,9 +44,8 @@ function transferForm(files, magatzems, reload) {
   h('div', { class: 'row' }, field('Producte', prod), field('Origen', de), field('Destí', a), field('Grams', g)), h('div', { class: 'actions' }, btn), out);
 }
 
-async function warehousesSection() {
-  const [magatzems, files] = await Promise.all([api(`/locals/${S.local}/magatzems`), api(`/locals/${S.local}/magatzems/estoc`)]);
-  const reload = () => show('estoc');
+// Formulari de creació d'un magatzem (també es fa servir a Configuració › Local i límits).
+function warehouseCreateForm(reload) {
   const nom = h('input', { placeholder: 'Safata, armari, càmera…' });
   const out = h('div');
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Crear magatzem');
@@ -58,6 +57,13 @@ async function warehousesSection() {
       reload();
     });
   } }, h('h3', null, 'Nou magatzem'), field('Nom', nom), h('div', { class: 'actions' }, btn), out);
+  return form;
+}
+
+async function warehousesSection() {
+  const [magatzems, files] = await Promise.all([api(`/locals/${S.local}/magatzems`), api(`/locals/${S.local}/magatzems/estoc`)]);
+  const reload = () => show('estoc');
+  const form = warehouseCreateForm(reload);
   const actius = magatzems.filter((m) => m.actiu);
   const cap = h('tr', null, h('th', null, 'Producte'), ...actius.map((m) => h('th', null, m.nom)));
   const cos = files.map((f) => h('tr', null, h('td', null, f.nom), ...actius.map((m) => {

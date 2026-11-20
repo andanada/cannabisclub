@@ -1,6 +1,7 @@
 'use strict';
 // Configuració (només administradors): cada tasca a la seva subpantalla.
-// Locals i límits · Quotes · Usuaris · Bàscules · Tauletes de signatura · Carnets (RFID) · Seguretat.
+// Local i límits · Quotes · Normes · Categories · Gastos · Controls del club · Usuaris · Bàscules · Signatura · Carnets · Diagnòstic · Seguretat · Privacitat.
+// El menú «Gestió» ja no existeix: el que servia viu aquí (la gerència hi veu la seva part; els treballadors, cap opció).
 
 const gToText = (mg) => (mg == null ? '' : String(mg / 1000).replace('.', ','));
 const localActual = () => S.me.locals.find((l) => l.id === S.local);
@@ -38,20 +39,10 @@ function localSection() {
       show('config');
     });
   } }, h('h3', null, 'Nou local'), field('Nom', nom), h('div', { class: 'actions' }, bN), outN);
-  return h('div', null, limits, nou);
-}
-
-// Monedes del club (p. ex. Euro EUR, o una moneda interna de crèdits). Catàleg informatiu.
-async function monedesSection() {
-  const l = await api(`/locals/${S.local}/monedes`);
-  const out = h('div');
-  const nom = h('input', { maxlength: 60, required: true }), codi = h('input', { maxlength: 8, required: true, autocapitalize: 'characters' });
-  const btn = h('button', { class: 'primary', type: 'submit' }, 'Afegir moneda');
-  return h('div', null, h('form', { class: 'card', onsubmit: (e) => {
-    e.preventDefault();
-    guard(btn, out, async () => { await api(`/locals/${S.local}/monedes`, { method: 'POST', body: { nom: nom.value.trim(), codi: codi.value.trim() } }); toast('Moneda creada'); show('config'); });
-  } }, h('h3', null, 'Nova moneda'), h('div', { class: 'row' }, field('Nom', nom), field('Codi', codi)), h('div', { class: 'actions' }, btn), out),
-  taula([['Nom'], ['Codi']], l.map((m) => [m.nom, m.codi]), 'Encara no hi ha cap moneda.'));
+  // Excepcions per soci (abans a Controls del club): els límits del local i les seves excepcions queden en un sol lloc.
+  return h('div', null, limits, h('div', { class: 'card' }, h('h3', null, 'Excepcions de límit per soci'), secLimits()),
+    h('p', { class: 'muted' }, 'Crea un local nou. També serveix per crear un magatzem exterior al local.'), nou,
+    warehouseCreateForm(() => show('config')));
 }
 
 // Normes del club: edat mínima, alerta d'inactivitat, decimals de la dispensació i pèrdua màxima tolerada en un inventari.
@@ -90,13 +81,14 @@ function quotesSection() {
   const obl = h('input', { type: 'checkbox', checked: !!loc.quota_obligatoria });
   const mon = h('input', { type: 'checkbox', checked: !!loc.moneder_actiu });
   const cons = h('input', { type: 'checkbox', checked: !!loc.consum_exigit });
+  const targ = h('input', { type: 'checkbox', checked: !!loc.targeta_activa });
   const monLim = h('input', { inputmode: 'decimal', value: preuText(loc.moneder_limit_cent || 0), placeholder: '0,00' });
   const out = h('div');
   const btn = h('button', { class: 'primary', type: 'submit' }, 'Desar');
   return h('form', { class: 'card', onsubmit: (e) => {
     e.preventDefault();
     guard(btn, out, async () => {
-      await api(`/locals/${S.local}/config`, { method: 'PUT', body: { quota_cent: imp.value.trim() ? parseEur(imp.value) : 0, quota_mesos: Number(mesos.value), quota_obligatoria: obl.checked, moneder_actiu: mon.checked, consum_exigit: cons.checked, moneder_limit_cent: monLim.value.trim() ? parseEur(monLim.value) : 0 } });
+      await api(`/locals/${S.local}/config`, { method: 'PUT', body: { quota_cent: imp.value.trim() ? parseEur(imp.value) : 0, quota_mesos: Number(mesos.value), quota_obligatoria: obl.checked, moneder_actiu: mon.checked, consum_exigit: cons.checked, targeta_activa: targ.checked, moneder_limit_cent: monLim.value.trim() ? parseEur(monLim.value) : 0 } });
       S.me = await api('/me');
       out.replaceChildren(msg('ok', 'Quotes desades'));
     });
@@ -104,9 +96,10 @@ function quotesSection() {
   h('p', { class: 'muted' }, 'Import i durada que es proposen en cobrar una quota, i si cal tenir-la al dia per poder dispensar.'),
   h('div', { class: 'row' }, field('Import per defecte (€)', imp), field('Mesos per defecte', mesos)),
   h('label', null, obl, ' Exigir la quota al dia per poder dispensar'),
-  h('h3', null, 'Monedero'),
-  h('p', { class: 'muted' }, 'Saldo prepagat dels socis: es recarrega a la caixa i es gasta en dispensacions. Les recàrregues compten com a ingrés; gastar-ne no.'),
-  h('label', null, cons, ' Exigir el consentiment explícit del registre de consum per dispensar'), h('label', null, mon, ' Activar el monedero'), h('div', { class: 'row' }, field('Saldo negatiu permès (€)', monLim)),
+  h('h3', null, 'Donacions i monedero'),
+  h('p', { class: 'muted' }, 'Donacions: els diners que donen els socis (es cobren a recepció i entren a la caixa; gastar-los en dispensacions no és un ingrés nou). Monedero: la part del perfil de cada soci que mostra el que ha donat i el saldo que li queda.'),
+  h('label', null, cons, ' Exigir el consentiment explícit del registre de consum per dispensar'), h('label', null, mon, ' Activar el monedero (saldo a la fitxa del soci)'), h('div', { class: 'row' }, field('Saldo negatiu permès (€)', monLim)),
+  h('label', null, targ, ' El local accepta targeta i Bizum (si no, només efectiu i crèdits del compte)'),
   h('div', { class: 'actions' }, btn), out);
 }
 
@@ -122,9 +115,9 @@ function contrasenyaAleatoria() {
 }
 
 const ROL_DESCRIPCIONS = {
-  admin: 'Accés total: configuració, usuaris, informes, estoc, caixa i socis. Veu tots els locals.',
-  encarregat: 'Gestiona estoc, caixa, socis i informes dels seus locals. No toca la configuració ni els usuaris.',
-  dispensador: 'Treballador: dispensa, cobra, fitxa i consulta socis dels seus locals.',
+  admin: "Perfil d'accés complet: recepció, dispensari, configuració, usuaris i informes. Veu tots els locals.",
+  encarregat: "Gerència, perfil d'accés complet a recepció i dispensari dels seus locals, amb gastos, controls i informes. No gestiona usuaris.",
+  dispensador: 'Treballador: en iniciar sessió tria el rol del dia (Recepció o Dispensari) i només veu les pantalles d\'aquest rol.',
 };
 
 async function usersSection() {
@@ -188,20 +181,33 @@ function securitySection() {
     h('p', { class: 'muted' }, "Després de 5 intents fallits en 15 minuts un usuari queda bloquejat uns minuts. Per desbloquejar-lo abans, executa al servidor: python -m app.cli desbloquejar <usuari>.")));
 }
 
-VIEWS.config = async () => {
+// Seccions de Configuració. Admin: totes. Encarregat (gerència): només les seves. Els treballadors no hi entren (el menú no els la mostra).
+const CONFIG_ENCARREGAT = ['categories', 'gastos', 'controls', 'carnets', 'diagnostic', 'rgpd'];
+const controlsSection = async () => sections('controls', [
+  ['controls', 'Controls', secControls], ['lots', 'Lots i traçabilitat', secLots], ['llibres', 'Llibres', async () => secLlibres()],
+]);
+function configItems() {
   const items = [
     ['local', 'Local i límits', async () => localSection()],
     ['quotes', 'Quotes', async () => quotesSection()],
     ['normes', 'Normes del club', async () => normesSection()],
-    ['monedes', 'Monedes', monedesSection],
+    ['categories', 'Categories de productes', secCategories],
+    ['gastos', 'Gastos', gastosSection],
+    ['controls', 'Controls del club', controlsSection],
     ['usuaris', 'Usuaris', usersSection],
     ['bascules', 'Bàscules', async () => deviceSection('bascula')],
     ['signatura', 'Tauletes de signatura', async () => deviceSection('signatura')],
     ['carnets', 'Carnets i lectors', async () => cardsSection()],
     ['diagnostic', 'Diagnòstic', diagnosticSection],
     ['seguretat', 'Seguretat', async () => securitySection()],
+    ['rgpd', 'Privacitat i protecció de dades', rgpdSection],
   ];
-  // L'encarregat només hi veu el que pot fer servir: carnets i diagnòstic. La resta és de l'administrador.
-  const visibles = S.me.role === 'admin' ? items : items.filter(([id]) => ['carnets', 'diagnostic'].includes(id));
-  return h('div', null, pageHead('Configuració', 'Ajustos del local, usuaris i dispositius. Cada subpantalla fa una sola cosa.'), sections('config', visibles));
+  if (S.me.role === 'admin') return items;
+  return isManager() ? items.filter(([id]) => CONFIG_ENCARREGAT.includes(id)) : [];
+}
+
+VIEWS.config = async () => {
+  const visibles = configItems();
+  if (!visibles.length) return h('div', { class: 'card empty' }, 'No tens accés a la configuració.');
+  return h('div', null, pageHead('Configuració', 'Ajustos del local, gastos, usuaris i dispositius. Cada subpantalla fa una sola cosa.'), sections('config', visibles));
 };

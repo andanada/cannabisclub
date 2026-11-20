@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import cash, estadistiques, informes, informes_socis, personal, service, stock
+from .. import cash, estadistiques, estadistiques_dies, estadistiques_resum, informes, informes_socis, personal, service, stock
 from ..models import User
 from .comu import need_permis
 
@@ -97,14 +97,58 @@ def register(app, db, current_user, check_local, need_manager, run, member_or_40
         return informes_socis.consumption(s, member_or_404(s, user, member_id), des, fins, actor=user)
     registra_informe("hores", informes.staff_hours, informes.hours_csv, True)
 
-    for _nom, _fn in (("membres", estadistiques.membres), ("dispensari", estadistiques.dispensari)):
-        def _registra(nom, fn):
-            @app.get(f"/locals/{{local_id}}/estadistiques/{nom}", name=f"estadistiques_{nom}")
-            def estadistica(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
-                need_permis(user, 'informes')
-                check_local(s, user, local_id)
-                return fn(s, user, local_id)
-        _registra(_nom, _fn)
+    @app.get("/locals/{local_id}/estadistiques/membres")
+    def estadistica_membres(local_id: int, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_permis(user, 'informes')
+        check_local(s, user, local_id)
+        return estadistiques.membres(s, user, local_id)
+
+    @app.get("/locals/{local_id}/estadistiques/dispensari")
+    def estadistica_dispensari(local_id: int, des: date | None = None, fins: date | None = None,
+                               user: User = Depends(current_user), s: Session = Depends(db)):
+        need_permis(user, 'informes')
+        check_local(s, user, local_id)
+        if des and fins and fins < des:
+            raise HTTPException(422, "Rang de dates invàlid")
+        return estadistiques.dispensari(s, user, local_id, des, fins)
+
+    def _rang(des: date, fins: date, max_dies: int = 3660):
+        if fins < des or (fins - des).days > max_dies:
+            raise HTTPException(422, "Rang de dates invàlid")
+
+    @app.get("/locals/{local_id}/estadistiques/finances-dies")
+    def estadistica_finances_dies(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_permis(user, 'informes')
+        check_local(s, user, local_id)
+        _rang(des, fins, 365)
+        return estadistiques_dies.finances_dies(s, user, local_id, des, fins)
+
+    @app.get("/locals/{local_id}/estadistiques/rendibilitat")
+    def estadistica_rendibilitat(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
+        need_permis(user, 'informes')
+        check_local(s, user, local_id)
+        _rang(des, fins)
+        return estadistiques_resum.rendibilitat(s, user, local_id, des, fins)
+
+    @app.get("/locals/{local_id}/estadistiques/rendibilitat.csv")
+    def estadistica_rendibilitat_csv(local_id: int, des: date, fins: date, user: User = Depends(current_user), s: Session = Depends(db)):
+        r = estadistica_rendibilitat(local_id, des, fins, user, s)
+        service.audit_append(s, {"accio": "exportar_csv", "informe": "rendibilitat", "local": local_id, "per": user.id})
+        s.commit()
+        return Response(estadistiques_resum.rendibilitat_csv(r), media_type="text/csv")
+
+    @app.get("/locals/{local_id}/estadistiques/resum-mensual")
+    def estadistica_resum(local_id: int, mes: str = Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$"), user: User = Depends(current_user), s: Session = Depends(db)):
+        need_permis(user, 'informes')
+        check_local(s, user, local_id)
+        return estadistiques_resum.resum_mensual(s, user, local_id, mes)
+
+    @app.get("/locals/{local_id}/estadistiques/resum-mensual.csv")
+    def estadistica_resum_csv(local_id: int, mes: str = Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$"), user: User = Depends(current_user), s: Session = Depends(db)):
+        r = estadistica_resum(local_id, mes, user, s)
+        service.audit_append(s, {"accio": "exportar_csv", "informe": "resum_mensual", "local": local_id, "per": user.id})
+        s.commit()
+        return Response(estadistiques_resum.resum_csv(r), media_type="text/csv")
 
     @app.get("/locals/{local_id}/estadistiques/finances")
     def estadistica_finances(local_id: int, any: int | None = Query(default=None, ge=2000, le=2100),

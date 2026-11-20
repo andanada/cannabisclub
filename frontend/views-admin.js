@@ -1,7 +1,7 @@
 'use strict';
 // Usuaris existents (llista editable) i el compte propi.
 
-const ROL_NOMS = { admin: 'Administrador', encarregat: 'Encarregat', dispensador: 'Treballador (dispensador)' };
+const ROL_NOMS = { admin: 'Administrador (accés complet)', encarregat: 'Encarregat (gerència)', dispensador: 'Treballador (Recepció / Dispensari)' };
 
 // Usuaris existents: rol, locals, activar/desactivar, contrasenya nova i reinici del segon factor (TOTP).
 async function usersCard() {
@@ -100,7 +100,7 @@ function userCard(u) {
     h('div', { class: 'row' }, field('Rol', rol), field('Contrasenya nova', pw)),
     h('h3', null, 'Locals amb accés'), h('div', null, checks),
     h('h3', null, 'Permisos addicionals (informes, historial, esborrar productes…)'), permBox,
-    h('h3', null, 'Privilegis (dispensador)'), h('div', null, h('label', null, pRef, ' Pot fer devolucions'), ' ', h('label', null, pDto, ' Pot editar descomptes')),
+    h('h3', null, 'Privilegis (treballador)'), h('div', null, h('label', null, pRef, ' Pot fer devolucions'), ' ', h('label', null, pDto, ' Pot editar descomptes')),
     field('Límit negatiu del monedero (€)', pMon),
     h('h3', null, "Carnet d'entrada"), blocCarnet,
     h('div', { class: 'actions' }, save, setPw, totp, toggle), out);

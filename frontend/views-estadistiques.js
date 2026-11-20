@@ -40,21 +40,29 @@ async function statMembres() {
   const suprimit = (n) => (n === null ? '<' + k : String(n));
   return h('div', null,
     h('div', { class: 'row' }, kpi('Sense visites (' + r.comptadors.dies_inactivitat + ' dies)', String(r.comptadors.sense_visites)), kpi('Nous (30 dies)', String(r.comptadors.nous_30d)), kpi('Renovats (30 dies)', String(r.comptadors.renovats_30d))),
-    h('div', { class: 'row' },
-      h('div', { class: 'card' }, h('h3', null, 'Distribució per edat'), grafBarres(r.edat.franges.map((f) => ({ text: f.franja, valor: f.socis, etiqueta: suprimit(f.socis) })))),
-      h('div', { class: 'card' }, h('h3', null, 'Distribució per gènere'), grafBarres(r.genere.franges.map((f) => ({ text: f.franja, valor: f.socis, etiqueta: suprimit(f.socis) }))))),
+    h('div', { class: 'card' }, h('h3', null, 'Distribució per edat'), grafBarres(r.edat.franges.map((f) => ({ text: f.franja, valor: f.socis, etiqueta: suprimit(f.socis) })))),
     h('p', { class: 'muted' }, r.edat.nota),
-    h('div', { class: 'card' }, h('h3', null, 'Nous socis per mes'), grafBarres(r.nous_per_mes.map((m) => ({ text: mesText(m.mes), valor: m.socis, etiqueta: String(m.socis) })))),
     h('div', { class: 'row' },
+      h('div', null, h('h3', null, 'Top 10 socis que vénen més sovint (' + r.any + ')'), taula([['Soci'], ['Visites', true]], r.top_visites.map((t) => [t.soci, String(t.visites)]), 'Sense visites.')),
       h('div', null, h('h3', null, 'Top 10 per grams (' + r.any + ')'), taula([['Soci'], ['Grams', true]], r.top_grams.map((t) => [t.soci, gText(t.grams)]), 'Sense dispensacions.')),
-      h('div', null, h('h3', null, 'Top 10 per import (' + r.any + ')'), taula([['Soci'], ['Import', true]], r.top_import.map((t) => [t.soci, eur(t.import_cent)]), 'Sense dispensacions.'))));
+      h('div', null, h('h3', null, 'Top 10 per import (' + r.any + ')'), taula([['Soci'], ['Import', true]], r.top_import.map((t) => [t.soci, eur(t.import_cent)]), 'Sense dispensacions.'))),
+    h('div', { class: 'card' }, h('h3', null, 'Nous socis per mes'), grafBarres(r.nous_per_mes.map((m) => ({ text: mesText(m.mes), valor: m.socis, etiqueta: String(m.socis) })))));
+}
+
+function blocCategories(c) {
+  return h('div', null,
+    h('div', { class: 'row' }, kpi('Categoria més dispensada', c.categoria_top === null ? '—' : (c.categoria_top || 'Sense categoria'))),
+    h('div', { class: 'card' }, h('h3', null, 'Dispensat per categoria'),
+      grafBarres(c.categories.map((x) => ({ text: x.categoria || 'Sense categoria', valor: Number(x.quantitat.g) || Number(x.quantitat.ud), etiqueta: qCant(x.quantitat) })))),
+    h('div', { class: 'row' }, c.categories.map((x) => h('div', null, h('h3', null, 'Top 10 ' + (x.categoria || 'Sense categoria')),
+      taula([['Producte'], ['Quantitat', true]], x.top.map((t) => [t.producte, qCant(t.unitat === 'g' ? { g: t.quantitat, ud: '0' } : { g: '0', ud: t.quantitat })]), 'Sense dades.')))));
 }
 
 async function statDispensari() {
   const r = await api(`/locals/${S.local}/estadistiques/dispensari`);
   const fila = (nom, p) => [nom, eur(p.avui), eur(p.ahir), eur(p.setmana)];
   const mesos = (p) => grafBarres(p.mesos.map((m) => ({ text: mesText(m.mes), valor: m.import_cent, etiqueta: eur(m.import_cent) })));
-  return h('div', null,
+  return h('div', null, blocCategories(r.categories),
     h('div', { class: 'row' }, kpi('Genètics sobre el total', pct(r.percentatge_genetics)),
       kpi('Preu mitjà genètics', r.preu_mitja_genetics_cent_per_g === null ? '—' : eur(r.preu_mitja_genetics_cent_per_g) + '/g'),
       kpi('Preu mitjà no genètics', r.preu_mitja_no_genetics_cent === null ? '—' : eur(r.preu_mitja_no_genetics_cent))),
@@ -81,9 +89,11 @@ async function statFinances() {
     h('div', { class: 'card' }, h('h3', null, 'Benefici mensual (vendes − despeses)'),
       grafBarres(r.mesos.map((m) => ({ text: mesText(m.mes), valor: m.benefici_cent, etiqueta: eur(m.benefici_cent) })))),
     taula([['Mes'], ['Vendes', true], ['Despeses', true], ['Benefici', true], ['Grams', true], ['Mitjana diària', true]],
-      r.mesos.map((m) => [mesText(m.mes), eur(m.vendes_cent), eur(m.despeses_cent), eur(m.benefici_cent), gText(m.grams), gText(m.mitjana_diaria_g)])));
+      r.mesos.map((m) => [mesText(m.mes), eur(m.vendes_cent), eur(m.despeses_cent), eur(m.benefici_cent), gText(m.grams), gText(m.mitjana_diaria_g)])),
+    await blocDiaADia());
 }
 
 VIEWS.estadistiques = async () => h('div', null, pageHead('Estadístiques', 'Socis, dispensari i bar, i finances del local.'), sections('estadistiques', [
   ['membres', 'Socis', statMembres], ['dispensari', 'Dispensari i bar', statDispensari], ['finances', 'Finances', statFinances],
+  ['rendibilitat', 'Rendibilitat per producte', statRendibilitat], ['resum', 'Resum mensual', statResum],
 ]));

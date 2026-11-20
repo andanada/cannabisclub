@@ -131,6 +131,8 @@ def test_dues_obertures_de_caixa_simultanies_en_deixen_una(ctx):
 def test_dos_cobraments_simultanis_de_la_mateixa_dispensacio_en_creen_un(ctx):
     client, factory, sec = ctx
     enc = token(client, sec, "enc")
+    from tests.ajuda_caixa import activa_targeta
+    activa_targeta(client, sec)
     mid, pid = setup_data(client, enc, factory)
     client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=enc)
     d = client.post("/dispensacions", json={"member_id": mid, "product_id": pid, "grams": "1"}, headers=enc).json()["id"]

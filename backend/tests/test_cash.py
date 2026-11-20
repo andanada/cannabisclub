@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models import CashEntry, ImmutableError
+from tests.ajuda_caixa import activa_targeta
 from tests.test_api import SOCI, ctx, env, token  # noqa: F401
 from tests.test_stock import setup_data
 
@@ -28,6 +29,7 @@ def test_cicle_complet_quadrament_i_diferencia(ctx):
     client, factory, sec = ctx
     enc, disp_h = token(client, sec, "enc"), token(client, sec, "disp")
     mid, pid = setup_data(client, enc, factory)
+    activa_targeta(client, sec)
     assert client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 10000}, headers=enc).status_code == 201
     assert client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 1}, headers=enc).status_code == 422
     d, imp = disp(client, disp_h, mid, pid, "2")           # 2 g * 800 = 1600
@@ -70,6 +72,7 @@ def test_no_es_pot_corregir_dispensacio_cobrada_sense_corregir_cobrament(ctx):
 def test_informe_resta_correccions_i_agrupa_despeses(ctx):
     client, factory, sec = ctx
     enc = token(client, sec, "enc")
+    activa_targeta(client, sec)
     mid, pid = setup_data(client, enc, factory)
     client.post("/caixa/obrir", json={"local_id": 1, "opening_cent": 0}, headers=enc)
     d1, _ = disp(client, enc, mid, pid, "2")   # 1600

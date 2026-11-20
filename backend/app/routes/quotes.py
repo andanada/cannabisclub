@@ -63,6 +63,7 @@ def register(app, db, current_user, need_admin, run, member_or_404):
         perdua_maxima_mg: int | None = Field(default=None, ge=0, le=10_000_000)
         moneder_actiu: bool | None = None
         consum_exigit: bool | None = None
+        targeta_activa: bool | None = None  # el local accepta targeta i Bizum
         estoc_baix_mg: int | None = Field(default=None, ge=0, le=10_000_000)
         cuota_inactivitat_dies: int | None = Field(default=None, ge=0, le=3650)
         donacions_dia_max_cent: int | None = Field(default=None, ge=0, le=100_000_000)

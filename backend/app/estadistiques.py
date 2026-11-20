@@ -69,13 +69,6 @@ def membres(db: Session, actor: User, local_id: int) -> dict:
     avui = datetime.now(TZ).date()
     socis = list(db.scalars(select(Member).where(Member.local_id == local_id)))
     actius = [m for m in socis if m.estat != "baixa"]
-    # gènere (dada de perfil xifrada): mateix llindar d'anonimat que l'edat
-    comptes = {"home": 0, "dona": 0, "altre": 0, "": 0}
-    for m in actius:
-        comptes[service.llegeix_perfil(m)["genere"]] += 1
-    noms_genere = {"home": "Home", "dona": "Dona", "altre": "Altre", "": "Sense dada"}
-    genere = informes_socis.anonimitza({"total": len(actius), "edat_mitjana": 0,
-                                        "franges": [{"franja": noms_genere[k], "socis": v} for k, v in comptes.items()]})
     # nous socis per mes (12 mesos)
     mesos = _mesos(avui, 12)
     nous = defaultdict(int)
@@ -109,15 +102,19 @@ def membres(db: Session, actor: User, local_id: int) -> dict:
                 for i, v in sorted(per_soci.items(), key=lambda kv: -kv[1][cla])[:TOP] if v[cla] > 0 and i in noms]
     service.audit_append(db, {"accio": "consulta_estadistiques", "tipus": "membres", "local": local_id, "per": actor.id})
     db.commit()
-    return {"edat": informes_socis.demographics(db, local_id), "genere": genere,
+    from . import estadistiques_dies
+    return {"edat": informes_socis.demographics(db, local_id),
+            "top_visites": estadistiques_dies.top_visites(db, local_id, date(avui.year, 1, 1), avui),
             "nous_per_mes": [{"mes": k, "socis": nous.get(k, 0)} for k in mesos],
             "comptadors": {"dies_inactivitat": dies_inactiu, "sense_visites": sum(1 for m in actius if m.estat == "actiu" and m.id not in amb_visita),
                            "nous_30d": len(nous30), "renovats_30d": len(renovats)},
             "top_grams": top("mg"), "top_import": top("cent"), "any": avui.year}
 
 
-def dispensari(db: Session, actor: User, local_id: int) -> dict:
+def dispensari(db: Session, actor: User, local_id: int, des: date | None = None, fins: date | None = None) -> dict:
+    from . import estadistiques_dies
     avui = datetime.now(TZ).date()
+    categories = estadistiques_dies.categories_dispensari(db, local_id, des or date(avui.year, 1, 1), fins or avui)
     files = _vendes(db, local_id, avui - timedelta(days=200))
     totals = {g: {"mg": 0, "cent": 0} for g in (True, False)}
     for f in files:
@@ -132,7 +129,7 @@ def dispensari(db: Session, actor: User, local_id: int) -> dict:
                 "mesos": [{"mes": m, "import_cent": sum(f["cent"] for f in sel if f["dia"].strftime("%Y-%m") == m)} for m in _mesos(avui, 6)]}
     service.audit_append(db, {"accio": "consulta_estadistiques", "tipus": "dispensari", "local": local_id, "per": actor.id})
     db.commit()
-    return {"percentatge_genetics": None if total_cent == 0 else round(totals[True]["cent"] * 100 / total_cent, 1),
+    return {"categories": categories, "percentatge_genetics": None if total_cent == 0 else round(totals[True]["cent"] * 100 / total_cent, 1),
             "preu_mitja_genetics_cent_per_g": round(totals[True]["cent"] * 1000 / totals[True]["mg"]) if totals[True]["mg"] > 0 else None,
             "preu_mitja_no_genetics_cent": round(totals[False]["cent"] / max(1, sum((1 if f["cent"] > 0 else -1) for f in files if not f["genetic"] and f["cent"] != 0))) if totals[False]["cent"] else None,
             "dispensari": periodes(True), "bar": periodes(False),

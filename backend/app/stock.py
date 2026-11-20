@@ -125,7 +125,7 @@ def movements_list(db: Session, local_id: int, des: date, fins: date, limit: int
          .where(StockMovement.local_id == local_id, StockMovement.ts >= a, StockMovement.ts < b)
          .order_by(StockMovement.id.desc()).limit(limit))
     return [{"id": m.id, "ts": m.ts.replace(tzinfo=m.ts.tzinfo or timezone.utc).isoformat(), "tipus": m.tipus, "producte": nom,
-             "grams": unitats.mg_to_g(m.delta_mg), "import_cent": m.import_cent, "soci_id": m.member_id,
+             "grams": unitats.mg_to_g(m.delta_mg), "import_cent": m.import_cent, "cost_cent": m.cost_cent, "soci_id": m.member_id,
              "usuari": noms.get(m.user_id), "nota": m.nota, "corregeix_id": m.corregeix_id, "corregit": m.id in corregits}
             for m, nom in db.execute(q)]
 
@@ -261,21 +261,27 @@ def update_product(db: Session, actor: User, product_id: int, nom: str | None = 
 
 
 def receive(db: Session, actor: User, product_id: int, grams: Decimal, nota: str | None, warehouse_id: int | None = None,
-            batch_id: int | None = None) -> StockMovement:
+            batch_id: int | None = None, cost_cent: int | None = None) -> StockMovement:
+    """Entrada d'estoc. `cost_cent` = total pagat per AQUESTA entrada (el mateix producte es pot comprar a preus diferents):
+    si n'hi ha, crea la despesa de proveïdors pendent de revisió (gastos.registra_entrada_estoc)."""
+    if cost_cent is not None and cost_cent < 0:
+        raise ValueError("El preu de compra no pot ser negatiu")
     p = _lock_product(db, product_id)
     from . import lots
     lot = lots.check_receive(db, p, batch_id)
     from . import magatzems
     magatzems.check_active(db, p.local_id, warehouse_id)
     m = StockMovement(local_id=p.local_id, product_id=p.id, tipus="entrada",
-                      delta_mg=grams_to_mg(grams), user_id=actor.id, nota=nota)
+                      delta_mg=grams_to_mg(grams), user_id=actor.id, nota=nota, cost_cent=cost_cent or None)
     db.add(m)
     db.flush()
     if warehouse_id is not None:
         db.add(MovementWarehouse(movement_id=m.id, warehouse_id=warehouse_id))
     lots.attach_entry(db, m, lot)
     service.audit_append(db, {"accio": "entrada_estoc", "moviment": m.id, "producte": p.id, "mg": m.delta_mg,
-                              **({"lot": lot.id} if lot else {}), "per": actor.id})
+                              **({"lot": lot.id} if lot else {}), **({"cost_cent": m.cost_cent} if m.cost_cent else {}), "per": actor.id})
+    from . import gastos
+    gastos.registra_entrada_estoc(db, actor, m, p.nom)
     db.commit()
     return m
 
@@ -294,6 +300,11 @@ def dispense(db: Session, actor: User, member_id: int, product_id: int, grams: D
         raise ValueError("Soci inexistent o d'un altre local")
     if regal and not p.regalable:
         raise ValueError("Aquest producte no es pot dispensar com a regal")
+    from .routes import comu  # defensa en profunditat: cap ruta pot esquivar rol del dia ni la restricció de genètiques
+    if not comu.pot_dispensar(actor):
+        raise ValueError("Tria el teu rol del dia (recepció o dispensari) per dispensar")
+    if p.es_genetic and not comu.pot_genetiques(actor):
+        raise ValueError("Les genètiques només es dispensen des del Dispensari")
     if metode is not None:
         # Ordre global de bloquejos: soci -> producte -> sessió de caixa -> auditoria. Tancar la caixa, una despesa o una quota
         # agafen la sessió i després l'auditoria; si aquí s'escrivís l'auditoria abans de bloquejar la sessió, s'interbloquejarien.
@@ -444,6 +455,9 @@ def correct(db: Session, actor: User, movement_id: int, nota: str, commit: bool 
         db.add(MovementWarehouse(movement_id=m.id, warehouse_id=wid))
     from . import lots
     lots.mirror_correction(db, orig, m)
+    if orig.tipus == "entrada" and orig.cost_cent:
+        from . import gastos
+        gastos.anula_per_moviment(db, actor, orig.id, "Entrada d'estoc corregida: " + nota)
     service.audit_append(db, {"accio": "correccio", "moviment": m.id, "corregeix": orig.id, "per": actor.id})
     if commit:
         db.commit()

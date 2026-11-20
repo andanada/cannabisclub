@@ -58,8 +58,11 @@ def recharge(db: Session, actor: User, member: Member, cent: int, metode: str) -
         raise ValueError("L'import de la recàrrega ha d'estar entre 0,01 € i 10.000 €")
     if metode not in cash.METODES:
         raise ValueError("Mètode de pagament no vàlid")
-    from . import stock
+    cash.comprova_metode_ingres(db, member.local_id, metode)
+    from . import quotes, stock
     stock._lock_member(db, member.id)  # ordre global: soci -> sessió de caixa -> auditoria
+    if ajustos.get(db, member.local_id)["quota_obligatoria"] and not quotes.te_quota(db, member.id):
+        raise ValueError("Un soci nou ha de pagar primer la quota (en efectiu o targeta) per tenir el compte de donacions")
     maxim = ajustos.get(db, member.local_id)["donacions_dia_max_cent"]
     if maxim and actor.role not in ("admin", "encarregat"):
         # Tope de donacions per treballador i dia: una recepció no pot abonar saldo sense límit sense que ningú ho vegi fins al tancament.

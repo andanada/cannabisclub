@@ -19,6 +19,7 @@ CATALEG = [
     ("corregir_caixa", "Corregir apunts de caixa", "Caixa"),
     ("cameres", "Veure les càmeres en directe", "Càmeres"),
     ("corregir_estoc", "Corregir moviments d'estoc", "Estoc"),
+    ("menus", "Gestionar el menú del club i les pantalles (TV i tauletes)", "Menú del club"),
     ("gestio_socis", "Donar d'alta i editar socis (dades, estat, foto, carnet, documents)", "Socis"),
 ]
 CLAUS = {c for c, _, _ in CATALEG}

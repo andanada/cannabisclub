@@ -49,7 +49,7 @@ def existencies(db: Session, local_id: int) -> dict:
         d, t = dispensari[p.id], total[p.id]
         estat = "esgotat" if t <= 0 else ("baix" if baix and d < baix else "ok")
         out.append({"id": p.id, "nom": p.nom, "categoria": p.categoria, "es_genetic": p.es_genetic, "unitat": p.unitat,
-                    "dispensari_g": _g(d), "magatzem_g": _g(t - d), "estat": estat})
+                    "dispensari_g": _g(d), "magatzem_g": _g(t - d), "estat": estat, "preu_entrada_cent": p.preu_entrada_cent})
     return {"magatzem_id": w.id, "baix_g": _g(baix), "productes": out}
 
 
@@ -60,7 +60,7 @@ def moviments_producte(db: Session, product: Product, limit: int = 10) -> list[d
     rows = db.execute(select(StockMovement, MovementWarehouse.warehouse_id)
                       .outerjoin(MovementWarehouse, MovementWarehouse.movement_id == StockMovement.id)
                       .where(StockMovement.product_id == product.id).order_by(StockMovement.id.desc()).limit(limit)).all()
-    return [{"id": m.id, "ts": m.ts.isoformat(), "tipus": m.tipus, "grams": _g(m.delta_mg), "nota": m.nota, "usuari": noms.get(m.user_id),
+    return [{"id": m.id, "ts": m.ts.isoformat(), "tipus": m.tipus, "grams": _g(m.delta_mg), "cost_cent": m.cost_cent, "nota": m.nota, "usuari": noms.get(m.user_id),
              "lloc": llocs.get(wid) if wid is not None else "Dispensari"} for m, wid in rows]
 
 

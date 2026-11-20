@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from .. import ajustos, controls, llibres, lots, service, stock, unitats
 from ..models import Batch, User, UserLocal
-from .comu import check_local, member_or_404, need_admin, need_manager, product_or_404, rang, run
+from .comu import (check_local, member_or_404, need_admin, need_dispensar, need_manager, need_producte_dispensable,
+                   product_or_404, rang, run)
 
 
 class ClubConfigIn(BaseModel):
@@ -41,6 +42,7 @@ class EntradaLotIn(BaseModel):
     grams: Decimal = Field(gt=0, max_digits=9, decimal_places=3)
     nota: str | None = Field(default=None, max_length=300)
     magatzem_id: int | None = None
+    cost_cent: int | None = Field(default=None, ge=0, le=100_000_000)  # total pagat per aquesta entrada
 
 
 class DispensacioLotIn(BaseModel):
@@ -146,13 +148,14 @@ def router(db, current_user) -> APIRouter:
     def entrada_amb_lot(lot_id: int, body: EntradaLotIn, user: User = Depends(current_user), s: Session = Depends(db)):
         need_manager(user)
         b = _lot(s, user, lot_id)
-        m = run(stock.receive, s, user, b.product_id, body.grams, body.nota, body.magatzem_id, b.id)
+        m = run(stock.receive, s, user, b.product_id, body.grams, body.nota, body.magatzem_id, b.id, cost_cent=body.cost_cent)
         return {"id": m.id}
 
     @r.post("/dispensacions/amb-lot", status_code=201)
     def dispensa_amb_lot(body: DispensacioLotIn, user: User = Depends(current_user), s: Session = Depends(db)):
         """Dispensació amb selecció manual de lot (la normal, /dispensacions, reparteix per FIFO)."""
-        product_or_404(s, user, body.product_id)
+        need_dispensar(user)
+        need_producte_dispensable(user, product_or_404(s, user, body.product_id))
         m = run(stock.dispense, s, user, body.member_id, body.product_id, body.grams, body.pes_bascula_g, None,
                 body.discount_id, body.metode, body.batch_id)
         return {"id": m.id, "import_cent": m.import_cent}

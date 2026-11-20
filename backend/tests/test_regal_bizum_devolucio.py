@@ -1,4 +1,5 @@
 """Bizum, regal i devolució atòmica d'una dispensació."""
+from tests.ajuda_caixa import activa_targeta
 from tests.test_api import ctx, env, token  # noqa: F401
 from tests.test_stock import setup_data
 
@@ -19,6 +20,7 @@ def _estoc(client, enc, pid):
 def test_cobrament_per_bizum_no_entra_a_l_efectiu(ctx):
     client, _, sec = ctx
     enc = token(client, sec, "enc")
+    activa_targeta(client, sec)
     pid, mid = _prepara(client, enc)
     r = client.post("/dispensacions", json={"member_id": mid, "product_id": pid, "grams": "2", "metode": "bizum"}, headers=enc)
     assert r.status_code == 201 and r.json()["import_cent"] == 2000
