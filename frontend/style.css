@@ -540,7 +540,8 @@ button.hor-xip:not(:disabled) { cursor: pointer; min-height: 36px; padding: 4px 
 button.hor-xip:disabled { opacity: 1; cursor: default; }
 .hor-llegenda { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
 .hor-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
-.hor-titol { flex: 1 1 160px; margin: 0; text-transform: capitalize; font-size: 1.1rem; color: var(--ink); letter-spacing: 0; text-align: center; }
+.hor-titol { flex: 1 1 160px; margin: 0; font-size: 1.1rem; color: var(--ink); letter-spacing: 0; text-align: center; }
+.hor-titol::first-letter { text-transform: uppercase; }
 .hor-cap { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-bottom: 6px; color: var(--muted); font-size: .78rem; font-weight: 700; text-transform: uppercase; text-align: center; }
 .hor-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .hor-dia { min-height: 132px; padding: 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); display: flex; flex-direction: column; gap: 5px; cursor: pointer; }
@@ -659,3 +660,14 @@ button.hor-post { display: flex; align-items: center; width: 100%; min-height: 2
   .mc-lat { max-height: none; }
   .mc-pan { grid-template-columns: 1fr; }
 }
+
+/* Cuadro de usuario compacto: deja més espai al menú quan hi ha submenús desplegats. */
+.side .who { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px; }
+.side .who > :first-child { grid-column: 1 / -1; }
+.side .who select, .side .who button { margin: 0; min-width: 0; width: 100%; }
+.side .who button { line-height: 1.15; padding: 4px 6px; }
+.side .who select { padding-left: 8px; padding-right: 20px; font-size: .8rem; background-position: right 6px center; }
+
+.stat { margin-top: 12px; }
+
+.shell > * { min-width: 0; }

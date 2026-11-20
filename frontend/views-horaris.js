@@ -30,10 +30,14 @@ async function omplirPost(dades, dia, torn, lloc, post, refresca) {
   if (!HOR.triat) { toast('Tria primer un treballador'); return; }
   if (post && post.user_id !== HOR.triat) { toast('Aquest lloc ja és ocupat: toca el treballador que hi ha per treure\'l'); return; }
   const user_id = post ? null : HOR.triat;
-  try {
-    await api(`/locals/${S.local}/horaris/slot`, { method: 'PUT', body: { data: dia.data, torn: torn.torn, lloc, user_id } });
-    await refresca();
-  } catch (e) { toast(e.message); }
+  // Una darrere l'altra: tocar molt de pressa no ha de crear conflictes de concurrència.
+  HOR.cua = (HOR.cua || Promise.resolve()).then(async () => {
+    try {
+      await api(`/locals/${S.local}/horaris/slot`, { method: 'PUT', body: { data: dia.data, torn: torn.torn, lloc, user_id } });
+      await refresca();
+    } catch (e) { toast(e.message); }
+  });
+  return HOR.cua;
 }
 
 function cellaDia(dades, dia, mgr, refresca) {

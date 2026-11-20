@@ -30,7 +30,7 @@ function literals(src) {
   return [...out];
 }
 // Sembla un text de pantalla: comença en majúscula, té minúscules i espais o és prou llarg, i no és codi/ruta/identificador.
-const esText = (s) => /^[A-ZÀ-Ý«¿¡][^\n]*[a-zà-ÿ]/.test(s) && s.length >= 4 && !/[_=<>{}$\/\\]|\.js|\.css|https?:/.test(s) && /\s/.test(s)
+const esText = (s) => /^[A-ZÀ-Ý«¿¡][^\n]*[a-zà-ÿ]/.test(s) && s.length >= 4 && !/[_=<>{}$\\]|\.js|\.css|https?:/.test(s) && /\s/.test(s)
   && !/^M\d/.test(s) && !/[\s:(\-·]$/.test(s) && !/\)\:/.test(s); // exclou camins SVG i fragments que després se'ls enganxa una dada (els cobreixen els patrons)
 
 test('tots els textos de les vistes tenen traducció a castellà i anglès', () => {

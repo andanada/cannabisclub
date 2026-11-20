@@ -35,7 +35,10 @@ Claus: `CLUB_FIELD_KEY` és una clau Fernet (`python -c "from app.crypto import 
 
 ## Com s'organitza la interfície
 
-El menú té vuit entrades: **Socis · Accés · Caixa · Dispensar · Estoc · Horaris · Estadístiques i informes · Configuració**.
+El menú té deu entrades: **Socis · Accés · Caixa · Dispensar · Estoc · Horaris · Càmeres · Menú del club · Estadístiques i informes · Configuració**.
+- **Horaris**: calendari mensual amb mode Omplir, canvis de torn amb aprovació, fitxatge i avançaments (comptes com a despesa).
+- **Menú del club**: la carta surt sola de l'estoc i es mostra en pantalles de TV/tauleta amb enllaç secret; vegeu `docs/MENU.md`.
+- **Càmeres**: directe via ffmpeg només per xarxa privada/Tailscale; vegeu `docs/CAMERES.md`.
 
 **Rol del dia.** En iniciar sessió, un treballador tria **Recepció** o **Dispensari** (la gerència —admin i encarregat— té accés complet i no tria). Recepció: Accés (pàgina d'inici), Caixa, Socis. Dispensari: Dispensar (inici), Estoc, Socis. Les donacions (crèdit als socis) i la caixa són de recepció; el dispensari no els toca. Tot el personal pot consultar els socis i afegir-ne incidències.
 
